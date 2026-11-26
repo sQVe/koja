@@ -203,7 +203,8 @@ const herdrLogPrefix =
 const successContext = (options: FakeSandboxOptions = {}) => {
   const ready = sceneReadyLine('sidebar');
 
-  return fakeContext(statusSequence([], ['koja-mocks'], ['koja-mocks'], [], []), {
+  // The scene overlay still shows after the crop is saved, so the close sends Escape.
+  return fakeContext(statusSequence([], ['koja-mocks'], ['koja-mocks'], ['koja-mocks'], []), {
     logs: ['earlier\n', `earlier\n${herdrLogPrefix}${ready}\n`],
     ...options,
   });
@@ -309,6 +310,7 @@ describe('mock:capture', () => {
       };
 
       expect(record.scene).toBe('sidebar');
+      expect(commands).toContainEqual(['key', 'Escape']);
 
       for (const file of outputFiles) {
         const content = await readFile(join(folder, file));
@@ -372,7 +374,7 @@ describe('mock:capture', () => {
     const ready = sceneReadyLine('sidebar');
 
     const { context } = successContext({
-      logs: (read) => (read === 0 ? 'earlier\n' : `earlier\n${herdrLogPrefix}${ready}\n`),
+      logs: (read) => (read < 2 ? 'earlier\n' : `earlier\n${herdrLogPrefix}${ready}\n`),
       onShot: writeShot,
       waitMilliseconds: 2000,
     });

@@ -163,6 +163,13 @@ const openScene = async (
   await waitUntil(
     async () => {
       const log = await sandbox.run(['log']);
+
+      if (!log.startsWith(baseline)) {
+        throw new Error(
+          `The sandbox log no longer starts with the text read before the scene opened; the log was rotated or truncated.`,
+        );
+      }
+
       const lines = log.slice(baseline.length).split('\n');
 
       return lines.some((line) => sceneReadyName(line) === sceneName);
@@ -320,13 +327,10 @@ const createSiblingFolder = async (folder: string, label: string): Promise<strin
 const createStagingFolder = (folder: string): Promise<string> =>
   createSiblingFolder(folder, 'staging');
 
-const restoreCapture = async (
+const removeNewCaptureFiles = async (
   folder: string,
-  backup: string,
   existing: string[],
   installed: string[],
-  backedUp: string[],
-  move: Move,
 ): Promise<unknown[]> => {
   const errors: unknown[] = [];
 
@@ -342,6 +346,17 @@ const restoreCapture = async (
       errors.push(error);
     }
   }
+
+  return errors;
+};
+
+const restoreBackedUpFiles = async (
+  backup: string,
+  folder: string,
+  backedUp: string[],
+  move: Move,
+): Promise<unknown[]> => {
+  const errors: unknown[] = [];
 
   for (const file of backedUp) {
     try {
@@ -386,7 +401,10 @@ export const publishCapture = async (
       return removeStagingAfterFailure(staging, error);
     }
 
-    const restoreErrors = await restoreCapture(folder, backup, existing, installed, backedUp, move);
+    const restoreErrors = [
+      ...(await removeNewCaptureFiles(folder, existing, installed)),
+      ...(await restoreBackedUpFiles(backup, folder, backedUp, move)),
+    ];
 
     if (restoreErrors.length > 0) {
       const details = restoreErrors.map(messageOf).join('; ');
