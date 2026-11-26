@@ -2,11 +2,13 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
 import {
+  click,
   drawn,
   drawnIcons,
   drawnTexts,
   elementWithIcon,
   elementWithText,
+  elementsWithStyle,
 } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 import type { PartNoteOptions } from './partNote.ts';
@@ -86,9 +88,12 @@ describe('partNote', () => {
     expect(messageOf(partNote({ part: 'threads', age: '2m ago' }))).not.toContain('checks');
   });
 
+  test('the note wraps instead of cutting the age off', () => {
+    expect(elementsWithStyle(checksNote, 'truncate')).toEqual([]);
+  });
+
   test('Retry reads the part again when the note binds it', () => {
     let retries = 0;
-    let stopped = 0;
 
     const note = partNote({
       part: 'checks',
@@ -100,20 +105,33 @@ describe('partNote', () => {
 
     const retry = retryOf(note);
 
-    if (retry !== undefined) {
-      retry.clickHandlers[0]?.(
-        {},
-        {
-          stop_propagation: () => {
-            stopped += 1;
-          },
-        },
-      );
+    if (retry === undefined) {
+      throw new Error('The note draws no Retry.');
     }
 
+    click(retry);
+
     expect(retries).toBe(1);
-    expect(stopped).toBe(1);
     expect(note.clickHandlers).toEqual([]);
+  });
+
+  test("Retry keeps the click from reaching the note's parents", () => {
+    let stopped = 0;
+
+    const note = partNote({ part: 'checks', age: '6m ago', onRetry: () => undefined });
+    const retry = retryOf(note);
+
+    if (retry === undefined) {
+      throw new Error('The note draws no Retry.');
+    }
+
+    click(retry, {
+      stop_propagation: () => {
+        stopped += 1;
+      },
+    });
+
+    expect(stopped).toBe(1);
   });
 
   test('a note without a retry handler draws a quiet Retry', () => {
