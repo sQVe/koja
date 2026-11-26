@@ -8,8 +8,10 @@ import {
   elementWithIcon,
   elementWithTooltip,
   elementsWithStyle,
+  numberStyle,
 } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import { iconSize } from './size.ts';
 
 type WorkNeed = 'conflict' | 'failing' | 'review' | 'restack' | 'merge';
 
@@ -83,7 +85,9 @@ describe('workIcon', () => {
   });
 
   test('a work need draws its glyph at the size the icon sets', () => {
-    expect(elementWithIcon(workIcon('failing'), 'circle-x.svg')?.styles['size']).toBeDefined();
+    const glyph = elementWithIcon(workIcon('failing'), 'circle-x.svg') ?? undefined;
+
+    expect(numberStyle(glyph, 'size')).toBe(iconSize.small);
   });
 
   test('the empty slot draws no icon and no tooltip', () => {
