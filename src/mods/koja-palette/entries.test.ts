@@ -340,9 +340,11 @@ describe('mod entries', () => {
   test('rejects an entry with no title, a blank title, or no command', () => {
     commandList = [];
 
-    expect(added({ command: 'koja-gallery.open' })).toBe(false);
-    expect(added({ title: '  ', command: 'koja-gallery.open' })).toBe(false);
-    expect(added({ title: 'Do the thing' })).toBe(false);
+    const withoutEntry = entriesOf([]).length;
+
+    expect(entriesOf([{ command: 'koja-gallery.open' }])).toHaveLength(withoutEntry);
+    expect(entriesOf([{ title: '  ', command: 'koja-gallery.open' }])).toHaveLength(withoutEntry);
+    expect(entriesOf([{ title: 'Do the thing' }])).toHaveLength(withoutEntry);
   });
 
   test('rejects an argument the command does not take', () => {
