@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { Stats } from 'node:fs';
+import type { Dirent, Stats } from 'node:fs';
 import { constants, watch } from 'node:fs';
 import {
   chmod,
@@ -7,7 +7,6 @@ import {
   lstat,
   mkdir,
   mkdtemp,
-  open,
   readdir,
   readFile,
   realpath,
@@ -30,10 +29,9 @@ import {
   resolve,
   sep,
 } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 
 import { buildMods, isMissing, outputDirectory, sourceDirectory } from './build.ts';
-import { acquireCheckoutLock } from './checkoutLock.ts';
+import { acquireCheckoutLock, acquireFileLock } from './fileLock.ts';
 
 export interface CheckResult {
   passed: boolean;
@@ -95,11 +93,32 @@ interface InstallProgress {
   written: string[];
   removed: string[];
   checks: InstallResult['checks'];
+  checksPassed: boolean;
   applied: boolean;
   staging: string | null;
 }
 
 type AncestorResolution = 'missing' | 'directory' | 'removed';
+
+interface RecordPlan {
+  home: string;
+  files: () => string[];
+  checkout: string;
+  inputs: InstallInput[];
+  earlierCompleted: boolean;
+  temporaryName: () => string;
+  writeFileTo: (path: string, text: string) => Promise<void>;
+  removeStaging: (path: string) => Promise<void>;
+}
+
+interface PublishPlan {
+  planned: Map<string, string>;
+  modFiles: [string, string][];
+  configFiles: [string, string][];
+  stale: string[];
+  owned: Set<string>;
+  chmodFile: (path: string, mode: number) => Promise<void>;
+}
 
 export const recordName = '.koja-install.json';
 
@@ -108,8 +127,6 @@ export const recordPath = (home: string): string => join(home, recordName);
 const lockName = '.koja-install.lock';
 
 const stagingPrefix = '.koja-check-';
-
-const lockRetryMilliseconds = 25;
 
 const lockTimeoutMilliseconds = 30_000;
 
@@ -124,6 +141,9 @@ const watchDebounceMilliseconds = 200;
 const isNotDirectory = (error: unknown): boolean =>
   error instanceof Error && 'code' in error && error.code === 'ENOTDIR';
 
+const messageOf = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 export const lstatOrNull = async (path: string): Promise<Stats | null> =>
   lstat(path).catch((error: unknown) => {
     if (isMissing(error) || isNotDirectory(error)) {
@@ -133,13 +153,16 @@ export const lstatOrNull = async (path: string): Promise<Stats | null> =>
     throw error;
   });
 
-export const filesUnder = async (directory: string): Promise<string[]> => {
+const entriesUnder = async (
+  directory: string,
+  keep: (entry: Dirent) => boolean,
+): Promise<string[]> => {
   try {
     const entries = await readdir(directory, { recursive: true, withFileTypes: true });
 
     // A folder listing has no stable order, so callers would see another order on another machine.
     return entries
-      .filter((entry) => entry.isFile())
+      .filter(keep)
       .map((entry) => relative(directory, join(entry.parentPath, entry.name)))
       .toSorted();
   } catch (error) {
@@ -151,20 +174,17 @@ export const filesUnder = async (directory: string): Promise<string[]> => {
   }
 };
 
-const leavesUnder = async (directory: string): Promise<string[]> => {
-  const entries = await readdir(directory, { recursive: true, withFileTypes: true });
+export const filesUnder = (directory: string): Promise<string[]> =>
+  entriesUnder(directory, (entry) => entry.isFile());
 
-  return entries
-    .filter((entry) => !entry.isDirectory())
-    .map((entry) => relative(directory, join(entry.parentPath, entry.name)))
-    .toSorted();
-};
+const leavesUnder = (directory: string): Promise<string[]> =>
+  entriesUnder(directory, (entry) => !entry.isDirectory());
 
 const shippedFolders = ['src', 'config'];
 
 const shippedFiles = [
   'scripts/build.ts',
-  'scripts/checkoutLock.ts',
+  'scripts/fileLock.ts',
   'scripts/install.ts',
   'package.json',
   'bun.lock',
@@ -585,6 +605,9 @@ export const isSameFile = async (source: string, destination: string): Promise<b
 
 const temporaryName = (path: string): string => `.${basename(path)}.koja-${randomUUID()}.tmp`;
 
+const temporaryFilePattern =
+  /^\..+\.koja-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.tmp$/;
+
 const installFile = async (
   home: string,
   path: string,
@@ -684,52 +707,20 @@ const byPath = (first: InstallInput, second: InstallInput): number => {
   return first.path < second.path ? -1 : 1;
 };
 
-const isAlreadyExists = (error: unknown): boolean =>
-  error instanceof Error && 'code' in error && error.code === 'EEXIST';
-
-const createInstallLock = async (lockPath: string): Promise<void> => {
-  const handle = await open(lockPath, 'wx');
-
-  await handle.close();
-};
-
 const acquireInstallLock = async (
   home: string,
   timeoutMilliseconds: number,
 ): Promise<() => Promise<void>> => {
   const lockPath = join(home, lockName);
-  const deadline = Date.now() + timeoutMilliseconds;
 
   await removeSymlinkLeaf(lockPath);
 
-  for (;;) {
-    try {
-      // eslint-disable-next-line no-await-in-loop -- the lock is tried once before a wait
-      await createInstallLock(lockPath);
-
-      return async () => {
-        await unlink(lockPath).catch((error: unknown) => {
-          if (!isMissing(error)) {
-            throw error;
-          }
-        });
-      };
-    } catch (error) {
-      if (!isAlreadyExists(error)) {
-        throw error;
-      }
-
-      if (Date.now() >= deadline) {
-        throw new Error(
-          `Timed out waiting for the install lock ${lockPath}. Stop other installs for this home, check that no installer holds the lock, then remove only ${lockPath} and retry.`,
-          { cause: error },
-        );
-      }
-
-      // eslint-disable-next-line no-await-in-loop -- a held lock is retried after a wait
-      await delay(lockRetryMilliseconds);
-    }
-  }
+  return acquireFileLock(lockPath, { timeoutMilliseconds }).catch((error: unknown) => {
+    throw new Error(
+      `Could not take the install lock ${lockPath} within ${timeoutMilliseconds} ms. Stop other installs for this home, then retry.`,
+      { cause: error },
+    );
+  });
 };
 
 const acquireInstallLocks = async (
@@ -881,9 +872,40 @@ const stageMods = async (home: string, planned: Map<string, string>): Promise<st
   }
 };
 
+const ownedFrom = async (home: string, earlier: string[]): Promise<Set<string>> => {
+  const owned = new Set<string>();
+
+  for (const path of earlier) {
+    // eslint-disable-next-line no-await-in-loop -- earlier paths are checked before anything changes
+    if ((await lstatOrNull(join(home, path))) !== null) {
+      owned.add(path);
+    }
+  }
+
+  return owned;
+};
+
 const adoptPlanned = (owned: Set<string>, planned: Map<string, string>): void => {
   for (const path of planned.keys()) {
     owned.add(path);
+  }
+};
+
+// A killed install leaves its staging folder and its half-copied files behind. Both carry this
+// installer's own names, so the next install removes them under the home lock.
+const removeLeftovers = async (home: string): Promise<void> => {
+  const entries = await readdir(home, { recursive: true, withFileTypes: true });
+
+  for (const entry of entries) {
+    const stagingFolder = entry.isDirectory() && entry.name.startsWith(stagingPrefix);
+    const temporaryFile = entry.isFile() && temporaryFilePattern.test(entry.name);
+
+    if (!stagingFolder && !temporaryFile) {
+      continue;
+    }
+
+    // eslint-disable-next-line no-await-in-loop -- one leftover is removed at a time
+    await rm(join(entry.parentPath, entry.name), { recursive: true, force: true });
   }
 };
 
@@ -1005,31 +1027,41 @@ const writeRecordFile = async (path: string, text: string): Promise<void> => {
   await writeFile(path, text, { flag: 'wx' });
 };
 
-const finishInstall = async (
-  home: string,
-  files: string[],
-  checkout: string,
-  inputs: InstallInput[],
-  temporaryRecordName: string,
-  writeFileTo: (path: string, text: string) => Promise<void>,
-  removeStaging: (path: string) => Promise<void>,
-  progress: InstallProgress,
-): Promise<void> => {
+// An install that failed before it changed anything leaves a complete home behind, so the earlier
+// result stands instead of reporting an incomplete install for an unchanged home. A check that ran
+// is a verdict on the new mods, so that install stays unfinished even when nothing on disk changed.
+const completedAfter = (plan: RecordPlan, progress: InstallProgress): boolean => {
+  if (progress.applied) {
+    return true;
+  }
+
+  const decided =
+    progress.written.length > 0 || progress.removed.length > 0 || progress.checks.length > 0;
+
+  return plan.earlierCompleted && !decided;
+};
+
+const finishInstall = async (plan: RecordPlan, progress: InstallProgress): Promise<void> => {
   let completed = false;
 
   try {
     if (progress.staging !== null) {
-      await removeStaging(progress.staging);
+      await plan.removeStaging(progress.staging);
     }
 
-    completed = progress.applied;
+    completed = completedAfter(plan, progress);
   } finally {
     await writeRecord(
-      home,
-      files,
-      { checkout, allChecksPassed: completed, completed, inputs },
-      temporaryRecordName,
-      writeFileTo,
+      plan.home,
+      plan.files(),
+      {
+        checkout: plan.checkout,
+        allChecksPassed: progress.checksPassed,
+        completed,
+        inputs: plan.inputs,
+      },
+      plan.temporaryName(),
+      plan.writeFileTo,
     );
   }
 };
@@ -1043,40 +1075,76 @@ const defaultTemporaryRecordName = (): string => `${recordName}.${randomUUID()}.
 const publishPlan = async (
   home: string,
   options: InstallOptions,
-  planned: Map<string, string>,
-  modFiles: [string, string][],
-  configFiles: [string, string][],
-  stale: string[],
-  owned: Set<string>,
-  chmodFile: (path: string, mode: number) => Promise<void>,
+  plan: PublishPlan,
   progress: InstallProgress,
 ): Promise<void> => {
   const recordOwned = (writtenPath: string): void => {
-    owned.add(writtenPath);
+    plan.owned.add(writtenPath);
   };
 
-  progress.staging = await stageMods(home, planned);
-  progress.checks.push(...(await checkMods(progress.staging, planned, options.check)));
+  progress.staging = await stageMods(home, plan.planned);
+  progress.checks.push(...(await checkMods(progress.staging, plan.planned, options.check)));
+  progress.checksPassed = progress.checks.every((check) => check.passed);
 
-  if (!progress.checks.every((check) => check.passed)) {
+  if (!progress.checksPassed) {
     return;
   }
 
-  progress.removed.push(...(await resolveConflicts(home, modFiles, owned)));
+  progress.removed.push(...(await resolveConflicts(home, plan.modFiles, plan.owned)));
 
-  const modsWritten = await installFiles(home, modFiles, chmodFile, recordOwned, progress.staging);
+  const modsWritten = await installFiles(
+    home,
+    plan.modFiles,
+    plan.chmodFile,
+    recordOwned,
+    progress.staging,
+  );
 
   progress.written.push(...modsWritten);
-  progress.removed.push(...(await resolveConflicts(home, configFiles, owned)));
+  progress.removed.push(...(await resolveConflicts(home, plan.configFiles, plan.owned)));
 
-  const configWritten = await installFiles(home, configFiles, chmodFile, recordOwned);
+  const configWritten = await installFiles(home, plan.configFiles, plan.chmodFile, recordOwned);
 
   progress.written.push(...configWritten);
-  progress.removed.push(...(await removeStale(home, stale, owned)));
+  progress.removed.push(...(await removeStale(home, plan.stale, plan.owned)));
 
-  adoptPlanned(owned, planned);
+  adoptPlanned(plan.owned, plan.planned);
 
   progress.applied = true;
+};
+
+const publishAndRecord = async (
+  home: string,
+  options: InstallOptions,
+  plan: PublishPlan,
+  progress: InstallProgress,
+  record: RecordPlan,
+): Promise<void> => {
+  let failure: Error | null = null;
+
+  try {
+    await publishPlan(home, options, plan, progress);
+  } catch (error) {
+    failure = error instanceof Error ? error : new Error(String(error));
+  }
+
+  try {
+    await finishInstall(record, progress);
+  } catch (recordError) {
+    if (failure === null) {
+      throw recordError;
+    }
+
+    throw new AggregateError(
+      [failure, recordError],
+      `The install failed and could not write its record. Install failed: ${messageOf(failure)} Record failed: ${messageOf(recordError)}`,
+      { cause: recordError },
+    );
+  }
+
+  if (failure !== null) {
+    throw failure;
+  }
 };
 
 export const install = async (options: InstallOptions): Promise<InstallResult> => {
@@ -1093,6 +1161,8 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
   const releaseLocks = await acquireInstallLocks(home, options);
 
   try {
+    await removeLeftovers(home);
+
     const planned = await plannedFiles(options);
     const modFiles = [...planned].filter(([path]) => isModFile(path));
     const configFiles = [...planned].filter(([path]) => !isModFile(path));
@@ -1100,52 +1170,39 @@ export const install = async (options: InstallOptions): Promise<InstallResult> =
     const earlierRecord = await readRecord(home);
     const earlier = earlierRecord?.files ?? [];
     const stale = earlier.filter((file) => !planned.has(file));
-    const owned = new Set<string>();
 
     const progress: InstallProgress = {
       written: [],
       removed: [],
       checks: [],
+      checksPassed: false,
       applied: false,
       staging: null,
     };
 
-    for (const path of earlier) {
-      // eslint-disable-next-line no-await-in-loop -- earlier paths are checked before anything changes
-      if ((await lstatOrNull(join(home, path))) !== null) {
-        owned.add(path);
-      }
-    }
+    const owned = await ownedFrom(home, earlier);
 
     for (const path of [...planned.keys(), ...stale, recordName]) {
       // eslint-disable-next-line no-await-in-loop -- every destination is checked before anything changes
       await refuseLinkedFolders(home, path);
     }
 
-    try {
-      await publishPlan(
+    await publishAndRecord(
+      home,
+      options,
+      { planned, modFiles, configFiles, stale, owned, chmodFile },
+      progress,
+      {
         home,
-        options,
-        planned,
-        modFiles,
-        configFiles,
-        stale,
-        owned,
-        chmodFile,
-        progress,
-      );
-    } finally {
-      await finishInstall(
-        home,
-        [...owned],
+        files: () => [...owned],
         checkout,
-        options.inputs,
-        temporaryRecordName(),
-        writeRecordTo,
+        inputs: options.inputs,
+        earlierCompleted: earlierRecord?.origin?.completed === true,
+        temporaryName: temporaryRecordName,
+        writeFileTo: writeRecordTo,
         removeStaging,
-        progress,
-      );
-    }
+      },
+    );
 
     return { written: progress.written, removed: progress.removed, checks: progress.checks };
   } finally {

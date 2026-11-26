@@ -274,6 +274,10 @@ const existingCaptureFiles = async (folder: string): Promise<string[]> => {
   return existing;
 };
 
+const refuseNonFileTargets = async (folder: string): Promise<void> => {
+  await existingCaptureFiles(folder);
+};
+
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
@@ -288,6 +292,21 @@ const removeStagingAfterFailure = async (staging: string, error: unknown): Promi
   }
 
   throw error;
+};
+
+const removeCaptureFolders = async (staging: string, backup: string): Promise<string[]> => {
+  const kept: string[] = [];
+
+  for (const path of [staging, backup]) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- both folders are tried even when one fails.
+      await rm(path, { recursive: true, force: true });
+    } catch (error) {
+      kept.push(`${path} (${messageOf(error)})`);
+    }
+  }
+
+  return kept;
 };
 
 const createSiblingFolder = async (folder: string, label: string): Promise<string> => {
@@ -377,14 +396,23 @@ export const publishCapture = async (
       });
     }
 
-    await rm(staging, { recursive: true, force: true });
-    await rm(backup, { recursive: true, force: true });
+    const kept = await removeCaptureFolders(staging, backup);
+
+    if (kept.length > 0) {
+      throw new Error(
+        `The capture was not published and kept ${kept.join('; ')}. ${messageOf(error)}`,
+        { cause: error },
+      );
+    }
 
     throw error;
   }
 
-  await rm(backup, { recursive: true, force: true });
-  await rm(staging, { recursive: true, force: true });
+  const kept = await removeCaptureFolders(staging, backup);
+
+  if (kept.length > 0) {
+    throw new Error(`The capture was published and kept ${kept.join('; ')}.`);
+  }
 };
 
 const printError = (error: unknown): void => {
@@ -405,7 +433,7 @@ export const capture = async (
   const { scene } = lookup;
   const folder = resolve(folderArgument ?? join('.tau', 'judge', scene.name));
 
-  await existingCaptureFiles(folder);
+  await refuseNonFileTargets(folder);
 
   const status = await context.sandbox.status();
 
@@ -434,9 +462,9 @@ const lockEnvironmentKey = 'KOJA_CAPTURE_LOCK_HELD';
 
 const captureScript = join(import.meta.dir, 'capture.ts');
 
-const runUnderLock = async (argv: string[]): Promise<number> => {
+export const runUnderLock = async (argv: string[], sandbox = sandboxCommand): Promise<number> => {
   const child = Bun.spawn({
-    cmd: [sandboxCommand, 'lock', process.execPath, captureScript, ...argv],
+    cmd: [sandbox, 'lock', process.execPath, captureScript, ...argv],
     env: { ...Bun.env, [lockEnvironmentKey]: '1' },
     stdin: 'inherit',
     stdout: 'inherit',

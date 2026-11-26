@@ -33,7 +33,9 @@ fonts, and `settings.json`, and removes stale files. A failed check leaves the l
 config, and stale files in place, so keys and layouts keep naming mods that worked. After a
 successful install, every matching planned file counts as owned, including one it did not rewrite.
 The record marks an install complete only after config and cleanup succeed, and keeps partial
-ownership after a failure so the next run can recover.
+ownership after a failure so the next run can recover. It also records whether every mod check
+passed, apart from whether the install completed, so a failure after the checks does not read as a
+failed check.
 
 One checkout has a single writer for the shared `dist/mods` output. A build and an install take the
 same `flock` on the checkout directory: the build holds it while it stages and publishes the mods,
@@ -42,7 +44,8 @@ the home lock, so two installs cannot wait on each other in opposite orders. A s
 holds that same checkout lock around its whole build and install command; the inner acquisition
 skips the lock only because that caller already holds it. An installer refuses a missing built mods
 tree with its own error instead of treating it as an empty plan, so a reader never mistakes an
-absent build for a deliberate empty one.
+absent build for a deliberate empty one. Both locks are `flock` locks, so a killed installer leaves
+no lock file that someone has to remove by hand.
 
 `keys.json`, the layout, and `settings.json` live in the repository, because they name Koja's mods
 and theme, and a rename must change them in the same commit.

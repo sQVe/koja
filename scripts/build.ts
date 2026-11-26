@@ -1,19 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import {
-  chmod,
-  cp,
-  lstat,
-  mkdir,
-  mkdtemp,
-  readdir,
-  realpath,
-  rename,
-  rm,
-  stat,
-} from 'node:fs/promises';
+import { chmod, cp, lstat, mkdir, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
-import { acquireCheckoutLock } from './checkoutLock.ts';
+import { acquireCheckoutLock } from './fileLock.ts';
 
 interface BuildHooks {
   readonly renamePath?: (from: string, to: string) => Promise<void>;
@@ -90,6 +79,8 @@ const refuseOverlap = async (source: string, output: string): Promise<void> => {
   const outputTarget = await canonicalPath(output);
   const outputEntry = await directoryEntryPath(output);
 
+  // Either path may be a symlink, so its own name can resolve elsewhere than its folder. Comparing
+  // both forms catches an overlap whichever one is linked.
   const pairs: [string, string][] = [
     [sourceTarget, outputTarget],
     [sourceTarget, outputEntry],
@@ -280,10 +271,7 @@ const removeTree = async (path: string): Promise<void> => {
 
     const names = await readdir(path);
 
-    for (const name of names) {
-      // eslint-disable-next-line no-await-in-loop -- a copied tree is removed one entry at a time
-      await removeTree(join(path, name));
-    }
+    await Promise.all(names.map(async (name) => removeTree(join(path, name))));
   }
 
   await rm(path, { recursive: true, force: true });
@@ -311,6 +299,32 @@ const defaultWarn = (message: string): void => {
   process.stderr.write(`${message}\n`);
 };
 
+const isLeftover = (name: string, outputName: string): boolean =>
+  name.startsWith(`${outputName}.staging-`) || name.startsWith(`${outputName}.previous-`);
+
+const removeLeftovers = async (
+  parent: string,
+  outputName: string,
+  removeStaging: (path: string) => Promise<void>,
+  removePrevious: (path: string) => Promise<void>,
+  warn: (message: string) => void,
+): Promise<void> => {
+  const entries = await readdir(parent);
+  const names = entries.filter((name) => isLeftover(name, outputName));
+
+  for (const name of names) {
+    const path = join(parent, name);
+    const remove = name.startsWith(`${outputName}.previous-`) ? removePrevious : removeStaging;
+
+    try {
+      // eslint-disable-next-line no-await-in-loop -- one leftover tree is removed at a time
+      await remove(path);
+    } catch (error) {
+      warn(`Could not remove the leftover ${path}: ${messageOf(error)}`);
+    }
+  }
+};
+
 const publishStaging = async (
   staging: string,
   output: string,
@@ -328,7 +342,7 @@ const publishStaging = async (
       await renamePath(previous, output).catch((restoreError: unknown) => {
         throw new AggregateError(
           [error, restoreError],
-          `Could not publish ${output} and could not restore the previous output`,
+          `Could not publish ${output} and could not restore the previous output. Keep ${previous}. Publish failed: ${messageOf(error)} Restore failed: ${messageOf(restoreError)}`,
           { cause: error },
         );
       });
@@ -360,6 +374,8 @@ export const buildMods = async (
   });
 
   const removeStaging = hooks.removeStaging ?? removeTree;
+  const removePrevious = hooks.removePrevious ?? removeTree;
+  const warn = hooks.warn ?? defaultWarn;
 
   try {
     const names = await listModNames(source);
@@ -367,8 +383,11 @@ export const buildMods = async (
     const parent = dirname(outputPath);
 
     await mkdir(parent, { recursive: true });
+    await removeLeftovers(parent, basename(outputPath), removeStaging, removePrevious, warn);
 
-    const staging = await mkdtemp(join(parent, `${basename(outputPath)}.staging-`));
+    const staging = join(parent, `${basename(outputPath)}.staging-${randomUUID()}`);
+
+    await mkdir(staging);
 
     try {
       await buildEveryMod(source, staging, names);
@@ -391,7 +410,9 @@ export const buildMods = async (
 
     return names;
   } finally {
-    await release();
+    await release().catch((releaseError: unknown) => {
+      warn(`Could not release the checkout lock: ${messageOf(releaseError)}`);
+    });
   }
 };
 

@@ -10,6 +10,7 @@ let root: string;
 let home: string;
 let mods: string;
 let config: string;
+let secondCheckout: string;
 
 const oldKeys = '{ "global": {} }\n';
 const newKeys = '{ "global": { "ctrl-b": "koja-modal" } }\n';
@@ -49,8 +50,10 @@ beforeEach(async () => {
   home = join(root, 'herdr-app');
   mods = join(root, 'dist', 'mods');
   config = join(root, 'config');
+  secondCheckout = join(root, 'checkout-two');
 
   await mkdir(home, { recursive: true });
+  await mkdir(secondCheckout, { recursive: true });
   await writeAt(join(mods, 'koja-tabs', 'main.js'), 'export default 1;\n');
   await writeAt(join(mods, 'koja-tabs', 'icons', 'x.svg'), '<svg/>\n');
   await writeAt(join(config, 'keys.json'), oldKeys);
@@ -176,9 +179,10 @@ describe('install order', () => {
     await firstStarted;
     await rm(join(mods, 'koja-extra'), { recursive: true });
 
+    // A second checkout leaves only the home lock to serialize the two installs.
     const second = install({
       home,
-      checkout: root,
+      checkout: secondCheckout,
       inputs: [],
       modsDirectory: mods,
       configDirectory: config,

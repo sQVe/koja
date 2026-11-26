@@ -35,10 +35,15 @@ const seededRandom = (seed: number): (() => number) => {
   };
 };
 
-const choose = (random: () => number): string[] => {
-  const chosen = pool.filter(() => random() < 0.5);
+const modPaths = pool.filter((path) => path.startsWith('mods/'));
+const configPaths = pool.filter((path) => !path.startsWith('mods/'));
 
-  return chosen.length === 0 ? [pool[0] as string] : chosen;
+// Every plan carries at least one mod, so the record always stores a real check result.
+const choose = (random: () => number): string[] => {
+  const chosenMods = modPaths.filter(() => random() < 0.5);
+  const chosenConfigs = configPaths.filter(() => random() < 0.5);
+
+  return [...(chosenMods.length === 0 ? [modPaths[0] as string] : chosenMods), ...chosenConfigs];
 };
 
 const installedPath = (path: string): string =>

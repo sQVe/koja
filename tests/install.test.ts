@@ -16,7 +16,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, sep } from 'node:path';
 
-import { acquireCheckoutLock } from '../scripts/checkoutLock.ts';
+import { acquireCheckoutLock, acquireFileLock } from '../scripts/fileLock.ts';
 import type { CheckResult } from '../scripts/install.ts';
 import { filesUnder, install, readRecord, shippedInputs, trustedRoot } from '../scripts/install.ts';
 import { findIdentityFailures } from '../scripts/sandboxIdentity.ts';
@@ -252,7 +252,7 @@ describe('install', () => {
     expect(failure).toBeInstanceOf(Error);
     expect(record.files).toContain('extra.json');
     expect(record.files).not.toContain('keys.json');
-    expect(record.allChecksPassed).toBe(false);
+    expect(record.allChecksPassed).toBe(true);
     expect(record.completed).toBe(false);
     expect(await exists(join(home, 'keys.json'))).toBe(false);
   });
@@ -320,7 +320,7 @@ describe('install', () => {
 
     expect(failure).toBeInstanceOf(Error);
     expect(failure).toHaveProperty('message', expect.stringContaining('.koja-install.lock'));
-    expect(await exists(join(home, '.koja-install.lock'))).toBe(false);
+    expect(await readFile(join(home, '.koja-install.lock'), 'utf8')).toBe('');
   });
 
   test('refuses a record that names the install lock', async () => {
@@ -691,33 +691,34 @@ describe('install', () => {
     expect(await exists(join(home, temporaryName))).toBe(false);
   });
 
-  test('keeps the lock when another installer holds it and retries after removing only the lock', async () => {
+  test('gives up on a home lock another installer holds, and takes it once that install releases', async () => {
     const lockPath = join(home, '.koja-install.lock');
 
     await run();
-    await writeFile(lockPath, 'held\n');
 
-    const blocked: unknown = await install({
-      home,
-      checkout: root,
-      inputs: [],
-      modsDirectory: mods,
-      configDirectory: config,
-      check: passingCheck,
-      lockTimeoutMilliseconds: 50,
-    }).catch((error: unknown) => error);
+    const release = await acquireFileLock(lockPath);
 
-    expect(blocked).toBeInstanceOf(Error);
-    expect(blocked).toHaveProperty('message', expect.stringContaining(lockPath));
-    expect(blocked).toHaveProperty('message', expect.stringContaining('remove only'));
-    expect(await exists(lockPath)).toBe(true);
+    try {
+      const blocked: unknown = await install({
+        home,
+        checkout: root,
+        inputs: [],
+        modsDirectory: mods,
+        configDirectory: config,
+        check: passingCheck,
+        lockTimeoutMilliseconds: 50,
+      }).catch((error: unknown) => error);
 
-    await rm(lockPath);
+      expect(blocked).toBeInstanceOf(Error);
+      expect(blocked).toHaveProperty('message', expect.stringContaining(lockPath));
+      expect(blocked).toHaveProperty('message', expect.stringContaining('Stop other installs'));
+    } finally {
+      await release();
+    }
 
     const result = await run();
 
     expect(result.written).toEqual([]);
-    expect(await exists(lockPath)).toBe(false);
   });
 
   test('waits for the checkout lock before reading the built mods', async () => {
@@ -768,6 +769,8 @@ describe('install', () => {
 
     const releaseCheckout = await acquireCheckoutLock(root);
 
+    let ordinaryFinished = false;
+
     const ordinary = install({
       home,
       checkout: root,
@@ -776,6 +779,10 @@ describe('install', () => {
       configDirectory: config,
       check: passingCheck,
       onCheckoutLockWait: signalWaiting,
+    }).then((result) => {
+      ordinaryFinished = true;
+
+      return result;
     });
 
     try {
@@ -786,7 +793,7 @@ describe('install', () => {
         }),
       ]);
 
-      expect(await exists(join(home, '.koja-install.lock'))).toBe(false);
+      expect(ordinaryFinished).toBe(false);
 
       const sandbox = await install({
         home,
@@ -1130,8 +1137,43 @@ describe('install', () => {
 
     expect(failure).toBeInstanceOf(Error);
     expect(record?.origin?.completed).toBe(false);
+    expect(record?.origin?.allChecksPassed).toBe(true);
+    expect(failures).toEqual([{ kind: 'installIncomplete' }]);
+  });
+
+  test('keeps a complete record when an install fails before it changes anything', async () => {
+    await run();
+
+    const failure: unknown = await install({
+      home,
+      checkout: root,
+      inputs: [],
+      modsDirectory: mods,
+      configDirectory: config,
+      check: async () => {
+        throw new Error('injected check failure');
+      },
+    }).catch((error: unknown) => error);
+
+    const record = await readRecord(home);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(record?.origin?.completed).toBe(true);
     expect(record?.origin?.allChecksPassed).toBe(false);
-    expect(failures).toEqual([{ kind: 'installIncomplete' }, { kind: 'checkFailed' }]);
+  });
+
+  test('removes the staging folder and half-copied file a killed install left behind', async () => {
+    const staging = join(home, '.koja-check-leftover');
+    const partial = join(home, '.keys.json.koja-01234567-89ab-cdef-0123-456789abcdef.tmp');
+
+    await mkdir(staging, { recursive: true });
+    await writeFile(join(staging, 'main.js'), 'staged\n');
+    await writeFile(partial, 'partial\n');
+
+    await run();
+
+    expect(await exists(staging)).toBe(false);
+    expect(await exists(partial)).toBe(false);
   });
 
   test('writes install record version 3', async () => {

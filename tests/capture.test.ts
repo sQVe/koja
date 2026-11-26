@@ -14,13 +14,21 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
 import type { Box, CaptureContext, Images, Size } from '../scripts/capture.ts';
-import { capture, cropBox, cropFits, cropGeometry, publishCapture } from '../scripts/capture.ts';
+import {
+  capture,
+  cropBox,
+  cropFits,
+  cropGeometry,
+  publishCapture,
+  runUnderLock,
+} from '../scripts/capture.ts';
 import { sceneReadyLine } from '../src/mods/koja-mocks/catalog.ts';
 
 interface FakeSandboxOptions {
   images?: Images;
   logs?: string[] | ((read: number) => string);
   onShot?: (path: string) => Promise<void> | void;
+  waitMilliseconds?: number;
 }
 
 type Overlays = string[] | (() => string[]);
@@ -166,7 +174,7 @@ const fakeContext = (overlays: Overlays = [], options: FakeSandboxOptions = {}) 
       },
     },
     pickerSettleMilliseconds: 0,
-    waitMilliseconds: 0,
+    waitMilliseconds: options.waitMilliseconds ?? 0,
     images: options.images ?? fakeImages().images,
   };
 
@@ -205,6 +213,31 @@ const sceneOrigin = { x: 20, y: 40 };
 const sidebarSize = { width: 250, height: 512 };
 
 describe('mock:capture', () => {
+  test('a scene runs the capture script under the sandbox lock with the lock held', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
+    const recorded = join(root, 'recorded.txt');
+    const sandbox = join(root, 'sandbox');
+    const folder = join(root, 'judge', 'sidebar');
+
+    await writeFile(
+      sandbox,
+      `#!/bin/sh\nprintf '%s\\n' "$@" > '${recorded}'\nprintf 'held=%s\\n' "$KOJA_CAPTURE_LOCK_HELD" >> '${recorded}'\n`,
+    );
+
+    await chmod(sandbox, 0o755);
+
+    try {
+      const exitCode = await runUnderLock(['sidebar', folder], sandbox);
+      const lines = (await readFile(recorded, 'utf8')).trim().split('\n');
+      const captureScript = join(import.meta.dir, '..', 'scripts', 'capture.ts');
+
+      expect(exitCode).toBe(0);
+      expect(lines).toEqual(['lock', process.execPath, captureScript, 'sidebar', folder, 'held=1']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test('an unknown scene name exits 1, names the scene, and creates no folder', async () => {
     const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
     const folder = join(root, 'judge', 'no-such-scene');
@@ -328,6 +361,26 @@ describe('mock:capture', () => {
       }
 
       expect(await readdir(dirname(folder))).toEqual(['sidebar']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test('a ready line written on a later poll satisfies the wait', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
+    const folder = join(root, 'judge', 'sidebar');
+    const ready = sceneReadyLine('sidebar');
+
+    const { context } = successContext({
+      logs: (read) => (read === 0 ? 'earlier\n' : `earlier\n${herdrLogPrefix}${ready}\n`),
+      onShot: writeShot,
+      waitMilliseconds: 2000,
+    });
+
+    try {
+      await capture(['sidebar', folder], context);
+
+      expect(await fileExists(join(folder, 'capture.json'))).toBe(true);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -543,29 +596,32 @@ describe('publishCapture', () => {
     }
   });
 
-  test('a read-only target folder leaves the earlier capture and removes staging and backup', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'koja-publish-'));
-    const folder = join(root, 'judge', 'sidebar');
+  test.skipIf(process.getuid?.() === 0)(
+    'a read-only target folder leaves the earlier capture and removes staging and backup',
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), 'koja-publish-'));
+      const folder = join(root, 'judge', 'sidebar');
 
-    try {
-      await writeCaptureFiles(folder, 'old');
+      try {
+        await writeCaptureFiles(folder, 'old');
 
-      const before = await readCaptureFiles(folder);
+        const before = await readCaptureFiles(folder);
 
-      await chmod(folder, 0o555);
+        await chmod(folder, 0o555);
 
-      const { context } = successContext({ onShot: writeShot });
-      const failure = await failureMessageOf(capture(['sidebar', folder], context));
+        const { context } = successContext({ onShot: writeShot });
+        const failure = await failureMessageOf(capture(['sidebar', folder], context));
 
-      expect(failure).not.toBe('no error');
-      expectSameCapture(await readCaptureFiles(folder), before);
-      expect(await siblingFolders(folder, 'staging')).toEqual([]);
-      expect(await siblingFolders(folder, 'backup')).toEqual([]);
-    } finally {
-      await chmod(folder, 0o755).catch(() => undefined);
-      await rm(root, { recursive: true, force: true });
-    }
-  });
+        expect(failure).toContain(folder);
+        expectSameCapture(await readCaptureFiles(folder), before);
+        expect(await siblingFolders(folder, 'staging')).toEqual([]);
+        expect(await siblingFolders(folder, 'backup')).toEqual([]);
+      } finally {
+        await chmod(folder, 0o755).catch(() => undefined);
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
 
   test('a failed restore keeps both folders and names them in the error', async () => {
     const root = await mkdtemp(join(tmpdir(), 'koja-publish-'));

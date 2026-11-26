@@ -65,7 +65,7 @@ const writeCheckout = async (folder: string): Promise<void> => {
   await writeAt(join(folder, 'config', 'layouts', 'koja.json'), '{ "id": "root" }\n');
   await writeAt(join(folder, 'scripts', 'build.ts'), 'export {};\n');
   await writeAt(join(folder, 'scripts', 'install.ts'), 'export {};\n');
-  await writeAt(join(folder, 'scripts', 'checkoutLock.ts'), 'export {};\n');
+  await writeAt(join(folder, 'scripts', 'fileLock.ts'), 'export {};\n');
   await writeAt(join(folder, 'package.json'), '{}\n');
   await writeAt(join(folder, 'bun.lock'), '{}\n');
   await writeAt(join(folder, 'dist', 'mods', 'koja-tabs', 'main.js'), 'export default 1;\n');
@@ -326,7 +326,7 @@ describe('sandbox identity', () => {
     ],
     ['scripts/build.ts', [{ kind: 'changedSinceInstall', path: 'scripts/build.ts' }]],
     ['scripts/install.ts', [{ kind: 'changedSinceInstall', path: 'scripts/install.ts' }]],
-    ['scripts/checkoutLock.ts', [{ kind: 'changedSinceInstall', path: 'scripts/checkoutLock.ts' }]],
+    ['scripts/fileLock.ts', [{ kind: 'changedSinceInstall', path: 'scripts/fileLock.ts' }]],
     ['package.json', [{ kind: 'changedSinceInstall', path: 'package.json' }]],
     ['bun.lock', [{ kind: 'changedSinceInstall', path: 'bun.lock' }]],
   ])('fails when %s changed after the install', async (path, expected) => {

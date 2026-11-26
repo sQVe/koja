@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve as resolvePath } from 'node:path';
 
 import { buildMods } from '../scripts/build.ts';
-import { acquireCheckoutLock } from '../scripts/checkoutLock.ts';
+import { acquireCheckoutLock } from '../scripts/fileLock.ts';
 
 interface StructuredDiagnostic {
   readonly message: string;
@@ -210,7 +210,7 @@ describe('buildMods', () => {
         }),
       ]);
 
-      expect(await exists(output)).toBe(false);
+      expect(await exists(dirname(output))).toBe(false);
     } finally {
       await release();
     }
@@ -530,6 +530,62 @@ describe('buildMods', () => {
     expect(messageOf(failure)).toContain('injected publish failure');
     expect(await readTree(output)).toEqual(before);
     expect(await readdir(dirname(output))).toEqual(['mods']);
+  });
+
+  test('names the kept previous tree and both errors when publishing and restoring fail', async () => {
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+    await mkdir(join(output, 'old'), { recursive: true });
+    await writeFile(join(output, 'old', 'main.js'), 'old bundle\n');
+
+    const failure = await buildMods(source, output, {
+      renamePath: async (from, to) => {
+        if (from.includes('.staging-') && to === resolvePath(output)) {
+          throw new Error('injected publish failure');
+        }
+
+        if (from.includes('.previous-') && to === resolvePath(output)) {
+          throw new Error('injected restore failure');
+        }
+
+        await rename(from, to);
+      },
+    }).catch((error: unknown) => error);
+
+    const kept = (await readdir(dirname(output))).filter((name) =>
+      name.startsWith('mods.previous-'),
+    );
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(kept).toHaveLength(1);
+    expect(messageOf(failure)).toContain(join(dirname(output), kept[0] ?? ''));
+    expect(messageOf(failure)).toContain('injected publish failure');
+    expect(messageOf(failure)).toContain('injected restore failure');
+  });
+
+  test('removes leftover staging and previous trees before the next build', async () => {
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+
+    const leftoverStaging = join(dirname(output), 'mods.staging-leftover');
+    const leftoverPrevious = join(dirname(output), 'mods.previous-leftover');
+
+    await mkdir(leftoverStaging, { recursive: true });
+    await mkdir(leftoverPrevious, { recursive: true });
+    await writeFile(join(leftoverPrevious, 'main.js'), 'stranded bundle\n');
+
+    await buildMods(source, output);
+
+    expect(await readdir(dirname(output))).toEqual(['mods']);
+  });
+
+  test('publishes the built tree with the default directory mode', async () => {
+    const reference = join(root, 'reference');
+
+    await writeSource('menu/main.ts', 'export const menu = 1;\n');
+    await mkdir(reference);
+
+    await buildMods(source, output);
+
+    expect((await stat(output)).mode & 0o777).toBe((await stat(reference)).mode & 0o777);
   });
 
   test('builds nothing when there is no mods folder', async () => {

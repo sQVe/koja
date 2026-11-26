@@ -27,6 +27,7 @@ const environmentFor = (name: string): Record<string, string> => {
   environment['PATH'] = `${guards}:${environment['PATH'] ?? ''}`;
 
   delete environment['TAU_VERIFICATION_RUN'];
+  delete environment['KOJA_SANDBOX_GENERATION'];
 
   return environment;
 };
@@ -57,10 +58,10 @@ const writeGeneration = async (folder: string, id: string): Promise<void> => {
   await writeFile(join(folder, generationFile), `${id}\n`);
 };
 
-const writeMetadataShim = async (folder: string): Promise<void> => {
-  const path = join(folder, 'stat');
+const writeRutaShim = async (folder: string): Promise<void> => {
+  const path = join(folder, 'ruta');
 
-  await writeFile(path, '#!/bin/sh\nprintf "0:0:-\\n"\n', { mode: 0o755 });
+  await writeFile(path, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   await chmod(path, 0o755);
 };
 
@@ -96,7 +97,6 @@ beforeEach(async () => {
   await writeFile(script, source, { mode: 0o755 });
   await chmod(script, 0o755);
   await mkdir(guards, { recursive: true });
-  await writeMetadataShim(guards);
 
   const alphaRoot = join(root, 'ruta-alpha');
   const betaRoot = join(root, 'ruta-beta');
@@ -160,12 +160,72 @@ describe('scripts/sandbox lock', () => {
     }
   });
 
+  test('up writes the generation id that a later lock checks', async () => {
+    const alphaRoot = join(root, 'ruta-alpha');
+
+    await writeRutaShim(guards);
+    await rm(join(alphaRoot, generationFile));
+
+    const up = Bun.spawn([script, 'up'], {
+      cwd: checkout,
+      env: environmentFor('alpha'),
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    expect(await up.exited).toBe(0);
+    expect((await readFile(join(alphaRoot, generationFile), 'utf8')).trim()).not.toBe('');
+  });
+
   test('rejects a sandbox root whose generation id is missing', async () => {
     await rm(join(root, 'ruta-alpha', generationFile));
 
     const holder = spawnLock('alpha', ['sh', '-c', 'exit 0']);
 
     expect(await holder.exited).not.toBe(0);
+  });
+
+  test('a waiter that read the old id aborts when the root is replaced under it', async () => {
+    const held = join(root, 'held');
+    const replace = join(root, 'replace');
+    const release = join(root, 'release');
+    const second = join(root, 'second');
+    const alphaRoot = join(root, 'ruta-alpha');
+    let waiter: LockProcess | undefined;
+
+    await writeShim(alphaRoot);
+
+    const first = spawnLock('alpha', [
+      'sh',
+      '-c',
+      `printf held >'${held}'; while [ ! -e '${replace}' ]; do sleep 0.01; done; while [ ! -e '${release}' ]; do sleep 0.01; done`,
+    ]);
+
+    try {
+      await waitForFile(held);
+
+      waiter = spawnLock('alpha', ['sh', '-c', `printf second >'${second}'`]);
+
+      await Bun.sleep(300);
+
+      expect(waiter.exitCode).toBeNull();
+
+      await rm(alphaRoot, { recursive: true, force: true });
+      await mkdir(alphaRoot, { recursive: true });
+      await writeGeneration(alphaRoot, 'replacement-generation');
+      await writeShim(alphaRoot);
+      await writeFile(replace, '');
+      await writeFile(release, '');
+
+      expect(await first.exited).toBe(0);
+      expect(await waiter.exited).not.toBe(0);
+      expect(await Bun.file(second).exists()).toBe(false);
+    } finally {
+      await writeFile(replace, '').catch(() => undefined);
+      await writeFile(release, '').catch(() => undefined);
+      await first.exited.catch(() => undefined);
+      await stopIfRunning(waiter);
+    }
   });
 
   test('keeps the same-name lock and rejects a replaced root with reused metadata', async () => {

@@ -183,6 +183,11 @@ case ${1:-} in
     # The launch script runs from the checkout, so give it an absolute path.
     bin=$(realpath -ms -- "$bin")
     cd "$checkout"
+    # Replace the id before the root can change, so a capture waiting on the lock aborts instead of
+    # shooting the window while it is replaced. A fresh root gets its id once it exists.
+    if [[ -d $root ]]; then
+      write_generation
+    fi
     status=0
     ruta "$command" "$@" -- "$bin" || status=$?
     if (( status == 0 )); then
@@ -223,8 +228,9 @@ case ${1:-} in
       root=$1
       name=$2
       expected=$3
-      shift 3
-      current=$(cat "$root/.koja-generation" 2>/dev/null) || {
+      generation=$4
+      shift 4
+      current=$(cat "$generation" 2>/dev/null) || {
         printf "sandbox %s root %s has no generation while waiting for the capture lock\n" "$name" "$root" >&2
         exit 1
       }
@@ -234,7 +240,7 @@ case ${1:-} in
       fi
       export KOJA_SANDBOX_GENERATION="$current"
       exec "$@"
-    ' sh "$root" "$name" "$expected" "$@"
+    ' sh "$root" "$name" "$expected" "$generation_file" "$@"
     ;;
   guard) require_up ;;
   down)
