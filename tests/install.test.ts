@@ -628,7 +628,7 @@ describe('install', () => {
       JSON.stringify({ version: 1, checkout: root, allChecksPassed: true, inputs, files: [] }),
     );
 
-    expect(await readRecord(home)).toEqual({ files: [], origin: null });
+    expect(await readRecord(home)).toEqual({ files: [], checkout: root, origin: null });
   });
 
   test('runs on a home whose record holds a plain list of input paths', async () => {
@@ -661,7 +661,7 @@ describe('install', () => {
       }),
     );
 
-    expect(await readRecord(home)).toEqual({ files: ['keys.json'], origin: null });
+    expect(await readRecord(home)).toEqual({ files: ['keys.json'], checkout: root, origin: null });
   });
 
   test('removes a stale file named by a record without shipped inputs', async () => {

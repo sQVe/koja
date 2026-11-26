@@ -39,13 +39,26 @@ if [[ ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   exit 2
 fi
 
+if (( ${#name} > 32 )); then
+  echo "RUTA_NAME must be at most 32 characters, not '$name'" >&2
+  exit 2
+fi
+
 root=/var/tmp/ruta-$name
+
+# ruta runs `capture` in a sandbox of its own, named <name>-capture, so guard that root.
+guard_name=$name
+guard_root=$root
+if [[ ${1:-} == capture ]]; then
+  guard_name=$name-capture
+  guard_root=$root-capture
+fi
 
 # A sandbox name belongs to the checkout that installed it, so this checkout must not start, change,
 # or remove a sandbox that another checkout holds. identity reports the holder instead, and the
 # commands that only read the window or print rules stay allowed.
 refuse_other_checkout() {
-  bun "$checkout/scripts/sandboxIdentity.ts" guard "$name" "$root/config/herdr-app" "$checkout"
+  bun "$checkout/scripts/sandboxIdentity.ts" guard "$guard_name" "$guard_root/config/herdr-app" "$checkout"
 }
 
 case ${1:-} in

@@ -93,14 +93,14 @@ const copyFailures = async (
 const hashesByPath = (inputs: InstallInput[]): Map<string, string> =>
   new Map(inputs.map((input) => [input.path, input.hash]));
 
-const isFromCheckout = async (checkout: string, origin: InstallOrigin): Promise<boolean> =>
-  origin.checkout === (await realpath(checkout));
+const isFromCheckout = async (checkout: string, recorded: string): Promise<boolean> =>
+  recorded === (await realpath(checkout));
 
 const changedSinceInstall = async (
   options: IdentityOptions,
   origin: InstallOrigin | null,
 ): Promise<IdentityFailure[]> => {
-  if (origin === null || !(await isFromCheckout(options.checkout, origin))) {
+  if (origin === null || !(await isFromCheckout(options.checkout, origin.checkout))) {
     return [];
   }
 
@@ -123,7 +123,7 @@ const originFailures = async (
 
   const failures: IdentityFailure[] = [];
 
-  if (!(await isFromCheckout(options.checkout, record.origin))) {
+  if (!(await isFromCheckout(options.checkout, record.origin.checkout))) {
     failures.push({ kind: 'otherCheckout', installedFrom: record.origin.checkout });
   }
 
@@ -243,22 +243,22 @@ const findNameHolder = async (options: NameHolderOptions): Promise<NameHolder> =
     return { kind: 'unreadableRecord', path: recordPath(options.home) };
   }
 
-  const origin = record?.origin ?? null;
+  const checkout = record?.checkout ?? null;
 
-  if (origin === null) {
+  if (checkout === null) {
     return { kind: 'free' };
   }
 
-  if (await isFromCheckout(options.checkout, origin)) {
+  if (await isFromCheckout(options.checkout, checkout)) {
     return { kind: 'free' };
   }
 
   // A checkout that no longer exists serves nobody, so its name is free to take over or remove.
-  if ((await lstatOrNull(origin.checkout)) === null) {
+  if ((await lstatOrNull(checkout)) === null) {
     return { kind: 'free' };
   }
 
-  return { kind: 'held', checkout: origin.checkout };
+  return { kind: 'held', checkout };
 };
 
 export const nameHolderReport = async (options: NameHolderOptions): Promise<IdentityReport> => {
