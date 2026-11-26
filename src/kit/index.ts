@@ -67,7 +67,7 @@ export { overlayRow } from './overlay/row.ts';
 
 export { scrollThumb, thumbPlace } from './overlay/scrollThumb.ts';
 
-export { footerLine, searchInputLine, searchLine } from './overlay/lines.ts';
+export { footerLine, footerLineHeight, searchInputLine, searchLine } from './overlay/lines.ts';
 
 export {
   paneBranchElement,
@@ -126,6 +126,7 @@ export type { SegmentedChipOptions } from './segmentedChip.ts';
 
 export {
   askCardSize,
+  chipLineHeight,
   controlSize,
   contentSize,
   diffSize,

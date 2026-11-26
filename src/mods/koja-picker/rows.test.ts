@@ -81,6 +81,8 @@ const data = (overrides: Partial<PickerData> = {}, terminalList: unknown[] = [])
     panes,
     terminals: terminalList,
     statuses: rollupStatuses(spaces, panes, terminalList),
+    stored: null,
+    facts: {},
     recent: [],
     focus: {},
     ...overrides,
@@ -284,13 +286,14 @@ describe('buildRows', () => {
     expect(keysOf(buildRows('koja', null, fixture))).toStrictEqual(['space:a', 'space:b']);
   });
 
-  test('ranks a space whose name matches above one matched only by its branch', () => {
+  test('ranks a space whose name matches above one matched only by its project', () => {
     const fixture = data({
       spaces: [
         spaceOf('a', 2, 'koja', [tabOf('a1', 1, true)]),
-        { ...spaceOf('b', 1, 'xyz', [tabOf('b1', 1, true)]), branch: 'koja' },
+        spaceOf('b', 1, 'xyz', [tabOf('b1', 1, true)]),
       ],
       panes: [],
+      facts: { b: { project: 'koja', pull: null, need: null } },
     });
 
     expect(keysOf(buildRows('koja', null, fixture))).toStrictEqual(['space:a', 'space:b']);

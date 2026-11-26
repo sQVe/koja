@@ -93,6 +93,9 @@ export const controlSize = {
   tabLabelMaxWidth: 170,
 } as const;
 
+// A line of segmented chips: the chip, the gap under it, and the rule it draws on the column.
+export const chipLineHeight = controlSize.button + spacing.xsmall + spacing.hairline;
+
 export const shellSize = {
   sidebarWidth: 240,
   panelWidth: 300,

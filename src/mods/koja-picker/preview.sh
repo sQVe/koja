@@ -53,6 +53,12 @@ serve() {
   reset_screen
 
   while [[ -f ${state} && -d ${folder} ]]; do
+    # The launcher shows the terminal only once this exists, so a viewer that cannot watch leaves
+    # Go to on its error line instead of closing the overlay with it.
+    if [[ ${started} -eq 0 ]]; then
+      : >"${folder}/ready" 2>/dev/null || true
+    fi
+
     current=$(cat "${heartbeat}" 2>/dev/null) || current=""
 
     # A changed heartbeat resets the count; unchanged content is one more silent poll. Counting

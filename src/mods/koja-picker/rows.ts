@@ -1,17 +1,21 @@
 import type { PaneInfo, SpaceInfo, Status, TabInfo } from 'herdr';
 
 import { folderNameOf } from '../../data/fields.ts';
+import type { Facts } from '../../data/snapshot.ts';
 import type { StatusRollup } from '../../kit/statusRollup.ts';
 import { statusRank } from '../../kit/statusRollup.ts';
 import { tabLabel, tabName, tabProgram, taskOfPane } from '../../kit/tabLabel.ts';
 import type { Match } from './match.ts';
 import { bestFieldMatch, fuzzyMatch } from './match.ts';
+import type { SpaceFacts } from './spaceFacts.ts';
 
 export interface PickerData {
   spaces: SpaceInfo[];
   panes: PaneInfo[];
   terminals: unknown[];
   statuses: StatusRollup;
+  stored: Facts | null;
+  facts: Record<string, SpaceFacts>;
   recent: string[];
   focus: Record<string, string>;
 }
@@ -136,12 +140,16 @@ const tabSearchFields = (
     .flatMap((pane) => paneSearchFields(pane, data)),
 ];
 
-const spaceSearchFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
+const spaceOwnFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
   space.name,
-  space.branch,
+  data.facts[space.id]?.project ?? null,
   folderNameOf(space.folder),
   space.machine,
   statusWord(data.statuses.spaces[space.id] ?? null),
+];
+
+const spaceSearchFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
+  ...spaceOwnFields(space, data),
   ...space.tabs.flatMap((tab) => tabSearchFields(tab, data.statuses.tabs[tab.id] ?? null, data)),
 ];
 
@@ -223,14 +231,6 @@ const matchedPanes = (
 
   return matches.toSorted((first, second) => second.score - first.score);
 };
-
-const spaceOwnFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
-  space.name,
-  space.branch,
-  folderNameOf(space.folder),
-  space.machine,
-  statusWord(data.statuses.spaces[space.id] ?? null),
-];
 
 const spaceRowPane = (
   query: string,

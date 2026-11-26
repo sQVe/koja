@@ -12,7 +12,8 @@ import { colors } from '../theme.ts';
 
 const caretHeight = textSize.default + spacing.xsmall;
 const searchLineHeight = rowHeight.large + spacing.small;
-const footerHeight = rowHeight.large + spacing.xxsmall;
+
+export const footerLineHeight = rowHeight.large + spacing.xxsmall;
 
 const caret = (): Element =>
   div().w(spacing.hairline).h(caretHeight).flex_none().bg(colors().foreground);
@@ -58,7 +59,7 @@ const footerPart = (part: string | string[]): Element =>
 
 export const footerLine = (parts: (string | string[])[]): Element =>
   h_flex()
-    .h(footerHeight)
+    .h(footerLineHeight)
     .flex_none()
     .min_w(0)
     .px(spacing.small)

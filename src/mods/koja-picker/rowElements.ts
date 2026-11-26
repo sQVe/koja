@@ -2,23 +2,33 @@ import type { VirtualListScrollHandle } from 'gpui-base';
 import { v_virtual_list } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
+import type { PullNeed } from '../../data/pullNeeds.ts';
+import type { WorkNeed } from '../../kit/index.ts';
 import {
   colors,
+  emptyWorkSlot,
   highlightedText,
-  icon,
-  iconSlot,
   listRow,
   modName,
   programIcon,
   rowHeight,
+  spaceMark,
   spacing,
   statusMark,
+  workIcon,
 } from '../../kit/index.ts';
 import { fuzzyMatch } from './match.ts';
 import type { PanePickerRow, PickerData, PickerRow, TabPickerRow } from './rows.ts';
 import { paneDetail, paneLabel, tabRowDisplay } from './rows.ts';
 
 const rowState = (selected: boolean): 'selected' | 'normal' => (selected ? 'selected' : 'normal');
+
+const needLooks: Record<PullNeed, WorkNeed> = {
+  conflict: 'conflict',
+  failing: 'failing',
+  review: 'review',
+  ready: 'merge',
+};
 
 const spaceRow = (row: PickerRow, selected: boolean, query: string, data: PickerData): Element => {
   const { space } = row;
@@ -27,16 +37,19 @@ const spaceRow = (row: PickerRow, selected: boolean, query: string, data: Picker
   const label =
     nameMatch === null ? space.name : highlightedText(space.name, nameMatch.positions, true);
 
-  const folderIcon = icon('folder').text_color(colors().dim);
+  const facts = data.facts[space.id];
+  const project = facts?.project ?? null;
+  const need = facts?.need ?? null;
+  const workSlot = need === null ? emptyWorkSlot() : workIcon(needLooks[need]);
 
   return listRow({
     size: 'large',
     inset: true,
     state: rowState(selected),
-    start: iconSlot(folderIcon),
+    start: spaceMark(data.statuses.spaces[space.id] ?? null),
     label,
-    ...(space.branch === null || space.branch === '' ? {} : { detail: space.branch }),
-    end: [statusMark(data.statuses.spaces[space.id] ?? null)],
+    ...(project === null ? {} : { detail: project }),
+    end: [workSlot],
   });
 };
 
