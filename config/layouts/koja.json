@@ -66,6 +66,16 @@
           "window_drag": true
         },
         {
+          "id": "asks",
+          "type": "block",
+          "content": {
+            "mod": "koja-asks"
+          },
+          "size": {
+            "px": 0
+          }
+        },
+        {
           "id": "work-body",
           "type": "row",
           "children": [
