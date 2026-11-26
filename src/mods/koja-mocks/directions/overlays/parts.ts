@@ -24,6 +24,7 @@ interface ItemOptions {
 }
 
 const lineGap = 6;
+
 const keyGap = 4;
 const keycapPadding = 4;
 // An even cap height, so the cap sits on whole pixels in the even-height rows.
@@ -67,7 +68,6 @@ export const searchRowHeight = (tokens: DirectionTokens): number =>
   tokens.rows.height + searchRowLift;
 
 export const mainLeft = 268;
-
 export const mainWidth = 992;
 
 export const overlayTop = paneTopOffset + overlayGap;

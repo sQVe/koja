@@ -1,5 +1,7 @@
 import { listOf, numberOf, recordOf, stringOf } from '../../kit/fields.ts';
-import { askCardSize, controlSize, spacing, textSize } from '../../kit/size.ts';
+import type { NeedsYouHint } from '../../kit/needsYou.ts';
+import { needsYouHint } from '../../kit/needsYou.ts';
+import { askCardSize, controlSize, keycapSize, spacing, textSize } from '../../kit/size.ts';
 import type { Ask } from './askFacts.ts';
 
 export interface CardMore {
@@ -16,6 +18,7 @@ export interface CardText {
   question: string;
   command: string | null;
   more: string | null;
+  hint: NeedsYouHint | null;
 }
 
 export interface SignatureContent {
@@ -85,10 +88,14 @@ export const rowDetail = (row: AskRow): string => `${row.ask.agent} · ${row.ask
 
 export const rowMeta = (row: AskRow): string => `${row.ask.project} · ${row.age}`;
 
-export const cardTextOf = (ask: Ask, more: CardMore | null): CardText => ({
+export const cardHintOf = (normalMode: boolean): NeedsYouHint | null =>
+  normalMode ? needsYouHint : null;
+
+export const cardTextOf = (ask: Ask, more: CardMore | null, normalMode: boolean): CardText => ({
   question: ask.question,
   command: ask.command,
   more: more === null ? null : moreText(more),
+  hint: cardHintOf(normalMode),
 });
 
 const wrapLineCount = (text: string, width: number, glyph: number): number => {
@@ -134,6 +141,10 @@ export const cardHeight = (text: CardText, width: number): number => {
 
   if (text.more !== null) {
     height += spacing.small + detailLineHeight;
+  }
+
+  if (text.hint !== null) {
+    height += spacing.small + Math.max(keycapSize.height, detailLineHeight);
   }
 
   return height;

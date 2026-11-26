@@ -7,7 +7,10 @@ export interface NormalRunHost extends SharedStore {
   run: (command: string, args?: Record<string, unknown>) => unknown;
 }
 
-const normalModeKey = 'koja-modal';
+export const normalModeKey = 'koja-modal';
+
+export const inNormalMode = (shared: SharedStore['shared']): boolean =>
+  shared(normalModeKey) === true;
 
 const pendingKeysKey = 'koja-modal.pending-keys';
 
@@ -18,7 +21,7 @@ const isKeyList = (value: unknown): value is string[] =>
 export const runNormalKeys = (host: NormalRunHost, keys: readonly string[]): void => {
   host.setShared(pendingKeysKey, [...keys]);
 
-  if (host.shared(normalModeKey) === true) {
+  if (inNormalMode((key: string) => host.shared(key))) {
     host.run('koja-modal.run-keys');
 
     return;

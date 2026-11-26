@@ -26,6 +26,7 @@ import {
   findLayoutNode,
   layoutRoot,
   listOf,
+  inNormalMode,
   modName,
   numberOf,
   overlayId,
@@ -52,6 +53,7 @@ import type {
 import {
   cardGeometry,
   cardHeight,
+  cardHintOf,
   cardSignature,
   cardTextOf,
   listHeight,
@@ -66,11 +68,13 @@ interface CardProps {
   ask: Ask;
   more: CardMore | null;
   rows: readonly AskRow[] | null;
+  normalMode: boolean;
 }
 
 interface CardContent {
   more: CardMore | null;
   rows: readonly AskRow[] | null;
+  normalMode: boolean;
   geometry: CardGeometry;
   signature: string;
 }
@@ -177,7 +181,12 @@ const readCardProps = (value: unknown): CardProps | null => {
 
   return ask === null
     ? null
-    : { ask, more: readMore(record['more']), rows: readRows(record['rows']) };
+    : {
+        ask,
+        more: readMore(record['more']),
+        rows: readRows(record['rows']),
+        normalMode: record['normalMode'] === true,
+      };
 };
 
 const openStateOf = (value: unknown): OpenCard | null => {
@@ -238,8 +247,10 @@ const contentOf = (
   more: CardMore | null,
   rows: readonly AskRow[] | null,
   sources: CardGeometrySources,
+  normalMode: boolean,
 ): CardContent => {
-  const text = cardTextOf(ask, more);
+  const hinted = rows === null && normalMode;
+  const text = cardTextOf(ask, more, hinted);
 
   const heightAt =
     rows === null
@@ -248,7 +259,13 @@ const contentOf = (
 
   const geometry = cardGeometry(sources, heightAt);
 
-  return { more, rows, geometry, signature: cardSignature(ask, { text, rows }, geometry) };
+  return {
+    more,
+    rows,
+    normalMode: hinted,
+    geometry,
+    signature: cardSignature(ask, { text, rows }, geometry),
+  };
 };
 
 export default class KojaAsks extends View {
@@ -288,13 +305,13 @@ export default class KojaAsks extends View {
       return div().id('koja-asks-host').size(0);
     }
 
-    const { ask, more, rows } = this.card;
+    const { ask, more, rows, normalMode } = this.card;
 
     if (rows !== null) {
       return listElement(rows, this.actions());
     }
 
-    return cardElement(ask, more, this.actions());
+    return cardElement(ask, more, cardHintOf(normalMode), this.actions());
   }
 
   private actions(): CardActions {
@@ -497,10 +514,15 @@ export default class KojaAsks extends View {
       const listOpen = this.syncListFlag(current, unhandled.length);
       const shown = unhandled[0];
 
+      const normalMode = inNormalMode(shared);
+
       if (shown !== undefined) {
         const rows = listOpen ? this.rowsOf(unhandled, current.ages) : null;
 
-        contents.set(shown.identity, contentOf(shown, moreOf(unhandled, shown), rows, sources));
+        contents.set(
+          shown.identity,
+          contentOf(shown, moreOf(unhandled, shown), rows, sources, normalMode),
+        );
       }
 
       const signatures = new Map(
@@ -529,7 +551,7 @@ export default class KojaAsks extends View {
       frame: 'none',
       width: content.geometry.width,
       height: content.geometry.height,
-      props: { ask, more: content.more, rows: content.rows },
+      props: { ask, more: content.more, rows: content.rows, normalMode: content.normalMode },
     };
 
     if (content.geometry.at !== null) {

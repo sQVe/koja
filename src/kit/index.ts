@@ -215,7 +215,7 @@ export { closeOverlay, openAtTop, overlayId } from './overlay/overlay.ts';
 
 export { repeat } from './timer.ts';
 
-export { runNormalKeys, takeNormalKeys } from './normalRun.ts';
+export { inNormalMode, normalModeKey, runNormalKeys, takeNormalKeys } from './normalRun.ts';
 
 export { overlayCloseCount, recordOverlayClose } from './overlay/open.ts';
 

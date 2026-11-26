@@ -10,6 +10,7 @@ import {
 } from '../../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import { recordOf, stringOf } from '../../kit/fields.ts';
+import { inNormalMode } from '../../kit/normalRun.ts';
 import { normalFocusFill, toPalette } from '../../kit/palette.ts';
 import { paneHeaderFields } from '../../kit/paneHeaderFields.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
@@ -129,6 +130,7 @@ await mock.module('../../kit/index.ts', () =>
     colors: () => toPalette({ accent, foreground: '#1e2028' }),
     controlSize,
     iconButton: () => drawn(),
+    inNormalMode,
     normalFocusFill,
     overlaySize,
     paneActions,

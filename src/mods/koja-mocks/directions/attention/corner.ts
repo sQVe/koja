@@ -2,10 +2,10 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
-import { footerLine, iconMark, overlayCard } from '../overlays/parts.ts';
+import { iconMark, overlayCard } from '../overlays/parts.ts';
 import { fixedLabel, iconButton, styled } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import { attentionWindow, hiddenAsks } from './data.ts';
+import { attentionWindow, hiddenAsks, jumpFooter } from './data.ts';
 
 const cardWidth = 320;
 const cardInset = 26;
@@ -43,15 +43,17 @@ const cornerCard = (tokens: DirectionTokens): Element => {
     .child(title)
     .child(body);
 
+  const moreAsks = fixedLabel('1 more ask', tokens.text.detail, tokens.ink.dim).ml(textInset).mt(2);
+
+  card.child(moreAsks);
+
   if (tokens.normal) {
-    const footer = footerLine([['g', 'n'], 'Go to'], tokens).ml(footerInset);
+    const footer = jumpFooter(tokens).ml(footerInset);
 
     card.child(footer);
   }
 
-  const moreAsks = fixedLabel('1 more ask', tokens.text.detail, tokens.ink.dim).ml(textInset).mt(2);
-
-  return card.child(moreAsks);
+  return card;
 };
 
 export const cornerScene = (tokens: DirectionTokens): Element =>

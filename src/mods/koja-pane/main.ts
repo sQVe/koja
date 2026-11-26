@@ -12,6 +12,7 @@ import {
   colors,
   controlSize,
   iconButton,
+  inNormalMode,
   normalFocusFill,
   overlaySize,
   paneActions,
@@ -154,7 +155,7 @@ export default class PaneHeader extends View {
 
   private header(pane: PaneInfo): Element {
     const palette = colors();
-    const tone = headerTone(pane.focused, Boolean(shared('koja-modal')));
+    const tone = headerTone(pane.focused, inNormalMode(shared));
 
     const element = h_flex()
       .id(`pane-header-${pane.pane}`)

@@ -229,6 +229,9 @@ export const textColorOf = (element: DrawnElement, text: string): string | null 
 export const elementsWithStyle = (element: DrawnElement, style: string): DrawnElement[] =>
   descendants(element).filter((part) => part.styles[style] !== undefined);
 
+export const elementsWithId = (element: DrawnElement, id: string): DrawnElement[] =>
+  elementsWithStyle(element, 'id').filter((part) => part.styles['id']?.[0] === id);
+
 export const elementWithIcon = (element: DrawnElement, name: string): DrawnElement | null =>
   descendants(element).find((part) => part.path?.split('/').at(-1) === name) ?? null;
 

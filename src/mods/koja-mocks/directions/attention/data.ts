@@ -4,8 +4,9 @@ import { div } from 'gpui-kit';
 
 import type { AttentionStatus as KitAttentionStatus } from '../../../../kit/index.ts';
 import { icon } from '../../../../kit/index.ts';
+import { needsYouHint } from '../../../../kit/needsYou.ts';
 import { agentPane } from '../../scenes/shellContent.ts';
-import { mainWidth } from '../overlays/parts.ts';
+import { footerLine, mainWidth } from '../overlays/parts.ts';
 import { changeList, changeTotals } from '../panels/changes.ts';
 import {
   card,
@@ -41,6 +42,10 @@ interface AttentionTab {
 interface AttentionWindow {
   variant: AttentionVariant;
 }
+
+// The scene tests count jump footers by this id, apart from their words.
+export const jumpFooter = (tokens: DirectionTokens): Element =>
+  footerLine([needsYouHint.keys, needsYouHint.text], tokens).id('jump-footer');
 
 export const hiddenAsks = [
   {

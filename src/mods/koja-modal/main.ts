@@ -20,6 +20,7 @@ import {
   findLayoutNode,
   layoutRoot,
   modName,
+  normalModeKey,
   overlayCloseCount,
   overlayId,
   repeat,
@@ -45,8 +46,6 @@ const sectionKeys = createContextKeys('KojaModal', [
   { keystroke: 'tab', action: 'koja-modal-section-next' },
   { keystroke: 'shift-tab', action: 'koja-modal-section-previous' },
 ]);
-
-const modeKey = 'koja-modal';
 
 const historyKey = 'koja-modal.history';
 
@@ -136,7 +135,7 @@ export default class KojaModal extends View {
     this.handle = handle;
     handle.focus();
     sectionKeys.bind(cx);
-    setShared(modeKey, true);
+    setShared(normalModeKey, true);
     this.sections.reset();
     this.executor.observe();
     this.keepKeyboard(cx);
@@ -146,7 +145,7 @@ export default class KojaModal extends View {
 
   override close(): void {
     this.executor.observe();
-    setShared(modeKey, null);
+    setShared(normalModeKey, null);
     this.sections.reset();
     this.closeHints();
     this.hold.close();

@@ -8,6 +8,7 @@ import {
   controlSize,
   icon,
   iconButton,
+  keycaps,
   overlayCard,
   radius,
   roleText,
@@ -15,6 +16,7 @@ import {
   terminalFont,
   withTextRole,
 } from '../../kit/index.ts';
+import type { NeedsYouHint } from '../../kit/needsYou.ts';
 import type { Ask } from './askFacts.ts';
 import type { AskRow, CardMore } from './card.ts';
 import { listTitle, moreText, rowDetail, rowMeta } from './card.ts';
@@ -125,7 +127,25 @@ const moreLine = (more: CardMore, actions: CardActions): Element => {
     .child(chevron);
 };
 
-const cardChildren = (ask: Ask, more: CardMore | null, actions: CardActions): Element[] => {
+const hintLine = (hint: NeedsYouHint): Element => {
+  const text = roleText('detail', hint.text).line_height(`${detailLineHeight}px`);
+
+  return h_flex()
+    .id('koja-ask-hint')
+    .ml(textInset)
+    .min_w(0)
+    .gap(spacing.small)
+    .items_center()
+    .child(keycaps(hint.keys))
+    .child(text);
+};
+
+const cardChildren = (
+  ask: Ask,
+  more: CardMore | null,
+  hint: NeedsYouHint | null,
+  actions: CardActions,
+): Element[] => {
   const title = titleRow(ask, actions);
   const question = wrappedLine(ask.question);
   const children = [title, question];
@@ -142,6 +162,12 @@ const cardChildren = (ask: Ask, more: CardMore | null, actions: CardActions): El
     children.push(moreRow);
   }
 
+  if (hint !== null) {
+    const hintRow = hintLine(hint);
+
+    children.push(hintRow);
+  }
+
   return children;
 };
 
@@ -149,7 +175,12 @@ const cardChildren = (ask: Ask, more: CardMore | null, actions: CardActions): El
 const cardWindow = (card: Element): Element =>
   v_flex().id('koja-asks').size_full().justify_end().child(card);
 
-export const cardElement = (ask: Ask, more: CardMore | null, actions: CardActions): Element => {
+export const cardElement = (
+  ask: Ask,
+  more: CardMore | null,
+  hint: NeedsYouHint | null,
+  actions: CardActions,
+): Element => {
   const card = overlayCard('koja-ask-card')
     .gap(spacing.small)
     .cursor_pointer()
@@ -157,7 +188,7 @@ export const cardElement = (ask: Ask, more: CardMore | null, actions: CardAction
     .on_click(() => {
       actions.goToAsk();
     })
-    .children(cardChildren(ask, more, actions));
+    .children(cardChildren(ask, more, hint, actions));
 
   return cardWindow(card);
 };
