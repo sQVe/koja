@@ -162,7 +162,13 @@ const leavesUnder = async (directory: string): Promise<string[]> => {
 
 const shippedFolders = ['src', 'config'];
 
-const shippedFiles = ['scripts/build.ts', 'scripts/install.ts', 'package.json', 'bun.lock'];
+const shippedFiles = [
+  'scripts/build.ts',
+  'scripts/checkoutLock.ts',
+  'scripts/install.ts',
+  'package.json',
+  'bun.lock',
+];
 
 const isTest = (path: string): boolean => path.endsWith('.test.ts');
 
