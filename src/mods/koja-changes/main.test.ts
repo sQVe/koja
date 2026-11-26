@@ -53,6 +53,8 @@ let failStatus = false;
 
 let failIdentity: string | null = null;
 
+let bareRepository = false;
+
 let blockIdentity = false;
 
 let identityGate: (() => void) | null = null;
@@ -244,7 +246,11 @@ await mock.module('herdr', () =>
           });
         }
 
-        return { code: 0, stdout: 'false\nfalse\n/repo/.git\n/repo/.git\n', stderr: '' };
+        const layout = bareRepository
+          ? 'true\nfalse\n/repo.git\n/repo.git\n'
+          : 'false\nfalse\n/repo/.git\n/repo/.git\n';
+
+        return { code: 0, stdout: layout, stderr: '' };
       }
 
       if (args.includes('--show-toplevel')) {
@@ -359,6 +365,7 @@ beforeEach(() => {
   checkingNow = false;
   failStatus = false;
   failIdentity = null;
+  bareRepository = false;
   blockIdentity = false;
   identityGate = null;
   statusReads = 0;
@@ -745,6 +752,21 @@ describe('Changes view', () => {
     expect(renderedList?.line?.kind).toBe('error');
   });
 
+  test('a bare repository runs no status read, shows the not-a-repository line, and starts no watch', async () => {
+    bareRepository = true;
+
+    const view = await boot();
+
+    expect(commands.some((args) => args.includes('--is-bare-repository'))).toBe(true);
+    expect(commands.filter((args) => args.includes('status'))).toEqual([]);
+    expect(statusReads).toBe(0);
+    expect(watchers).toEqual([]);
+
+    view.render(context);
+
+    expect(renderedList?.line).toEqual({ kind: 'error', text: 'Not a git repository' });
+  });
+
   test('a folder switch during a blocked read cancels the old watch before the read ends', async () => {
     const view = await boot();
 
@@ -1102,8 +1124,18 @@ describe('Changes view', () => {
     view.render(context);
   });
 
-  test('a watch event while hidden reads at once when the window is shown, before the poll', async () => {
+  test('a dirty view reads at once when the window is shown before its watch delay and poll', async () => {
+    blockStatus = true;
+
     const view = await boot();
+
+    expect(statusGate).not.toBeNull();
+
+    clock.now += 1000;
+    blockStatus = false;
+    statusGate?.();
+    await settle();
+    view.render(context);
 
     expect(statusReads).toBe(1);
 
@@ -1119,6 +1151,21 @@ describe('Changes view', () => {
     await settle();
 
     expect(statusReads).toBe(2);
+    view.render(context);
+  });
+
+  test('a clean watched view waits when the window is shown again before the poll', async () => {
+    const view = await boot();
+    const reads = statusReads;
+
+    windowVisible = false;
+    await settle();
+    windowVisible = true;
+    clock.now += 1000;
+    timerHandler?.(context);
+    await settle();
+
+    expect(statusReads).toBe(reads);
     view.render(context);
   });
 
