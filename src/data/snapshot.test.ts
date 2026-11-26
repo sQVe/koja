@@ -12,7 +12,7 @@ import {
   worktreeAt,
   worktreesAt,
 } from '../../tests/snapshotRaw.ts';
-import { repositoryOf, worktreeOf } from './gitIdentity.ts';
+import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
 import type {
   Facts,
@@ -22,7 +22,7 @@ import type {
   Snapshot,
   WorktreeGit,
 } from './snapshot.ts';
-import { emptyFacts, joinFacts, parseSnapshot } from './snapshot.ts';
+import { emptyFacts, joinFacts, parseSnapshot, worktreeKeyAtPlace } from './snapshot.ts';
 
 describe('parseSnapshot', () => {
   test('reads the version 4 fixture with its PR facts', () => {
@@ -234,5 +234,24 @@ describe('joinFacts', () => {
     expect(facts.pulls).toEqual({ [named]: { pulls: [pull()], failed: false } });
     expect(facts.trackers).toEqual({ [named]: tracker });
     expect(facts.stacks).toEqual({ [named]: { stacks: [], failed: false } });
+  });
+});
+
+describe('worktreeKeyAtPlace', () => {
+  test('gives the worktree of a repository place and none for another kind', () => {
+    const repositoryPlace = placeOf(null, '/code/koja');
+    const plainPlace = placeOf(null, '/code/plain');
+
+    const git: GitFacts = {
+      places: {
+        [repositoryPlace.key]: { kind: 'repository', worktree: 'worktree-key' },
+        [plainPlace.key]: { kind: 'none' },
+      },
+      worktrees: {},
+    };
+
+    expect(worktreeKeyAtPlace(git, repositoryPlace.key)).toBe('worktree-key');
+    expect(worktreeKeyAtPlace(git, plainPlace.key)).toBeNull();
+    expect(worktreeKeyAtPlace(git, placeOf(null, '/code/unknown').key)).toBeNull();
   });
 });

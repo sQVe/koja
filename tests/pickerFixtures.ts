@@ -112,6 +112,35 @@ export const stackOf = (pulls: StackPull[]): SpaceStack => ({
   total: pulls.length,
 });
 
+const mergedStackBranches = [
+  'add-search',
+  'add-search-ui',
+  'add-search-tests',
+  'fix-crash',
+  'fix-crash-tests',
+  'layer-one',
+  'layer-two',
+  'layer-three',
+];
+
+const mergedStackNumbers = [501, 504, 505, 506, 507, 508, 509, 510];
+
+const mergedStackPull = (number: number, index: number): StackPull => {
+  const branch = mergedStackBranches[index] ?? `branch-${index}`;
+  const state = number === 504 ? 'merged' : 'open';
+
+  return stackPullOf({ branch, number, state });
+};
+
+export const mergedStack = (): SpaceStack => stackOf(mergedStackNumbers.map(mergedStackPull));
+
+export const ticketStack = (): SpaceStack =>
+  stackOf([
+    stackPullOf({ branch: 'me-1181-bottom', ticket: 'ME-1181', number: 601 }),
+    stackPullOf({ branch: 'me-1182-middle', ticket: 'ME-1182', number: 602 }),
+    stackPullOf({ branch: 'me-1183-top', ticket: 'ME-1183', number: 603 }),
+  ]);
+
 const pullStates: Record<
   Exclude<StackPull['state'], 'unknown'>,
   Pick<Pull, 'state' | 'isDraft'>

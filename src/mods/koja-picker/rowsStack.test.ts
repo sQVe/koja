@@ -2,11 +2,13 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   factsWithStack,
+  mergedStack,
   pickerData,
   spaceOf,
   stackOf,
   stackPullOf,
   tabOf,
+  ticketStack,
 } from '../../../tests/pickerFixtures.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import type { Facts } from '../../data/snapshot.ts';
@@ -15,35 +17,6 @@ import type { PickerData } from './rows.ts';
 import { buildRows } from './rows.ts';
 
 const folder = '/home/me/koja';
-
-const branchNames = [
-  'add-search',
-  'add-search-ui',
-  'add-search-tests',
-  'fix-crash',
-  'fix-crash-tests',
-  'layer-one',
-  'layer-two',
-  'layer-three',
-];
-
-const pullNumbers = [501, 504, 505, 506, 507, 508, 509, 510];
-
-const pullAt = (number: number, index: number) => {
-  const branch = branchNames[index] ?? `branch-${index}`;
-  const state = index === 1 ? 'merged' : 'open';
-
-  return stackPullOf({ branch, number, state });
-};
-
-const mergedStack = (): SpaceStack => stackOf(pullNumbers.map(pullAt));
-
-const ticketStack = (): SpaceStack =>
-  stackOf([
-    stackPullOf({ branch: 'me-1181-bottom', ticket: 'ME-1181', number: 601 }),
-    stackPullOf({ branch: 'me-1182-middle', ticket: 'ME-1182', number: 602 }),
-    stackPullOf({ branch: 'me-1183-top', ticket: 'ME-1183', number: 603 }),
-  ]);
 
 const reasonOf = (rows: ReturnType<typeof buildRows>, index: number) => {
   const row = rows[index];
@@ -119,7 +92,7 @@ describe('buildRows with stacks', () => {
     });
   });
 
-  test('a PR number matches only exactly', () => {
+  test('a digits query that equals no stack PR and no field finds no space', () => {
     const fixture = withStack(mergedStack());
 
     expect(buildRows('50', null, fixture)).toEqual([]);
@@ -178,10 +151,16 @@ describe('buildRows with stacks', () => {
   });
 
   test('a recorded place without a stack gives no stack match', () => {
+    const stored = factsWithStack(folder, stackOf([]));
+
+    for (const worktree of Object.values(stored.git.worktrees)) {
+      worktree.branch = 'elsewhere';
+    }
+
     const fixture = pickerData({
       spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
       panes: [],
-      stored: factsWithStack(folder, stackOf([])),
+      stored,
     });
 
     expect(buildRows('504', null, fixture)).toEqual([]);
@@ -200,46 +179,28 @@ describe('buildRows with stacks', () => {
   test('a space filtered out by status finds no stack match', () => {
     const fixture = withStack(mergedStack());
 
+    expect(buildRows('504', null, fixture)[0]?.space.id).toBe('a');
     expect(buildRows('504', ['blocked'], fixture)).toEqual([]);
   });
 
-  test('sets the reason only when the stack match beats every field of the space', () => {
-    const equal = pickerData({
-      spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
-      panes: [],
-      stored: factsWithStack(folder, stackOf([stackPullOf({ branch: 'koja-old', number: 601 })])),
-    });
-
-    expect(reasonOf(buildRows('koja', null, equal), 0)).toBeNull();
-
-    const betterField = pickerData({
+  test('a field match stronger than the stack match gives no reason', () => {
+    const fixture = pickerData({
       spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
       panes: [],
       stored: factsWithStack(folder, stackOf([stackPullOf({ branch: 'xkoja', number: 602 })])),
     });
 
-    expect(reasonOf(buildRows('koja', null, betterField), 0)).toBeNull();
+    expect(reasonOf(buildRows('koja', null, fixture), 0)).toBeNull();
+  });
 
-    const betterStack = pickerData({
-      spaces: [{ ...spaceOf('a', 1, '504', [tabOf('a1', 1, true)]), folder }],
-      panes: [],
-      stored: factsWithStack(folder, stackOf([stackPullOf({ branch: 'add-search', number: 504 })])),
-    });
-
-    expect(reasonOf(buildRows('504', null, betterStack), 0)).toEqual({
-      value: '#504',
-      position: 1,
-      total: 1,
-      state: 'open',
-    });
-
-    const noFieldMatch = pickerData({
+  test('a stack match with no field match gives its reason', () => {
+    const fixture = pickerData({
       spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
       panes: [],
       stored: factsWithStack(folder, stackOf([stackPullOf({ branch: 'fix-crash', number: 603 })])),
     });
 
-    expect(reasonOf(buildRows('h', null, noFieldMatch), 0)).toEqual({
+    expect(reasonOf(buildRows('h', null, fixture), 0)).toEqual({
       value: 'fix-crash',
       position: 1,
       total: 1,
@@ -247,7 +208,7 @@ describe('buildRows with stacks', () => {
     });
   });
 
-  test('an empty query gives a space with a stack score 0 and no reason', () => {
+  test('an empty query gives a space no reason', () => {
     const fixture = pickerData({
       spaces: [{ ...spaceOf('a', 1, '', []), folder: '' }],
       panes: [],

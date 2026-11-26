@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { drawn, drawnTexts, drawnTree, elementWithText } from '../../../tests/drawn.ts';
+import { drawn, drawnIcons, drawnTexts, drawnTree, elementWithText } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -100,9 +100,8 @@ const pullAt = (number: number, index: number) => {
 
 const stack = () => stackOf(pullNumbers.map(pullAt));
 
-const dataWith = (stacked: boolean): PickerData => {
-  const stackValue = stacked ? stack() : null;
-  const stored = stackValue === null ? null : factsWithStack('/home/me/koja', stackValue);
+const dataWith = (): PickerData => {
+  const stored = factsWithStack('/home/me/koja', stack());
 
   return pickerData({
     spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
@@ -131,13 +130,28 @@ const dataWithState = (state: 'open' | 'unknown'): PickerData =>
 
 describe('list with a stack reason', () => {
   test('a found space row draws its reason', () => {
-    const found = listOf('504', dataWith(true));
+    const found = listOf('504', dataWith());
 
     expect(elementWithText(found, '#504')).not.toBeNull();
 
-    const named = listOf('koja', dataWith(true));
+    const named = listOf('koja', dataWith());
 
     expect(elementWithText(named, '#504')).toBeNull();
+  });
+
+  test('a reason and a work icon both draw on a row with a need', () => {
+    const data = pickerData({
+      spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
+      panes: [],
+      stored: factsWithStack('/home/me/koja', stack()),
+      facts: { a: { project: 'koja', pull: 504, need: 'review' } },
+    });
+
+    const found = listOf('504', data);
+
+    expect(elementWithText(found, '#504')).not.toBeNull();
+    expect(elementWithText(found, 'PR 4 of 8')).not.toBeNull();
+    expect(drawnIcons(found)).toContain('message-square.svg');
   });
 
   test('a reason with an unknown state leaves out the state', () => {
@@ -148,8 +162,8 @@ describe('list with a stack reason', () => {
     const known = reasonTexts(dataWithState('open'));
     const last = unknown.at(-1) ?? '';
 
-    expect(unknown).toHaveLength(known.length - 2);
-    expect(last).toContain('2');
-    expect(last).toContain('3');
+    expect(last).toBe('PR 2 of 3');
+    expect(unknown).not.toContain('open');
+    expect(known).toContain('open');
   });
 });

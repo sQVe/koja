@@ -1,21 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { stackOf, stackPullOf } from '../../../tests/pickerFixtures.ts';
-import type { SpaceStack } from '../../data/spaceStack.ts';
+import { mergedStack, stackOf, stackPullOf, ticketStack } from '../../../tests/pickerFixtures.ts';
 import { stackMatchOf } from './stackSearch.ts';
-
-const mergedStack = (): SpaceStack =>
-  stackOf([
-    stackPullOf({ branch: 'add-search', number: 501 }),
-    stackPullOf({ branch: 'add-search-ui', number: 504, state: 'merged' }),
-    stackPullOf({ branch: 'fix-crash', number: 505 }),
-  ]);
-
-const ticketStack = (): SpaceStack =>
-  stackOf([
-    stackPullOf({ branch: 'me-1181-bottom', ticket: 'ME-1181' }),
-    stackPullOf({ branch: 'me-1182-middle', ticket: 'ME-1182' }),
-  ]);
 
 describe('stackMatchOf', () => {
   test('an exact PR number outranks every field match', () => {
@@ -36,12 +22,13 @@ describe('stackMatchOf', () => {
     );
   });
 
-  test('a partial PR number does not match', () => {
-    expect(stackMatchOf('50', mergedStack())).toBeNull();
+  test('a query that equals no stack PR and no field gives no match', () => {
     expect(stackMatchOf('5041', mergedStack())).toBeNull();
+    expect(stackMatchOf('504x', mergedStack())).toBeNull();
+    expect(stackMatchOf('50', mergedStack())).toBeNull();
   });
 
-  test('a digits query matches only an exactly equal PR number', () => {
+  test('a digits query matches the stack PR whose number equals it', () => {
     const stack = stackOf([
       stackPullOf({ branch: 'add-search', number: 504 }),
       stackPullOf({ branch: 'fix-crash', number: 1504 }),
@@ -53,23 +40,44 @@ describe('stackMatchOf', () => {
       total: 2,
       state: 'open',
     });
+  });
 
-    expect(stackMatchOf('504x', stack)).toBeNull();
-    expect(stackMatchOf('50', stack)).toBeNull();
+  test('a digits query that equals no stack PR still matches a branch holding it', () => {
+    const stack = stackOf([stackPullOf({ branch: 'fix-5040', number: 501 })]);
+
+    expect(stackMatchOf('504', stack)?.reason).toEqual({
+      value: 'fix-5040',
+      position: 1,
+      total: 1,
+      state: 'open',
+    });
+  });
+
+  test('a digits query that equals no stack PR still matches a ticket holding it', () => {
+    const stack = stackOf([
+      stackPullOf({ branch: 'me-1181-bottom', ticket: 'ME-1504', number: 502 }),
+    ]);
+
+    expect(stackMatchOf('504', stack)?.reason).toEqual({
+      value: 'ME-1504',
+      position: 1,
+      total: 1,
+      state: 'open',
+    });
   });
 
   test('a ticket or branch names the PR it belongs to', () => {
     expect(stackMatchOf('ME-1182', ticketStack())?.reason).toEqual({
       value: 'ME-1182',
       position: 2,
-      total: 2,
+      total: 3,
       state: 'open',
     });
 
     expect(stackMatchOf('bottom', ticketStack())?.reason).toEqual({
       value: 'me-1181-bottom',
       position: 1,
-      total: 2,
+      total: 3,
       state: 'open',
     });
   });
