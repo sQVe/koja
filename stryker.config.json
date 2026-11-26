@@ -59,6 +59,7 @@
     "!src/kit/window.ts",
     "!src/kit/workIcon.ts",
     "!src/kit/worktree.ts",
+    "!src/mods/koja-asks/view.ts",
     "!src/mods/koja-changes/diffPreview.ts",
     "!src/mods/koja-changes/location.ts",
     "!src/mods/koja-changes/preview.ts",
