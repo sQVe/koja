@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 
 import type { ExecResult } from 'herdr';
 
-import { gitFactsOf, requestFor } from '../../tests/pullSchedulerFixtures.ts';
-import { PullSchedulerHarness, pullSchedulerStart } from '../../tests/pullSchedulerHarness.ts';
+import { gitFactsOf, requestFor, start } from '../../tests/pullSchedulerFixtures.ts';
+import { PullSchedulerHarness } from '../../tests/pullSchedulerHarness.ts';
 import { repositoryOf } from './gitIdentity.ts';
 
 const folders = ['/code/a', '/code/b', '/code/c'];
@@ -36,7 +36,7 @@ describe('createPullScheduler Retry', () => {
 
     await harness.respondCall(failedRead, offline);
 
-    harness.setNow(pullSchedulerStart + 60_000);
+    harness.setNow(start + 60_000);
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.settle();
 

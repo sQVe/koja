@@ -87,9 +87,9 @@ export const ids = (prefix: string): (() => string) => {
   };
 };
 
-export const requestFor = (consumer: string, id: string, at: number): PullRetryRequest => ({
-  consumer,
-  id,
-  repository: repositoryKey,
-  at,
-});
+export const requestFor = (
+  consumer: string,
+  id: string,
+  at = start,
+  repository = repositoryKey,
+): PullRetryRequest => ({ consumer, id, repository, at });

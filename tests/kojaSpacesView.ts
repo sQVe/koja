@@ -5,27 +5,28 @@ import type { SpaceInfo } from 'herdr';
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
 import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
 import type { Facts, PlaceGit, RepositoryPulls, WorktreeGit } from '../src/data/snapshot.ts';
-import { snapshotKey } from '../src/data/snapshot.ts';
+import { snapshotKey, snapshotVersion } from '../src/data/snapshot.ts';
 import { writeSection } from '../src/kit/section.ts';
+import { rowHeight } from '../src/kit/size.ts';
 import { drawn, drawnTexts, elementsWithBorder, elementsWithSizeHandler } from './drawn.ts';
 import type { DrawnElement } from './drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, realKitIndexFake } from './moduleFakes.ts';
 
 export type MouseHandler = (event: unknown, cx: unknown) => void;
 
-export interface RunCall {
+interface RunCall {
   command: string;
   args: Record<string, unknown> | undefined;
 }
 
-export interface ExecCall {
+interface ExecCall {
   command: string;
   args: string[];
   cwd: string;
   on: string | null;
 }
 
-export interface Timer {
+interface Timer {
   milliseconds: number;
   handler: (cx: unknown) => void;
 }
@@ -56,7 +57,7 @@ export const themeColors = {
   chrome: '#888888',
 };
 
-export const rowHeightSmall = 24;
+export const rowHeightSmall = rowHeight.small;
 
 const realRandomUuid = crypto.randomUUID;
 
@@ -163,7 +164,7 @@ export const storedFacts = (
 };
 
 export const showFacts = (facts: Facts): void => {
-  state.sharedValues[snapshotKey] = { version: 6, revision: 1, facts };
+  state.sharedValues[snapshotKey] = { version: snapshotVersion, revision: 1, facts };
 };
 
 export const anotherOwner = (): void => {
@@ -186,11 +187,7 @@ const restoreGlobal = (name: string, descriptor: PropertyDescriptor | undefined)
   Object.defineProperty(globalThis, name, descriptor);
 };
 
-export const setupKojaSpaces = async (): Promise<void> => {
-  if (savedGlobals.size > 0) {
-    throw new Error('setupKojaSpaces is already active');
-  }
-
+const installGlobals = (): void => {
   for (const name of installedGlobals) {
     savedGlobals.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
   }
@@ -204,7 +201,9 @@ export const setupKojaSpaces = async (): Promise<void> => {
       },
     },
   });
+};
 
+const mockHostModules = async (): Promise<void> => {
   await mock.module('gpui-base', () =>
     gpuiBaseFake({
       h_flex: () => drawn(),
@@ -258,29 +257,41 @@ export const setupKojaSpaces = async (): Promise<void> => {
       theme: () => themeColors,
     }),
   );
+};
 
-  const kitParts = [
-    'button',
-    'hoverTarget',
-    'icon',
-    'layout',
-    'listRow',
-    'projectHeader',
-    'section',
-    'sectionHeader',
-    'size',
-    'stateLine',
-    'statusMark',
-    'statusRollup',
-    'text',
-    'textRole',
-    'theme',
-    'timer',
-  ];
+const kitParts = [
+  'button',
+  'hoverTarget',
+  'icon',
+  'layout',
+  'listRow',
+  'projectHeader',
+  'section',
+  'sectionHeader',
+  'size',
+  'stateLine',
+  'statusMark',
+  'statusRollup',
+  'text',
+  'textRole',
+  'theme',
+  'timer',
+];
 
+const mockKit = async (): Promise<void> => {
   const kitFake = await realKitIndexFake(kitParts);
 
   await mock.module('../src/kit/index.ts', () => kitFake);
+};
+
+export const setupKojaSpaces = async (): Promise<void> => {
+  if (savedGlobals.size > 0) {
+    return;
+  }
+
+  installGlobals();
+  await mockHostModules();
+  await mockKit();
 };
 
 export const restoreKojaSpaces = (): void => {
@@ -369,6 +380,10 @@ export const runTimers = (milliseconds: number): void => {
 
 export const runTimersUntil = (milliseconds: number): void => {
   for (const timer of state.timers) {
+    if (timer.milliseconds <= 0) {
+      continue;
+    }
+
     for (let at = timer.milliseconds; at <= milliseconds; at += timer.milliseconds) {
       timer.handler(timerHarnessContext);
     }

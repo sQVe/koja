@@ -18,7 +18,7 @@ import type { RecordNotices } from '../src/data/recordNotices.ts';
 import { createRecordNotices } from '../src/data/recordNotices.ts';
 import type { RepositoryPulls } from '../src/data/snapshot.ts';
 import { answerFrom, branchCountOf } from './pullAnswers.ts';
-import { storedRequests } from './pullRetryStore.ts';
+import { start, storedRequests } from './pullRetryStore.ts';
 
 export interface PendingCall {
   command: string;
@@ -35,9 +35,7 @@ interface Store {
   write: WriteShared;
 }
 
-export const pullSchedulerStart = 1_000_000;
-
-const memoryStore = (onRead: (key: string) => void): Store => {
+const memoryStore = (): Store => {
   const values = new Map<string, unknown>();
 
   return {
@@ -72,7 +70,7 @@ export class PullSchedulerHarness {
   published: Record<string, RepositoryPulls>[] = [];
   publishedTimes: PullReadTimes[] = [];
   publishedOutcomes: PullRetryOutcome[][] = [];
-  now = pullSchedulerStart;
+  now = start;
   windowActive = true;
   lease: Lease = { version: 1, owner: 'owner-a', generation: 1 };
   held: Lease | null = this.lease;
@@ -115,7 +113,7 @@ export class PullSchedulerHarness {
     this.published = [];
     this.publishedTimes = [];
     this.publishedOutcomes = [];
-    this.now = pullSchedulerStart;
+    this.now = start;
     this.windowActive = true;
     this.lease = { version: 1, owner: 'owner-a', generation: 1 };
     this.held = this.lease;
