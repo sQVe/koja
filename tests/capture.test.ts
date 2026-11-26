@@ -13,11 +13,12 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
-import type { CaptureContext } from '../scripts/capture.ts';
+import type { Box, CaptureContext, Images, Size } from '../scripts/capture.ts';
 import { capture, cropBox, cropFits, cropGeometry, publishCapture } from '../scripts/capture.ts';
 import { sceneReadyLine } from '../src/mods/koja-mocks/catalog.ts';
 
 interface FakeSandboxOptions {
+  images?: Images;
   logs?: string[] | ((read: number) => string);
   onShot?: (path: string) => Promise<void> | void;
 }
@@ -106,6 +107,22 @@ const siblingFolders = async (folder: string, label: string): Promise<string[]> 
   return entries.filter((entry) => entry.startsWith(prefix)).map((entry) => join(parent, entry));
 };
 
+const defaultShotSize: Size = { width: 800, height: 600 };
+
+const fakeImages = (shot: Size = defaultShotSize) => {
+  const crops: { box: Box; target: string }[] = [];
+
+  const images: Images = {
+    size: async () => shot,
+    crop: async (_shot, box, target) => {
+      crops.push({ box, target });
+      await writeFile(target, `crop ${cropGeometry(box)}`);
+    },
+  };
+
+  return { crops, images };
+};
+
 const fakeContext = (overlays: Overlays = [], options: FakeSandboxOptions = {}) => {
   const commands: string[][] = [];
   let logReads = 0;
@@ -150,6 +167,7 @@ const fakeContext = (overlays: Overlays = [], options: FakeSandboxOptions = {}) 
     },
     pickerSettleMilliseconds: 0,
     waitMilliseconds: 0,
+    images: options.images ?? fakeImages().images,
   };
 
   return { commands, context, logReads: () => logReads, statusReads: () => statusReads };
@@ -167,18 +185,8 @@ const statusSequence = (...states: string[][]): (() => string[]) => {
   };
 };
 
-const runTool = async (command: string[]): Promise<void> => {
-  const child = Bun.spawn(command, { stdout: 'pipe', stderr: 'pipe' });
-
-  const [stderr, exitCode] = await Promise.all([new Response(child.stderr).text(), child.exited]);
-
-  if (exitCode !== 0) {
-    throw new Error(`${command.join(' ')} failed: ${stderr.trim()}`);
-  }
-};
-
 const writeShot = async (path: string): Promise<void> => {
-  await runTool(['magick', '-size', '800x600', 'xc:white', path]);
+  await writeFile(path, 'shot bytes');
 };
 
 const herdrLogPrefix =
@@ -253,7 +261,8 @@ describe('mock:capture', () => {
   test('a successful capture replaces all three files as a set and names the requested scene', async () => {
     const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
     const folder = join(root, 'judge', 'sidebar');
-    const { commands, context } = successContext({ onShot: writeShot });
+    const { crops, images } = fakeImages();
+    const { commands, context } = successContext({ images, onShot: writeShot });
 
     try {
       await mkdir(folder, { recursive: true });
@@ -281,6 +290,8 @@ describe('mock:capture', () => {
       }
 
       expect(dirname(shotPath)).not.toBe(folder);
+      expect(crops.map((crop) => crop.box)).toEqual([{ x: 20, y: 40, width: 250, height: 512 }]);
+      expect(dirname(crops[0]?.target ?? '')).not.toBe(folder);
       expect((await readdir(folder)).toSorted()).toEqual([...outputFiles].toSorted());
       expect(await readdir(dirname(folder))).toEqual(['sidebar']);
     } finally {

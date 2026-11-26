@@ -24,8 +24,14 @@ export interface Sandbox {
   status: () => Promise<Status>;
 }
 
+export interface Images {
+  size: (path: string) => Promise<Size>;
+  crop: (shot: string, box: Box, target: string) => Promise<void>;
+}
+
 export interface CaptureContext {
   sandbox: Sandbox;
+  images: Images;
   pickerSettleMilliseconds: number;
   waitMilliseconds: number;
 }
@@ -105,12 +111,6 @@ const parseStatus = (text: string): Status => {
 const sandboxCli: Sandbox = {
   run: (args) => runCommand([sandboxCommand, ...args]),
   status: async () => parseStatus(await runCommand([sandboxCommand, 'status'])),
-};
-
-const defaultContext: CaptureContext = {
-  sandbox: sandboxCli,
-  pickerSettleMilliseconds,
-  waitMilliseconds: defaultWaitMilliseconds,
 };
 
 // Status lists overlays by mod name, so the picker and the scene both show as modName.
@@ -198,8 +198,19 @@ const parseShotSize = (output: string): Size => {
   return { width, height };
 };
 
-const readShotSize = async (path: string): Promise<Size> =>
-  parseShotSize(await runCommand(['identify', '-format', '%w %h', path]));
+const imageTools: Images = {
+  size: async (path) => parseShotSize(await runCommand(['identify', '-format', '%w %h', path])),
+  crop: async (shot, box, target) => {
+    await runCommand(['magick', shot, '-crop', cropGeometry(box), '+repage', target]);
+  },
+};
+
+const defaultContext: CaptureContext = {
+  sandbox: sandboxCli,
+  images: imageTools,
+  pickerSettleMilliseconds,
+  waitMilliseconds: defaultWaitMilliseconds,
+};
 
 const saveCrop = async (
   context: CaptureContext,
@@ -208,7 +219,7 @@ const saveCrop = async (
 ): Promise<void> => {
   const shotPath = join(folder, 'shot.png');
   const { zoom: scale } = await context.sandbox.status();
-  const shot = await readShotSize(shotPath);
+  const shot = await context.images.size(shotPath);
   const box = cropBox(sceneOrigin, scene, scale);
 
   if (!cropFits(box, shot)) {
@@ -217,14 +228,7 @@ const saveCrop = async (
     );
   }
 
-  await runCommand([
-    'magick',
-    shotPath,
-    '-crop',
-    cropGeometry(box),
-    '+repage',
-    join(folder, 'crop.png'),
-  ]);
+  await context.images.crop(shotPath, box, join(folder, 'crop.png'));
 
   const record = {
     scene: scene.name,
