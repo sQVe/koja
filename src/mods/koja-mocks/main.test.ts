@@ -1,12 +1,12 @@
-import { afterAll, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 
+import type { DrawnElement } from '../../../tests/drawn.ts';
+import { drawn } from '../../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import { overlaySize } from '../../kit/size.ts';
 import { findScene, sceneOrigin, sceneReadyLine } from './catalog.ts';
 
 type SubmitHandler = (event: unknown, cx: { notify: () => void }) => void;
-
-type LayoutHandler = (size: { width: number; height: number }, cx: unknown) => void;
 
 interface InputStub {
   handlers: Record<string, SubmitHandler>;
@@ -21,9 +21,11 @@ let closeCount = 0;
 let sceneProps: Record<string, unknown> = {};
 const shownKinds: string[] = [];
 const shownTexts: string[] = [];
+const spyOnLog = () => spyOn(console, 'log').mockImplementation(() => undefined);
+
 const createdInputs: InputStub[] = [];
-const layoutHandlers: LayoutHandler[] = [];
 const pendingTimers: (() => void)[] = [];
+let log: ReturnType<typeof spyOnLog>;
 
 const createInput = (): InputStub => {
   const stub: InputStub = {
@@ -44,30 +46,6 @@ const chainable = (): unknown =>
     get: (_target, key) => (key === 'then' ? undefined : chainable()),
     apply: () => chainable(),
   });
-
-// The scene's root surface reports its layout once the frame that draws it is laid out.
-const surfaceFake = (): unknown => {
-  const element: unknown = new Proxy(() => undefined, {
-    get: (_target, key) => {
-      if (key === 'then') {
-        return undefined;
-      }
-
-      if (key === 'on_size_change') {
-        return (handler: LayoutHandler) => {
-          layoutHandlers.push(handler);
-
-          return element;
-        };
-      }
-
-      return () => element;
-    },
-    apply: () => element,
-  });
-
-  return element;
-};
 
 await mock.module('gpui-base', () =>
   gpuiBaseFake({
@@ -119,7 +97,7 @@ await mock.module('../../kit/index.ts', () =>
       return chainable();
     },
     modName: 'koja-mocks',
-    popupSurface: surfaceFake,
+    popupSurface: () => drawn(),
     recordOf: (value: unknown) => (typeof value === 'object' && value !== null ? value : {}),
     searchField: chainable,
     spacing: {},
@@ -158,8 +136,10 @@ const layoutContext = {
   },
 };
 
-const layOutScene = (): void => {
-  for (const handler of layoutHandlers.splice(0)) {
+const drawScene = (view: { render: () => unknown }): void => {
+  const surface = view.render() as DrawnElement;
+
+  for (const handler of surface.sizeHandlers) {
     handler({ width: 100, height: 100 }, layoutContext);
   }
 };
@@ -187,13 +167,17 @@ afterAll(() => {
 
 beforeEach(() => {
   createdInputs.length = 0;
-  layoutHandlers.length = 0;
   openedSpecs.length = 0;
   pendingTimers.length = 0;
   closeCount = 0;
   sceneProps = {};
   shownKinds.length = 0;
   shownTexts.length = 0;
+  log = spyOnLog();
+});
+
+afterEach(() => {
+  log.mockRestore();
 });
 
 describe('scene picker', () => {
@@ -284,101 +268,74 @@ describe('scene picker', () => {
 describe('scene readiness', () => {
   test('a scene writes its ready line only after the frame that draws it has run', async () => {
     sceneProps = { scene: ' attention-brief ' };
-    const log = spyOn(console, 'log').mockImplementation(() => undefined);
 
-    try {
-      const view = await loadView();
+    const view = await loadView();
 
-      view.init(undefined, asyncContext);
-      view.render();
+    view.init(undefined, asyncContext);
+    view.render();
 
-      expect(log).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
 
-      layOutScene();
+    drawScene(view);
 
-      expect(log).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
 
-      runTimers();
+    runTimers();
 
-      expect(log.mock.calls).toEqual([[sceneReadyLine('attention-brief')]]);
-    } finally {
-      log.mockRestore();
-    }
+    expect(log.mock.calls).toEqual([[sceneReadyLine('attention-brief')]]);
   });
 
   test('a scene laid out again writes no second ready line', async () => {
     sceneProps = { scene: 'attention-brief' };
-    const log = spyOn(console, 'log').mockImplementation(() => undefined);
 
-    try {
-      const view = await loadView();
+    const view = await loadView();
 
-      view.init(undefined, asyncContext);
-      view.render();
-      layOutScene();
-      runTimers();
+    view.init(undefined, asyncContext);
+    view.render();
+    drawScene(view);
+    runTimers();
 
-      view.render();
-      layOutScene();
-      runTimers();
+    view.render();
+    drawScene(view);
+    runTimers();
 
-      expect(log.mock.calls).toHaveLength(1);
-    } finally {
-      log.mockRestore();
-    }
+    expect(log.mock.calls).toHaveLength(1);
   });
 
   test('the picker writes no ready line', async () => {
-    const log = spyOn(console, 'log').mockImplementation(() => undefined);
+    const view = await loadView();
 
-    try {
-      const view = await loadView();
+    view.init(undefined, asyncContext);
+    view.render();
+    drawScene(view);
+    runTimers();
 
-      view.init(undefined, asyncContext);
-      view.render();
-      layOutScene();
-      runTimers();
-
-      expect(log).not.toHaveBeenCalled();
-    } finally {
-      log.mockRestore();
-    }
+    expect(log).not.toHaveBeenCalled();
   });
 
   test('an unknown scene writes no ready line', async () => {
     sceneProps = { scene: 'no-such-scene' };
-    const log = spyOn(console, 'log').mockImplementation(() => undefined);
 
-    try {
-      const view = await loadView();
+    const view = await loadView();
 
-      view.init(undefined, asyncContext);
-      view.render();
-      layOutScene();
-      runTimers();
+    view.init(undefined, asyncContext);
+    view.render();
+    drawScene(view);
+    runTimers();
 
-      expect(log).not.toHaveBeenCalled();
-    } finally {
-      log.mockRestore();
-    }
+    expect(log).not.toHaveBeenCalled();
   });
 
   test('a scene without its inputs writes no ready line', async () => {
-    const log = spyOn(console, 'log').mockImplementation(() => undefined);
+    const view = await loadView();
 
-    try {
-      const view = await loadView();
+    view.init(undefined, asyncContext);
+    sceneProps = { scene: 'attention-brief' };
+    view.render();
+    drawScene(view);
+    runTimers();
 
-      view.init(undefined, asyncContext);
-      sceneProps = { scene: 'attention-brief' };
-      view.render();
-      layOutScene();
-      runTimers();
-
-      expect(log).not.toHaveBeenCalled();
-    } finally {
-      log.mockRestore();
-    }
+    expect(log).not.toHaveBeenCalled();
   });
 });
 

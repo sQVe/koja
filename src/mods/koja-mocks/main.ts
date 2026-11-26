@@ -279,7 +279,7 @@ export default class Mocks extends View {
       return this.picker();
     }
 
-    return this.scene(name).element;
+    return this.scene(name);
   }
 
   private focusSelf(): void {
@@ -329,7 +329,7 @@ export default class Mocks extends View {
     return this.tracked(surface);
   }
 
-  private scene(name: string): SceneRender {
+  private scene(name: string): Element {
     const content = this.sceneContent(name);
     const title = content.readyName ?? name;
 
@@ -362,7 +362,7 @@ export default class Mocks extends View {
       .child(header)
       .child(content.element);
 
-    return { element: this.tracked(surface), readyName: content.readyName };
+    return this.tracked(surface);
   }
 
   private sceneContent(name: string): SceneRender {

@@ -198,7 +198,9 @@ export const sceneReadyName = (line: string): string | null => {
     return null;
   }
 
-  return line.slice(marker + sceneReadyPrefix.length).trim();
+  const name = line.slice(marker + sceneReadyPrefix.length).trim();
+
+  return name === '' ? null : name;
 };
 
 // Logical px from the top left of the window, where every scene window opens.
