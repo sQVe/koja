@@ -59,7 +59,7 @@ interface HostState {
 // Herdr's runtime has the Web Crypto global, but its declarations do not name it.
 declare const crypto: { randomUUID: () => string };
 
-const sweepMilliseconds = 250;
+export const sweepMilliseconds = 250;
 
 const seedFacts = (): Facts => readStoredSnapshot(shared, recordNotices)?.facts ?? emptyFacts();
 

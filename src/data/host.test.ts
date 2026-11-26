@@ -7,7 +7,6 @@ import {
   repository,
   setupDataHost,
   start,
-  sweepMilliseconds,
 } from '../../tests/dataHostHarness.ts';
 import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
 import { worktreeOf } from './gitIdentity.ts';
@@ -53,7 +52,8 @@ describe('startDataHost', () => {
     setSystemTime(renewedAt);
     copy.beat();
 
-    expect(dataHost.intervals).toEqual([heartbeatIntervalMilliseconds, sweepMilliseconds]);
+    expect(dataHost.intervals).toEqual([heartbeatIntervalMilliseconds, dataHost.sweepMilliseconds]);
+
     expect(dataHost.heartbeat()).toMatchObject({ generation: 1, at: renewedAt });
   });
 

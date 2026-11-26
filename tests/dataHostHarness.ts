@@ -5,7 +5,7 @@ import type { ExecResult, FolderWatch } from 'herdr';
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
 import type { Heartbeat } from '../src/data/lease.ts';
 import { heartbeatIntervalMilliseconds, heartbeatKey, parseHeartbeat } from '../src/data/lease.ts';
-import { readPeriodMilliseconds } from '../src/data/pullDue.ts';
+import { pushGapMilliseconds, readPeriodMilliseconds } from '../src/data/pullDue.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { RepositoryPulls, Snapshot, TicketFacts } from '../src/data/snapshot.ts';
 import { snapshotVersion } from '../src/data/snapshot.ts';
@@ -68,15 +68,15 @@ interface HostControls {
   heartbeat: () => Heartbeat | null;
   storedSnapshot: (pulls?: Record<string, RepositoryPulls>) => Snapshot;
   readPull: (number: number) => Pull;
+  sweepMilliseconds: number;
 }
 
 export type DataHostHarness = HostState & HostControls;
 
+export { pushGapMilliseconds };
+
 export const pullPeriodMilliseconds = readPeriodMilliseconds;
 
-export const pushGapMilliseconds = 15_000;
-
-export const sweepMilliseconds = 250;
 export const folder = '/code/koja';
 const place = placeOf(null, folder);
 export const repository = repositoryOf(null, `${folder}/.git`);
@@ -191,21 +191,15 @@ const createHostState = (): HostState => ({
 });
 
 const resetHostState = (state: HostState): void => {
-  state.sharedValues.clear();
-  state.execCalls = [];
-  state.watches = [];
-  state.spaceFolders = [folder];
-  state.pullList = [];
-  state.gitBranch = 'main';
-  state.linearTickets = {};
-  state.ghFailures = 0;
-  state.checkingNow = false;
-  state.window = { active: true, visible: true };
-  state.intervals = [];
+  Object.assign(state, createHostState());
   setSystemTime(start);
 };
 
-const startCopyOf = (state: HostState, startDataHost: (cx: unknown) => void): Copy => {
+const startCopyOf = (
+  state: HostState,
+  startDataHost: (cx: unknown) => void,
+  sweepMilliseconds: number,
+): Copy => {
   const handlers = new Map<number, (() => void)[]>();
 
   const context: HostContext = {
@@ -285,11 +279,15 @@ const readPullOf = (number: number): Pull => {
   });
 };
 
-const controlsOf = (state: HostState, startDataHost: (cx: unknown) => void): HostControls => ({
+const controlsOf = (
+  state: HostState,
+  startDataHost: (cx: unknown) => void,
+  sweepMilliseconds: number,
+): HostControls => ({
   reset: () => {
     resetHostState(state);
   },
-  startCopy: () => startCopyOf(state, startDataHost),
+  startCopy: () => startCopyOf(state, startDataHost, sweepMilliseconds),
   settle: async () => {
     for (let index = 0; index < 30; index += 1) {
       await Promise.resolve();
@@ -300,6 +298,7 @@ const controlsOf = (state: HostState, startDataHost: (cx: unknown) => void): Hos
   heartbeat: () => parseHeartbeat(state.sharedValues.get(heartbeatKey)),
   storedSnapshot: (pulls) => storedSnapshotOf(pulls),
   readPull: (number) => readPullOf(number),
+  sweepMilliseconds,
 });
 
 // Bun keeps one module registry per worker, so every test file shares this state and the cached host.
@@ -342,7 +341,8 @@ export const setupDataHost = async (): Promise<DataHostHarness> => {
 
   const loaded = (await import('../src/data/host.ts')) as {
     startDataHost: (cx: unknown) => void;
+    sweepMilliseconds: number;
   };
 
-  return Object.assign(state, controlsOf(state, loaded.startDataHost));
+  return Object.assign(state, controlsOf(state, loaded.startDataHost, loaded.sweepMilliseconds));
 };

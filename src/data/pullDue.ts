@@ -20,7 +20,7 @@ export const readPeriodMilliseconds = 60_000;
 
 const pushSpacingMilliseconds = 2_000;
 
-const pushGapMilliseconds = 15_000;
+export const pushGapMilliseconds = 15_000;
 
 const readLimit = 2;
 
