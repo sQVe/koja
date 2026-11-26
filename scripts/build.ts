@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { chmod, cp, lstat, mkdir, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
+import { chmod, cp, lstat, mkdir, readdir, realpath, rename, rm } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { acquireCheckoutLock } from './fileLock.ts';
@@ -120,21 +120,7 @@ const shipsWithMod = async (path: string): Promise<boolean> => {
   });
 
   if (entry?.isSymbolicLink() === true) {
-    const target = await stat(path).catch((error: unknown) => {
-      if (isMissing(error)) {
-        return null;
-      }
-
-      throw error;
-    });
-
-    if (target?.isDirectory() === true) {
-      throw new Error(
-        `Refusing to copy the directory symlink ${path}; replace it with a real directory`,
-      );
-    }
-
-    return !isTypeScriptPath(path);
+    throw new Error(`Refusing to copy the symlink ${path}; replace it with a real file or folder`);
   }
 
   if (entry?.isDirectory() === true) {

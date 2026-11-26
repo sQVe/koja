@@ -310,11 +310,13 @@ describe('buildMods', () => {
     await writeSource('picker/component.tsx', 'export const component = 1;\n');
     await writeSource('picker/module.mts', 'export const module = 1;\n');
     await writeSource('picker/common.cts', 'export const common = 1;\n');
+    await writeSource('picker/mod.json', '{}\n');
 
     await buildMods(source, output);
 
     const files = await readdir(join(output, 'picker'), { recursive: true });
 
+    expect(files).toContain('mod.json');
     expect(files).not.toContain('component.tsx');
     expect(files).not.toContain('module.mts');
     expect(files).not.toContain('common.cts');
@@ -336,6 +338,22 @@ describe('buildMods', () => {
 
     expect(failure).toBeInstanceOf(Error);
     expect(messageOf(failure)).toContain('assets.ts');
+    expect(messageOf(failure)).toContain('symlink');
+    expect(await exists(join(output, 'picker'))).toBe(false);
+  });
+
+  test('refuses a symlink to a file', async () => {
+    await writeSource('picker/main.ts', 'export const picker = 1;\n');
+
+    const linked = join(root, 'linked-icon.svg');
+
+    await writeFile(linked, '<svg/>\n');
+    await symlink(linked, join(source, 'picker', 'icon.svg'));
+
+    const failure = await buildMods(source, output).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(messageOf(failure)).toContain('icon.svg');
     expect(messageOf(failure)).toContain('symlink');
     expect(await exists(join(output, 'picker'))).toBe(false);
   });
@@ -574,7 +592,7 @@ describe('buildMods', () => {
 
     await buildMods(source, output);
 
-    expect(await readdir(dirname(output))).toEqual(['mods', 'mods.previous-kept']);
+    expect((await readdir(dirname(output))).toSorted()).toEqual(['mods', 'mods.previous-kept']);
   });
 
   test('publishes the built tree with the default directory mode', async () => {
