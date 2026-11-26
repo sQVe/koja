@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { ModeHint } from '../../kit/shortcutBinding.ts';
+import type { OverlayHint } from '../../kit/shortcutBinding.ts';
 import type { Entry, PaletteHost } from './entries.ts';
 import { allEntries, entryHint, headingOf, paletteCount, paletteRows } from './entries.ts';
 
@@ -16,8 +16,8 @@ let platform: string | null = 'linux';
 let themeList: { name: string; label: string }[] = [];
 
 const hintIn =
-  (bindings: Record<string, ModeHint>) =>
-  (...actions: string[]): ModeHint => {
+  (bindings: Record<string, OverlayHint>) =>
+  (...actions: string[]): OverlayHint => {
     const hint = actions.map((action) => bindings[action]).find((found) => found !== undefined);
 
     return hint ?? { normal: [] };
@@ -178,6 +178,20 @@ describe('allEntries', () => {
       .map((item) => item.args);
 
     expect(moves).toEqual([{ by: -1 }, { by: 1 }]);
+  });
+
+  test('gives a pane move its direction icon', () => {
+    commandList = [commandOf('pane.go')];
+
+    const moves = allEntries(host()).filter((item) => item.name === 'pane.go');
+    const directionIcons = moves.map((item) => [item.args['direction'], item.icon]);
+
+    expect(directionIcons).toEqual([
+      ['left', 'columns-2'],
+      ['right', 'columns-2'],
+      ['up', 'rows-2'],
+      ['down', 'rows-2'],
+    ]);
   });
 
   test('lists a known command once, from the named catalog', () => {
@@ -394,20 +408,6 @@ describe('paletteRows', () => {
     const positions = paletteRows(all, '', ['a']).map((row) => row.positions);
 
     expect(positions).toEqual([[], []]);
-  });
-
-  test('gives a pane move its direction icon', () => {
-    commandList = [commandOf('pane.go')];
-
-    const moves = allEntries(host()).filter((item) => item.name === 'pane.go');
-    const directionIcons = moves.map((item) => [item.args['direction'], item.icon]);
-
-    expect(directionIcons).toEqual([
-      ['left', 'columns-2'],
-      ['right', 'columns-2'],
-      ['up', 'rows-2'],
-      ['down', 'rows-2'],
-    ]);
   });
 });
 

@@ -92,13 +92,8 @@ export const wheel = (
   return { scroll: next, at: nextAt };
 };
 
-export const visible = (start: number, end: number, scroll: number, scrolls: boolean): boolean => {
-  if (!scrolls) {
-    return true;
-  }
-
-  return end > scroll && start < scroll + listHeight;
-};
+export const visible = (start: number, end: number, scroll: number): boolean =>
+  end > scroll && start < scroll + listHeight;
 
 export const wheelFrom = (
   places: readonly RowPlace[],

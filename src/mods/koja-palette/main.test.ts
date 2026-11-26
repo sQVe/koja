@@ -8,6 +8,7 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import type { KeyBinding } from '../../kit/shortcutBinding.ts';
 import { spacing } from '../../kit/size.ts';
 import { groupSpace, headSize, listHeight, rowSize } from './viewport.ts';
 
@@ -22,12 +23,6 @@ interface FakeView {
   init: (props: unknown, cx: unknown) => void;
   render: () => unknown;
   close: () => void;
-}
-
-interface KeyBinding {
-  section: string;
-  keys: string;
-  action: string;
 }
 
 // The build defines this global for each mod; the kit reads it when it loads.
@@ -269,6 +264,22 @@ describe('palette overlay state', () => {
     expect(closeOverlayCalls).toBe(1);
   });
 
+  test('tracks focus on the card that handles keys', async () => {
+    const view = await openPalette();
+    const tree = renderTree(view);
+
+    const card = elementsWithStyle(tree, 'id').find(
+      (element) => element.styles['id']?.[0] === 'palette',
+    );
+
+    const backdrop = elementsWithStyle(tree, 'id').find(
+      (element) => element.styles['id']?.[0] === 'palette-backdrop',
+    );
+
+    expect(card?.styles['track_focus']).toHaveLength(1);
+    expect(backdrop?.styles['track_focus']).toBeUndefined();
+  });
+
   test('closing the view records one close', async () => {
     const view = await loadView();
 
@@ -369,8 +380,11 @@ describe('palette scroll thumb', () => {
     const view = await openPalette();
     const [thumb] = thumbsOf(renderTree(view));
 
-    const headings = 2;
-    const total = catalogCommands.length * rowSize + headings * headSize + groupSpace;
+    const headings = new Set(catalogCommands.map((command) => command.name.split('.')[0])).size;
+
+    const total =
+      catalogCommands.length * rowSize + headings * headSize + (headings - 1) * groupSpace;
+
     const expected = Math.max(spacing.xxlarge, (listHeight * listHeight) / total);
 
     expect(thumb?.styles['h']?.[0]).toBeCloseTo(expected);

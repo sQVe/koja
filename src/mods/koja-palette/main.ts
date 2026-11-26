@@ -39,7 +39,7 @@ import {
   thumbPlace,
 } from '../../kit/index.ts';
 import { parsedJson } from '../../kit/parsedJson.ts';
-import type { Entry, Row } from './entries.ts';
+import type { Entry, PaletteCount, Row } from './entries.ts';
 import {
   allEntries,
   entryHint,
@@ -155,15 +155,17 @@ export default class Palette extends View {
       .child(body)
       .child(footerLine([this.countText(count)]));
 
+    const focused = this.handle === null ? card : card.track_focus(this.handle);
+
     const backdrop = div()
       .id('palette-backdrop')
       .size_full()
       .on_mouse_down('left', () => {
         this.closePalette();
       })
-      .child(this.mainRow(card));
+      .child(this.mainRow(focused));
 
-    return this.handle === null ? backdrop : backdrop.track_focus(this.handle);
+    return backdrop;
   }
 
   private mainRow(card: Element): Element {
@@ -229,7 +231,7 @@ export default class Palette extends View {
     return paletteRows(all, this.query, this.recent);
   }
 
-  private countText(count: { filtered: boolean; count: number }): string {
+  private countText(count: PaletteCount): string {
     return count.filtered
       ? plural(count.count, 'match', 'matches')
       : plural(count.count, 'command', 'commands');
@@ -326,14 +328,14 @@ export default class Palette extends View {
         continue;
       }
 
-      if (place.head && visible(place.title, place.row, scroll, true)) {
+      if (place.head && visible(place.title, place.row, scroll)) {
         const heading = headingOf(row.head);
         const head = overlayHeading(heading.label, heading.letter);
 
         items.push(this.placed(head, place.title, place.row, height, scroll));
       }
 
-      if (visible(place.row, place.row + rowSize, scroll, true)) {
+      if (visible(place.row, place.row + rowSize, scroll)) {
         items.push(
           this.placed(
             this.rowElement(row, index, at),

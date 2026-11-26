@@ -102,7 +102,10 @@ describe('wheel', () => {
   });
 
   test('moves a wheel notch by its pixel delta too', () => {
-    expect(wheel(placesOf(['A'], false), 0, 100, 500, 28)).toEqual({
+    // The notch is an independent pixel input, not a row height.
+    const notchPixels = 28;
+
+    expect(wheel(placesOf(['A'], false), 0, 100, 500, notchPixels)).toEqual({
       scroll: 72,
       at: 0,
     });
@@ -122,10 +125,9 @@ describe('wheel', () => {
 });
 
 describe('visible', () => {
-  test('clips rows outside the strip only while scrolling', () => {
-    expect(visible(0, rowSize, 0, true)).toBe(true);
-    expect(visible(0, rowSize, rowSize * 2, true)).toBe(false);
-    expect(visible(0, rowSize, rowSize * 2, false)).toBe(true);
+  test('clips rows outside the strip', () => {
+    expect(visible(0, rowSize, 0)).toBe(true);
+    expect(visible(0, rowSize, rowSize * 2)).toBe(false);
   });
 });
 
