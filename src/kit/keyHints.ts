@@ -145,11 +145,6 @@ const spaceGroupSpecs: GroupSpec[] = [
     holds: (action) => isCommand(action, 'space.next', 'space.prev'),
     label: withoutPartNoun,
   },
-  {
-    title: 'Find',
-    holds: (action) => isCommand(action, 'mod.open'),
-    label: (name) => name,
-  },
 ];
 
 const goGroupSpecs: GroupSpec[] = [
@@ -161,6 +156,11 @@ const goGroupSpecs: GroupSpec[] = [
   {
     title: 'Terminal',
     holds: (action) => isCommand(action, 'terminal.scroll'),
+    label: (name) => name,
+  },
+  {
+    title: 'Find',
+    holds: (action) => isCommand(action, 'mod.open'),
     label: (name) => name,
   },
 ];
