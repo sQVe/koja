@@ -130,6 +130,12 @@ class Scheduler implements PullScheduler {
       this.branches.set(key, source.branches);
     }
 
+    for (const key of this.branches.keys()) {
+      if (!sources.has(key)) {
+        this.branches.delete(key);
+      }
+    }
+
     for (const [key, at] of remoteRefEvents) {
       if (sources.has(key)) {
         notePush(this.due, key, at);
