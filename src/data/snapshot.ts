@@ -102,6 +102,12 @@ export const pullOfBranch = (
   return mine.find((pull) => pull.state === 'OPEN') ?? mine[0] ?? null;
 };
 
+export const worktreeKeyAtPlace = (git: GitFacts, placeKey: string): string | null => {
+  const entry = git.places[placeKey];
+
+  return entry?.kind === 'repository' ? entry.worktree : null;
+};
+
 const isNullableString = (value: unknown): value is string | null =>
   value === null || typeof value === 'string';
 

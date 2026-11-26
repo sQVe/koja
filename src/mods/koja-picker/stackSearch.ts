@@ -2,6 +2,7 @@ import type { PaneInfo, SpaceInfo } from 'herdr';
 
 import { placeOfSpace } from '../../data/places.ts';
 import type { Facts } from '../../data/snapshot.ts';
+import { worktreeKeyAtPlace } from '../../data/snapshot.ts';
 import type { SpaceStack, StackPull } from '../../data/spaceStack.ts';
 import { spaceStackOf } from '../../data/spaceStack.ts';
 import { bestFieldMatch } from './match.ts';
@@ -30,7 +31,7 @@ interface PullMatch extends Ranked {
   value: string;
 }
 
-const numberOf = (query: string): string | null => {
+const digitsOf = (query: string): string | null => {
   const digits = query.startsWith('#') ? query.slice(1) : query;
 
   return /^\d+$/.test(digits) ? digits : null;
@@ -68,12 +69,6 @@ const outranks = (candidate: Ranked, best: Ranked): boolean => {
   return candidate.score > best.score;
 };
 
-const worktreeKeyAtPlace = (facts: Facts, placeKey: string): string | null => {
-  const entry = facts.git.places[placeKey];
-
-  return entry?.kind === 'repository' ? entry.worktree : null;
-};
-
 // Stack search reads the same recorded place the row facts use, and only when a query runs.
 export const stackForSpace = (
   facts: Facts | null,
@@ -85,7 +80,7 @@ export const stackForSpace = (
   }
 
   const place = placeOfSpace(space, paneList);
-  const worktreeKey = worktreeKeyAtPlace(facts, place.key);
+  const worktreeKey = worktreeKeyAtPlace(facts.git, place.key);
 
   return worktreeKey === null ? null : spaceStackOf(facts, worktreeKey);
 };
@@ -95,7 +90,7 @@ export const stackMatchOf = (query: string, stack: SpaceStack | null): StackMatc
     return null;
   }
 
-  const digits = numberOf(query);
+  const digits = digitsOf(query);
   let best: StackMatch | null = null;
 
   for (const [index, pull] of stack.pulls.entries()) {

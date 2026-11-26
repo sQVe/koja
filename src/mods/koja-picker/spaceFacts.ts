@@ -11,7 +11,7 @@ import { pullNeeds } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
 import { repositoryNameOf } from '../../data/repositoryName.ts';
 import type { Facts, GitFacts, WorktreeGit } from '../../data/snapshot.ts';
-import { pullOfBranch } from '../../data/snapshot.ts';
+import { pullOfBranch, worktreeKeyAtPlace } from '../../data/snapshot.ts';
 
 export interface SpaceFacts {
   project: string;
@@ -54,13 +54,9 @@ export const storedFacts = (): Facts | null => {
 };
 
 const worktreeAt = (place: Place, git: GitFacts): WorktreeGit | null => {
-  const entry = git.places[place.key];
+  const worktreeKey = worktreeKeyAtPlace(git, place.key);
 
-  if (entry?.kind !== 'repository') {
-    return null;
-  }
-
-  return git.worktrees[entry.worktree] ?? null;
+  return worktreeKey === null ? null : (git.worktrees[worktreeKey] ?? null);
 };
 
 const pullOf = (facts: Facts, worktree: WorktreeGit | null, branch: string | null): Pull | null => {

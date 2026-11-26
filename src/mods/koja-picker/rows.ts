@@ -284,9 +284,9 @@ const fieldScoreOf = (
   data: PickerData,
   ownMatch: ReturnType<typeof bestFieldMatch>,
 ): number => {
-  const tabScore = bestFieldMatch(query, spaceSearchTabs(space, data))?.score ?? null;
+  const tabScore = bestFieldMatch(query, spaceSearchTabs(space, data))?.score ?? -Infinity;
 
-  return Math.max(ownMatch?.score ?? -Infinity, tabScore ?? -Infinity);
+  return Math.max(ownMatch?.score ?? -Infinity, tabScore);
 };
 
 const spaceScore = (
@@ -359,7 +359,7 @@ const spaceRows = (
   return { exact: scored.exact, score: scored.score, rows };
 };
 
-const outranks = (first: RowGroup, second: RowGroup): number => {
+const compareGroups = (first: RowGroup, second: RowGroup): number => {
   if (first.exact !== second.exact) {
     return first.exact ? -1 : 1;
   }
@@ -376,7 +376,7 @@ export const buildRows = (
     .map((space) => spaceRows(space, query, statuses, data))
     .filter((group): group is RowGroup => group !== null);
 
-  const ordered = query === '' ? groups : groups.toSorted(outranks);
+  const ordered = query === '' ? groups : groups.toSorted(compareGroups);
 
   return ordered.flatMap((group) => group.rows);
 };
