@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { seededRandom } from '../../../tests/seeded.ts';
 import { overlaySize } from '../../kit/size.ts';
 import { findScene, sceneReadyLine, sceneReadyName } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
@@ -248,16 +249,6 @@ describe('scene lookup', () => {
   });
 });
 
-const seededRandom = (seed: number): (() => number) => {
-  let state = seed;
-
-  return () => {
-    state = (state * 1_664_525 + 1_013_904_223) >>> 0;
-
-    return state / 0x1_0000_0000;
-  };
-};
-
 const nameCharacters = 'abcdefghijklmnopqrstuvwxyz-0123456789 \t';
 
 describe('scene ready line', () => {
@@ -277,8 +268,12 @@ describe('scene ready line', () => {
         continue;
       }
 
-      expect(sceneReadyName(`earlier\n${sceneReadyLine(trimmed)}\n`)).toBe(trimmed);
+      expect(sceneReadyName(sceneReadyLine(trimmed))).toBe(trimmed);
     }
+  });
+
+  test('log text after the ready line stays out of the name', () => {
+    expect(sceneReadyName(`earlier\n${sceneReadyLine('sidebar')}\nnext log line`)).toBe('sidebar');
   });
 
   test('a line without the marker, or with nothing after it, has no ready name', () => {

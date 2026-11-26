@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 
 import type { CheckResult } from '../scripts/install.ts';
 import { install, readRecord } from '../scripts/install.ts';
+import { seededRandom } from './seeded.ts';
 
 const pool = [
   'config/keys.json',
@@ -23,16 +24,6 @@ let config: string;
 const writeAt = async (path: string, content: string): Promise<void> => {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content);
-};
-
-const seededRandom = (seed: number): (() => number) => {
-  let state = seed;
-
-  return () => {
-    state = (state * 1_664_525 + 1_013_904_223) >>> 0;
-
-    return state / 0x1_0000_0000;
-  };
 };
 
 const modPaths = pool.filter((path) => path.startsWith('mods/'));

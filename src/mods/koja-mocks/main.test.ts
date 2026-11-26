@@ -275,10 +275,12 @@ describe('scene readiness', () => {
     view.render();
 
     expect(log).not.toHaveBeenCalled();
+    expect(pendingTimers).toEqual([]);
 
     drawScene(view);
 
     expect(log).not.toHaveBeenCalled();
+    expect(pendingTimers).toHaveLength(1);
 
     runTimers();
 

@@ -198,7 +198,8 @@ export const sceneReadyName = (line: string): string | null => {
     return null;
   }
 
-  const name = line.slice(marker + sceneReadyPrefix.length).trim();
+  const rest = line.slice(marker + sceneReadyPrefix.length).split('\n')[0] ?? '';
+  const name = rest.trim();
 
   return name === '' ? null : name;
 };
