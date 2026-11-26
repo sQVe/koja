@@ -140,9 +140,10 @@ describe('sandbox identity', () => {
   test('fails when the install record cannot be read', async () => {
     await writeFile(recordPath(), 'not a record\n');
 
+    const failures = await findIdentityFailures(options);
     const report = await identityReport(options);
 
-    expect(report.exitCode).toBe(1);
+    expect(failures).toEqual([{ kind: 'recordUnreadable', path: recordPath() }]);
     expect(report.lines.join('\n')).toContain(recordPath());
   });
 

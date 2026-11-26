@@ -7,7 +7,7 @@ import {
   isSameFile,
   lstatOrNull,
   readRecord,
-  recordName,
+  recordPath,
   shippedInputs,
 } from './install.ts';
 
@@ -45,8 +45,6 @@ type NameHolder =
   | { kind: 'unreadableRecord'; path: string };
 
 type RecordRead = InstallRecord | null | 'unreadable';
-
-const recordPath = (home: string): string => join(home, recordName);
 
 const windowStates: WindowState[] = ['answers', 'silent'];
 

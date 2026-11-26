@@ -68,6 +68,8 @@ type RecordFields = Record<string, unknown>;
 
 export const recordName = '.koja-install.json';
 
+export const recordPath = (home: string): string => join(home, recordName);
+
 const recordVersion = 2;
 
 const permissionBits = 0o777;
@@ -207,7 +209,7 @@ const recordedOrigin = (record: RecordFields): InstallOrigin | null => {
 };
 
 export const readRecord = async (home: string): Promise<InstallRecord | null> => {
-  const path = join(home, recordName);
+  const path = recordPath(home);
   const existing = await lstatOrNull(path);
 
   if (existing === null || existing.isSymbolicLink()) {
@@ -409,13 +411,13 @@ const writeRecord = async (home: string, files: string[], origin: InstallOrigin)
     files: files.toSorted(),
   };
 
-  const recordPath = join(home, recordName);
+  const path = recordPath(home);
   const temporaryPath = join(home, `${recordName}.tmp`);
 
   await removeSymlinkLeaf(temporaryPath);
   await writeFile(temporaryPath, `${JSON.stringify(record, null, 2)}\n`);
-  await removeSymlinkLeaf(recordPath);
-  await rename(temporaryPath, recordPath);
+  await removeSymlinkLeaf(path);
+  await rename(temporaryPath, path);
 };
 
 const isModFile = (path: string): boolean => path.split(sep)[0] === 'mods';
