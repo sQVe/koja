@@ -15,6 +15,10 @@ let checkingNow = false;
 
 let execCalls: string[][] = [];
 
+let execCwds: string[] = [];
+
+let spaceFolderValue = '/code/koja';
+
 let tasks: Promise<void>[] = [];
 
 let menuProps: Record<string, unknown> = {
@@ -76,15 +80,16 @@ await mock.module('gpui-kit', () =>
 await mock.module('herdr', () =>
   herdrFake({
     checking: () => checkingNow,
-    exec: async (command: string, args: string[]) => {
+    exec: async (command: string, args: string[], options: { cwd: string }) => {
       execCalls.push([command, ...args]);
+      execCwds.push(options.cwd);
 
       return execReply;
     },
     panes: () => paneList,
     props: () => menuProps,
     shared: (key: string) => (key === 'koja-modal' && sharedNormalMode ? true : undefined),
-    spaces: () => [{ id: 'space-1', folder: '/code/koja', machine: null, tabs: [] }],
+    spaces: () => [{ id: 'space-1', folder: spaceFolderValue, machine: null, tabs: [] }],
     terminals: () => terminalList,
   }),
 );
@@ -150,7 +155,9 @@ afterAll(() => {
 beforeEach(() => {
   checkingNow = false;
   execCalls = [];
+  execCwds = [];
   tasks = [];
+  spaceFolderValue = '/code/koja';
   menuProps = { tab: 'space', target: { id: 'space-1' } };
   execReply = { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
   paneList = [];
@@ -181,6 +188,44 @@ describe('space menu', () => {
     const view = await openMenu();
 
     expect(drawnTexts(view.render())).toContain('Could not read the checkout');
+  });
+
+  test('retries the checkout the error names after the space moves', async () => {
+    execReply = { code: 128, stdout: '', stderr: 'fatal: unable to read repository' };
+
+    const view = await openMenu();
+    const [retry] = clickablesWithText(view.render(), 'Retry');
+
+    spaceFolderValue = '/code/moved';
+    execCalls = [];
+    execCwds = [];
+
+    if (retry !== undefined) {
+      click(retry, context);
+    }
+
+    await Promise.all(tasks);
+
+    expect(execCwds.length).toBeGreaterThan(0);
+    expect(new Set(execCwds)).toEqual(new Set(['/code/koja']));
+  });
+
+  test('starts one read when Retry is clicked twice', async () => {
+    execReply = { code: 128, stdout: '', stderr: 'fatal: unable to read repository' };
+
+    const view = await openMenu();
+    const [retry] = clickablesWithText(view.render(), 'Retry');
+
+    execCalls = [];
+
+    if (retry !== undefined) {
+      click(retry, context);
+      click(retry, context);
+    }
+
+    await Promise.all(tasks);
+
+    expect(execCalls).toHaveLength(1);
   });
 
   test('reads the checkout again when the error line asks for a retry', async () => {
