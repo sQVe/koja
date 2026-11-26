@@ -1,18 +1,10 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
-import { drawn, drawnTexts } from '../../../tests/drawn.ts';
+import { click, clickablesWithText, drawnTexts } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import {
-  chainable,
-  gpuiBaseFake,
-  gpuiKitFake,
-  herdrFake,
-  realKitIndexFake,
-} from '../../../tests/moduleFakes.ts';
+import { mockGalleryModules } from '../../../tests/gallery.ts';
 import { heartbeatKey, leaseExpiryMilliseconds } from '../../data/lease.ts';
 import { emptyFacts, snapshotKey } from '../../data/snapshot.ts';
-
-type ClickHandler = (event: unknown, cx: unknown) => void;
 
 interface FakeView {
   init: (props: unknown, cx: unknown) => void;
@@ -31,57 +23,7 @@ let notifyCalls = 0;
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
-await mock.module('gpui-base', () =>
-  gpuiBaseFake({
-    h_flex: () => drawn(),
-    v_flex: () => drawn(),
-    InputState: { new: () => chainable() },
-  }),
-);
-
-await mock.module('gpui-kit', () =>
-  gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
-);
-
-await mock.module('herdr', () =>
-  herdrFake({ shared: (key: string) => sharedValues[key], theme: () => ({}) }),
-);
-
-const kitFake = await realKitIndexFake([
-  'actionBlock',
-  'age',
-  'button',
-  'contentSection',
-  'dialog',
-  'documentLine',
-  'factRows',
-  'hoverCard',
-  'icon',
-  'iconNames',
-  'itemHeader',
-  'listRow',
-  'partNote',
-  'popupSurface',
-  'projectHeader',
-  'roleBadge',
-  'searchField',
-  'sectionHeader',
-  'size',
-  'sourceLink',
-  'spaceFooter',
-  'splitButton',
-  'stackProgress',
-  'stateLine',
-  'statusMark',
-  'statusRow',
-  'tab',
-  'text',
-  'textField',
-  'textRole',
-  'theme',
-  'viewSwitch',
-  'workIcon',
-]);
+const kitFake = await mockGalleryModules({ shared: (key: string) => sharedValues[key] });
 
 await mock.module('../../kit/index.ts', () => kitFake);
 
@@ -100,6 +42,7 @@ const context = {
   notify: () => {
     notifyCalls += 1;
   },
+  stop_propagation: () => undefined,
   timer: {
     after: (milliseconds: number, handler: (cx: unknown) => void) => {
       const task: DeadlineTask = { milliseconds, handler, cancelled: false };
@@ -188,21 +131,6 @@ describe('gallery data layer section', () => {
   });
 });
 
-const drawnParts = (element: DrawnElement): DrawnElement[] =>
-  Array.isArray(element.kids) ? [element, ...element.kids.flatMap(drawnParts)] : [element];
-
-const partTexts = (element: DrawnElement): string[] =>
-  Array.isArray(element.texts) ? element.texts : [];
-
-const clickHandlers = (element: DrawnElement): ClickHandler[] =>
-  Array.isArray(element.clickHandlers) ? element.clickHandlers : [];
-
-// The gallery draws mocked fields, which are not drawn elements, so walk only the drawn children.
-const clickableWithText = (element: DrawnElement, text: string): DrawnElement | undefined =>
-  drawnParts(element).find(
-    (part) => clickHandlers(part).length > 0 && drawnParts(part).flatMap(partTexts).includes(text),
-  );
-
 describe('gallery section folding', () => {
   test('opens the folded Files section from its header', () => {
     const view = openGallery();
@@ -210,15 +138,36 @@ describe('gallery section folding', () => {
 
     expect(drawnTexts(before)).not.toContain('src/kit/sectionHeader.ts');
 
-    const header = clickableWithText(before, 'Files');
+    const [header] = clickablesWithText(before, 'Files');
 
     if (header === undefined) {
       throw new Error('The gallery draws no foldable Files header.');
     }
 
-    clickHandlers(header)[0]?.({}, context);
+    click(header, context);
 
     expect(notifyCalls).toBe(1);
     expect(drawnTexts(view.render(context))).toContain('src/kit/sectionHeader.ts');
+  });
+});
+
+describe('gallery retry wiring', () => {
+  test('reads the Checks part again when its stale note is retried', () => {
+    const view = openGallery();
+    const before = view.render(context);
+    const staleNote = 'Could not sync checks · showing checks from 6m ago';
+
+    expect(drawnTexts(before)).toContain(staleNote);
+
+    const [retry] = clickablesWithText(before, 'Retry');
+
+    if (retry === undefined) {
+      throw new Error('The gallery draws no Retry.');
+    }
+
+    click(retry, context);
+
+    expect(notifyCalls).toBe(1);
+    expect(drawnTexts(view.render(context))).not.toContain(staleNote);
   });
 });

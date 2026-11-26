@@ -12,10 +12,12 @@ import type { ModuleFake } from './moduleFakes.ts';
 
 // The parts the gallery draws through the kit index, shared so both gallery tests fake the same set.
 const galleryKitParts = [
+  'actionBlock',
   'age',
   'button',
   'contentSection',
   'dialog',
+  'documentLine',
   'factRows',
   'hoverCard',
   'icon',
@@ -31,6 +33,7 @@ const galleryKitParts = [
   'size',
   'sourceLink',
   'spaceFooter',
+  'splitButton',
   'stackProgress',
   'stateLine',
   'statusMark',
