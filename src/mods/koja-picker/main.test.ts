@@ -189,6 +189,7 @@ await mock.module('../../kit/index.ts', () =>
     rollupStatuses: () => ({ spaces: {}, tabs: {} }),
     rowHeight: {},
     searchField: () => chainable(),
+    segmentedChip: () => chainable(),
     spacing: {},
     stateLine: (state: { text: string }) => {
       emptyText = state.text;
@@ -414,7 +415,7 @@ describe('picker overlay state', () => {
     expect(emptyText).toBe('No space matches.');
 
     const steps = [
-      { keystroke: 'tab', expected: 'Nothing needs you.' },
+      { keystroke: 'tab', expected: 'Nothing is waiting.' },
       { keystroke: 'shift-tab', expected: 'No space matches.' },
       { keystroke: 'shift-tab', expected: 'Nothing is idle.' },
     ];
@@ -452,8 +453,8 @@ describe('picker overlay state', () => {
     expect(emptyText).toBe(allWithoutQuery);
 
     const presses = [
-      { keystroke: 'tab', label: 'Needs you' },
-      { keystroke: 'tab', label: 'Blocked' },
+      { keystroke: 'tab', label: 'Waiting' },
+      { keystroke: 'tab', label: 'Done' },
     ];
 
     for (const { keystroke, label } of presses) {
