@@ -46,12 +46,16 @@ await mock.module('herdr', () =>
 );
 
 const kitFake = await realKitIndexFake([
+  'actionBlock',
   'age',
   'button',
   'dialog',
+  'documentLine',
+  'factRows',
   'hoverCard',
   'icon',
   'iconNames',
+  'itemHeader',
   'listRow',
   'popupSurface',
   'projectHeader',
@@ -59,6 +63,7 @@ const kitFake = await realKitIndexFake([
   'searchField',
   'sectionHeader',
   'size',
+  'sourceLink',
   'spaceFooter',
   'splitButton',
   'stackProgress',

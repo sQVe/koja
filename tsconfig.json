@@ -24,5 +24,11 @@
       "herdr": ["./herdr/herdr.d.ts"]
     }
   },
-  "include": ["tests/**/*.ts", "scripts/**/*.ts", "src/**/*.test.ts", "vite.config.ts"]
+  "include": [
+    "tests/**/*.ts",
+    "scripts/**/*.ts",
+    "src/**/*.test.ts",
+    "herdr/gpui-kit.d.ts",
+    "vite.config.ts"
+  ]
 }

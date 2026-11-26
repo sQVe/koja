@@ -13,6 +13,7 @@ export const iconNames = [
   'git-branch',
   'git-compare',
   'git-merge',
+  'git-pull-request',
   'keyboard',
   'layers',
   'loader-circle',

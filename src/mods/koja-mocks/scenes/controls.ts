@@ -61,6 +61,7 @@ const roleNames: Record<TextRole, string> = {
   detail: 'Detail',
   badge: 'Badge',
   tag: 'Tag',
+  mono: 'Monospace',
 };
 
 const section = (name: string, content: Element[]): Element =>

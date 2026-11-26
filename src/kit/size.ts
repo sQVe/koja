@@ -52,6 +52,23 @@ export const diffSize = {
   fileListHeightMinimum: 44,
 } as const;
 
+// A document's lines: a gutter bar, a right-aligned line number, and the text.
+export const documentSize = {
+  lineHeight: diffSize.rowHeight,
+  // The line's own padding, and the gap between the gutter and the text.
+  inset: spacing.xxlarge,
+  textGap: 12,
+  // The edited line's bar fills the mark slot, and a commented line's bar sits inside it, so every
+  // line number stays in one column. The slot stops short of the row's edges, so the bars of
+  // adjacent commented lines stay apart.
+  markWidth: 4,
+  markHeight: 12,
+  stripeWidth: 2,
+  markGap: spacing.xsmall,
+  // Four digits, the width the diff's line numbers keep too.
+  numberWidth: diffSize.lineNumberWidth,
+} as const;
+
 export const controlSize = {
   badge: 18,
   button: 22,
@@ -125,6 +142,18 @@ export const markSize = {
   slot: 12,
   dot: 6,
   quietDot: 4,
+} as const;
+
+export const factSize = {
+  labelWidth: 64,
+  pairGap: 24,
+} as const;
+
+export const contentSize = {
+  // A content pane beside the agent, where the facts wrap under the title.
+  narrowWidth: 568,
+  // The facts rail of a wide content pane.
+  railWidth: 240,
 } as const;
 
 export const progressSize = {
