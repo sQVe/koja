@@ -196,6 +196,64 @@ describe('dialogFor', () => {
     });
   });
 
+  test('one terminal shown in two panes counts once', () => {
+    const values = facts(spaceValues(), [], focusValue);
+    const claude = agent('s1', 'Claude Code', 'working', 'claude');
+
+    values.agents = [claude, { ...claude, pane: 'p-claude-second' }];
+
+    const plan = dialogFor('space.close', { id: 's1' }, values);
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        body: [
+          'Claude Code stops mid-task, and 2 tabs close.',
+          'Its folder, uncommitted changes, and branch stay.',
+        ],
+      },
+    });
+  });
+
+  test('a program split across both clauses keeps its count', () => {
+    const values = facts(spaceValues(), [], focusValue);
+
+    values.agents = [
+      agent('s1', 'Claude Code', 'working', 'claude-working'),
+      agent('s1', 'Claude Code', 'done', 'claude-done'),
+    ];
+
+    const plan = dialogFor('space.close', { id: 's1' }, values);
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        body: [
+          '1 Claude Code agent stops mid-task, 1 Claude Code agent stops, and 2 tabs close.',
+          'Its folder, uncommitted changes, and branch stay.',
+        ],
+      },
+    });
+  });
+
+  test('a finished agent listed first still follows the mid-task clause', () => {
+    const values = facts(spaceValues(), [], focusValue);
+
+    values.agents = [agent('s1', 'Pi', 'done'), agent('s1', 'Claude Code')];
+
+    const plan = dialogFor('space.close', { id: 's1' }, values);
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        body: [
+          'Claude Code stops mid-task, Pi stops, and 2 tabs close.',
+          'Its folder, uncommitted changes, and branch stay.',
+        ],
+      },
+    });
+  });
+
   test('a blocked agent stops mid-task', () => {
     const values = facts(spaceValues(), [], focusValue);
 

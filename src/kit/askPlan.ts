@@ -76,6 +76,20 @@ const tabTarget = (args: Record<string, unknown>, facts: AskFacts): TabPlace | u
 const spaceAgents = (space: SpaceInfo, agentList: AgentInfo[]): AgentInfo[] =>
   agentList.filter((agent) => agent.space === space.id);
 
+const uniqueAgents = (agents: AgentInfo[]): AgentInfo[] => {
+  const seen = new Set<string>();
+
+  return agents.filter((agent) => {
+    if (seen.has(agent.address)) {
+      return false;
+    }
+
+    seen.add(agent.address);
+
+    return true;
+  });
+};
+
 const agentGroups = (agents: AgentInfo[]): AgentGroup[] => {
   const counts = new Map<string, number>();
 
@@ -86,11 +100,23 @@ const agentGroups = (agents: AgentInfo[]): AgentGroup[] => {
   return [...counts].map(([name, count]) => ({ name, count }));
 };
 
-const groupLabel = (group: AgentGroup): string =>
-  group.count === 1 ? group.name : `${group.count} ${group.name} agents`;
+const groupLabel = (group: AgentGroup, counted: boolean): string => {
+  if (group.count === 1 && !counted) {
+    return group.name;
+  }
+
+  return `${group.count} ${group.name} ${group.count === 1 ? 'agent' : 'agents'}`;
+};
 
 const isMidTask = (agent: AgentInfo): boolean =>
   agent.status === 'working' || agent.status === 'blocked';
+
+const splitNames = (midTask: AgentInfo[], other: AgentInfo[]): Set<string> => {
+  const midTaskNames = new Set(midTask.map((agent) => agent.program.name));
+  const shared = other.map((agent) => agent.program.name).filter((name) => midTaskNames.has(name));
+
+  return new Set(shared);
+};
 
 const joinNames = (names: string[]): string => {
   if (names.length <= 2) {
@@ -102,26 +128,27 @@ const joinNames = (names: string[]): string => {
 
 const tabCount = (count: number): string => `${count} ${count === 1 ? 'tab closes' : 'tabs close'}`;
 
-const stopsClause = (agents: AgentInfo[], midTask: boolean): string => {
+const stopsClause = (agents: AgentInfo[], counted: Set<string>): string => {
   if (agents.length === 0) {
     return '';
   }
 
-  const labels = agentGroups(agents).map(groupLabel);
+  const labels = agentGroups(agents).map((group) => groupLabel(group, counted.has(group.name)));
   const verb = agents.length === 1 ? 'stops' : 'stop';
-  const warning = midTask ? ' mid-task' : '';
+  const warning = agents.every(isMidTask) ? ' mid-task' : '';
 
   return `${joinNames(labels)} ${verb}${warning}`;
 };
 
 const closeStops = (agents: AgentInfo[]): string => {
-  const clauses = [
-    stopsClause(agents.filter(isMidTask), true),
-    stopsClause(
-      agents.filter((agent) => !isMidTask(agent)),
-      false,
-    ),
-  ].filter((clause) => clause !== '');
+  const unique = uniqueAgents(agents);
+  const midTask = unique.filter(isMidTask);
+  const other = unique.filter((agent) => !isMidTask(agent));
+  const counted = splitNames(midTask, other);
+
+  const clauses = [stopsClause(midTask, counted), stopsClause(other, counted)].filter(
+    (clause) => clause !== '',
+  );
 
   return clauses.length === 0 ? '' : `${clauses.join(', ')}, and `;
 };
