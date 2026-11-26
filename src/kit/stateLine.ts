@@ -49,13 +49,8 @@ export const stateLine = (options: StateLineOptions): Element => {
     .min_h(rowHeight.small)
     .pl(options.paddingStart ?? spacing.large)
     .pr(spacing.large)
-    .gap(spacing.small);
-
-  if (wrap) {
-    line.items_start().py(spacing.xsmall);
-  } else {
-    line.items_center();
-  }
+    .gap(spacing.small)
+    .items_center();
 
   const mark = kindMark(options.kind);
 
