@@ -5,8 +5,10 @@ import type { ExecResult, FolderWatch } from 'herdr';
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
 import type { Heartbeat } from '../src/data/lease.ts';
 import { heartbeatIntervalMilliseconds, heartbeatKey, parseHeartbeat } from '../src/data/lease.ts';
+import { readPeriodMilliseconds } from '../src/data/pullDue.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { RepositoryPulls, Snapshot, TicketFacts } from '../src/data/snapshot.ts';
+import { snapshotVersion } from '../src/data/snapshot.ts';
 import { spaceOf } from './gitSchedulerHarness.ts';
 import { herdrFake } from './moduleFakes.ts';
 import { answerFrom, branchCountOf } from './pullAnswers.ts';
@@ -70,7 +72,7 @@ interface HostControls {
 
 export type DataHostHarness = HostState & HostControls;
 
-export const pullPeriodMilliseconds = 60_000;
+export const pullPeriodMilliseconds = readPeriodMilliseconds;
 
 export const pushGapMilliseconds = 15_000;
 
@@ -248,7 +250,7 @@ const storedSnapshotOf = (pulls: Record<string, RepositoryPulls> = {}): Snapshot
   const worktree = worktreeOf(null, folder);
 
   return {
-    version: 8,
+    version: snapshotVersion,
     revision: 7,
     facts: {
       git: {
@@ -300,11 +302,12 @@ const controlsOf = (state: HostState, startDataHost: (cx: unknown) => void): Hos
   readPull: (number) => readPullOf(number),
 });
 
+// Bun keeps one module registry per worker, so every test file shares this state and the cached host.
+const state = createHostState();
+
 // The fake Herdr module and its state, so a test drives the host the way the app does. Bun fixes a
 // mocked module's export names at the first mock.module call, so this mock uses herdrFake.
 export const setupDataHost = async (): Promise<DataHostHarness> => {
-  const state = createHostState();
-
   await mock.module('herdr', () =>
     herdrFake({
       checking: () => state.checkingNow,
