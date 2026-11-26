@@ -15,6 +15,11 @@ export interface ChangesSnapshot {
 
 export type ReadOutcome = { snapshot: ChangesSnapshot } | { failure: string };
 
+export type Repository =
+  | { kind: 'root'; root: string }
+  | { kind: 'missing' }
+  | { kind: 'failed'; error: string };
+
 export const readFlags = [
   '--no-optional-locks',
   '-c',
@@ -23,49 +28,49 @@ export const readFlags = [
   'diff.autoRefreshIndex=false',
 ];
 
+const statusArguments = ['status', '--porcelain=v1', '-z', '--no-renames', '--untracked-files=all'];
+
 const fileLimit = 1000;
 
-export const readChanges = async (
+export const readRepository = async (
   run: RunCommand,
   cwd: string,
   on: string | null,
-  isCurrent: () => boolean,
-): Promise<ReadOutcome | null> => {
+): Promise<Repository> => {
   const identity = await readGitIdentity(run, on, cwd);
 
-  if (!isCurrent()) {
-    return null;
-  }
-
   if (identity.kind === 'failed') {
-    throw new Error(identity.error);
+    return { kind: 'failed', error: identity.error };
   }
 
   if (identity.kind === 'none' || identity.kind === 'bare') {
-    return { failure: 'Not a git repository' };
+    return { kind: 'missing' };
   }
 
-  const root = identity.worktree.top;
+  return { kind: 'root', root: identity.worktree.top };
+};
 
-  const git = (args: string[]): Promise<ExecResult> =>
-    run('git', [...readFlags, ...args], { cwd: root, on });
+export const statusCommand = (
+  run: RunCommand,
+  root: string,
+  on: string | null,
+): Promise<ExecResult> => run('git', [...readFlags, ...statusArguments], { cwd: root, on });
 
-  const status = await git([
-    'status',
-    '--porcelain=v1',
-    '-z',
-    '--no-renames',
-    '--untracked-files=all',
-  ]);
+const countOutputs = async (
+  git: (args: string[]) => Promise<ExecResult>,
+  hasHead: boolean,
+): Promise<string[]> => {
+  const requests = hasHead
+    ? [['diff', 'HEAD', '--numstat', '-z', '--no-renames']]
+    : [
+        ['diff', '--cached', '--numstat', '-z', '--no-renames'],
+        ['diff', '--numstat', '-z', '--no-renames'],
+      ];
 
-  if (status.code !== 0) {
-    throw new Error(status.stderr);
-  }
-
-  const head = await git(['rev-parse', '--verify', 'HEAD']);
   const outputs: string[] = [];
 
-  const collect = async (args: string[]): Promise<void> => {
+  for (const args of requests) {
+    // eslint-disable-next-line no-await-in-loop -- one count read at a time, so a failure stops the rest
     const result = await git(args);
 
     if (result.code !== 0) {
@@ -73,25 +78,34 @@ export const readChanges = async (
     }
 
     outputs.push(result.stdout);
-  };
-
-  if (head.code === 0) {
-    await collect(['diff', 'HEAD', '--numstat', '-z', '--no-renames']);
-  } else {
-    await collect(['diff', '--cached', '--numstat', '-z', '--no-renames']);
-    await collect(['diff', '--numstat', '-z', '--no-renames']);
   }
 
-  const entries = parseStatus(status.stdout);
+  return outputs;
+};
+
+// Counts need a commit and a tracked file; a folder of only untracked files has neither to read.
+export const changeSnapshot = async (
+  run: RunCommand,
+  root: string,
+  on: string | null,
+  statusText: string,
+): Promise<ChangesSnapshot> => {
+  const git = (args: string[]): Promise<ExecResult> =>
+    run('git', [...readFlags, ...args], { cwd: root, on });
+
+  const entries = parseStatus(statusText);
+  const shown = entries.slice(0, fileLimit);
+  const tracked = shown.some((entry) => !entry.fresh);
+  const head = tracked ? await git(['rev-parse', '--verify', 'HEAD']) : null;
+  const hasHead = head?.code === 0;
+  const outputs = tracked ? await countOutputs(git, hasHead) : [];
 
   return {
-    snapshot: {
-      root,
-      on,
-      hasHead: head.code === 0,
-      files: mergeNumstat(entries.slice(0, fileLimit), outputs),
-      limited: entries.length > fileLimit,
-    },
+    root,
+    on,
+    hasHead,
+    files: mergeNumstat(shown, outputs),
+    limited: entries.length > fileLimit,
   };
 };
 

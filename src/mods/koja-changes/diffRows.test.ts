@@ -15,6 +15,12 @@ describe('diffRows', () => {
     ]);
   });
 
+  test('pads a tab to the next stop so the text keeps its columns', () => {
+    const rows = diffRows(['@@ -1 +1 @@', '+\tif (a) {', '-ab\tb']);
+
+    expect(rows.map((row) => row.text)).toEqual(['@@ -1 +1 @@', '    if (a) {', 'ab  b']);
+  });
+
   test('keeps the headers before the first hunk unnumbered', () => {
     const rows = diffRows(['diff --git a/a.ts b/a.ts', 'index 000..111', '@@ -1 +1 @@', '+only']);
 

@@ -1,7 +1,7 @@
 {
   "declarations": "0.1.18",
   "mods": {
-    "koja-changes": { "source": "defaults/mods/changes", "release": "0.1.12" },
+    "koja-changes": { "source": "defaults/mods/changes", "release": "0.1.18" },
     "koja-confirm": { "source": "defaults/mods/confirm", "release": "0.1.18" },
     "koja-menu": { "source": "defaults/mods/menu", "release": "0.1.18" },
     "koja-new-menu": { "source": "defaults/mods/new-menu", "release": "0.1.18" },

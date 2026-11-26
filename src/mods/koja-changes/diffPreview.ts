@@ -1,4 +1,3 @@
-import { diffSize } from '../../kit/index.ts';
 import type { DiffRow } from './diffRows.ts';
 import { diffRows } from './diffRows.ts';
 import type { ChangesSnapshot } from './git.ts';
@@ -8,17 +7,10 @@ import type { FilePreview } from './preview.ts';
 export class DiffPreview {
   rows: DiffRow[] = [];
 
-  diffWidth: number = diffSize.minimumWidth;
-
   private previewRequest = 0;
 
   setLines(lines: string[]): void {
     this.rows = diffRows(lines);
-
-    this.diffWidth = Math.max(
-      diffSize.minimumWidth,
-      ...lines.map((line) => line.length * diffSize.characterWidth + diffSize.widthPadding),
-    );
   }
 
   async load(

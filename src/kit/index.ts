@@ -33,7 +33,7 @@ export { factPairs, factRows } from './factRows.ts';
 
 export type { Fact } from './factRows.ts';
 
-export { terminalFont } from './font.ts';
+export { terminalFont, terminalFontSize, terminalFontStyle } from './font.ts';
 
 export { hoverCard } from './hoverCard.ts';
 

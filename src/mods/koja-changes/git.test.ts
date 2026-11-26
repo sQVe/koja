@@ -3,12 +3,10 @@ import { describe, expect, test } from 'bun:test';
 import type { ExecResult } from 'herdr';
 
 import type { RunCommand } from '../../data/gitIdentity.ts';
-import type { ChangesSnapshot, ReadOutcome } from './git.ts';
-import { commitAll, readChanges } from './git.ts';
+import { changeSnapshot, commitAll, readRepository, statusCommand } from './git.ts';
 
 interface GitOutputs {
   head: number;
-  status?: number;
   numstat?: number;
   statusText?: string;
 }
@@ -25,14 +23,6 @@ const fakeRunner = (answer: (args: string[]) => ExecResult) => {
   };
 
   return { run, calls };
-};
-
-const snapshotOf = (result: ReadOutcome | null): ChangesSnapshot => {
-  if (result === null || 'failure' in result) {
-    throw new Error('expected a snapshot');
-  }
-
-  return result.snapshot;
 };
 
 const mainLayout = 'false\nfalse\n/repo/.git\n/repo/.git\n';
@@ -60,28 +50,11 @@ const identityAnswer =
     return null;
   };
 
-describe('readChanges', () => {
-  test('returns null and runs no change read when the folder changed after the identity read', async () => {
-    const { run, calls } = fakeRunner((args) => identityAnswer(mainLayout)(args) ?? ok);
+describe('readRepository', () => {
+  test('reports the repository a folder sits in', async () => {
+    const { run } = fakeRunner((args) => identityAnswer(mainLayout)(args) ?? ok);
 
-    const result = await readChanges(run, '/repo', null, () => false);
-
-    expect(result).toBeNull();
-
-    expect(calls).toEqual([
-      [
-        'git',
-        'rev-parse',
-        '--is-bare-repository',
-        '--is-inside-git-dir',
-        '--path-format=absolute',
-        '--git-dir',
-        '--git-common-dir',
-      ],
-      ['git', 'rev-parse', '--show-toplevel'],
-      ['git', 'symbolic-ref', '--quiet', '--short', 'HEAD'],
-      ['git', 'rev-parse', '--verify', '--quiet', 'HEAD'],
-    ]);
+    expect(await readRepository(run, '/repo/src', null)).toEqual({ kind: 'root', root: '/repo' });
   });
 
   test('reports a folder outside a repository', async () => {
@@ -91,37 +64,54 @@ describe('readChanges', () => {
       stderr: 'fatal: not a git repository',
     }));
 
-    const result = await readChanges(run, '/tmp', null, () => true);
-
-    expect(result).toEqual({ failure: 'Not a git repository' });
+    expect(await readRepository(run, '/tmp', null)).toEqual({ kind: 'missing' });
   });
 
-  test('reports a bare repository as not a git repository and reads no changes', async () => {
-    const { run, calls } = fakeRunner((args) => identityAnswer(bareLayout)(args) ?? ok);
+  test('reports a bare repository as missing', async () => {
+    const { run } = fakeRunner((args) => identityAnswer(bareLayout)(args) ?? ok);
 
-    const result = await readChanges(run, '/repo.git', null, () => true);
-
-    expect(result).toEqual({ failure: 'Not a git repository' });
-    expect(calls.filter((call) => call.includes('status'))).toHaveLength(0);
+    expect(await readRepository(run, '/repo.git', null)).toEqual({ kind: 'missing' });
   });
 
-  test('fails with the git error and reads no changes when git cannot read the folder', async () => {
-    const { run, calls } = fakeRunner(() => ({
+  test('fails with the git error when git cannot read the folder', async () => {
+    const { run } = fakeRunner(() => ({
       code: 128,
       stdout: '',
       stderr: 'fatal: detected dubious ownership in repository at /repo\n',
     }));
 
-    const failure = await readChanges(run, '/repo', null, () => true).catch(
-      (error: unknown) => error,
-    );
-
-    expect(failure).toEqual(new Error('fatal: detected dubious ownership in repository at /repo'));
-    expect(calls.filter((call) => call.includes('status'))).toHaveLength(0);
+    expect(await readRepository(run, '/repo', null)).toEqual({
+      kind: 'failed',
+      error: 'fatal: detected dubious ownership in repository at /repo',
+    });
   });
 });
 
-const failedWith = (code: number, message: string) => ({
+describe('statusCommand', () => {
+  test('reads the status of every file in the repository', async () => {
+    const { run, calls } = fakeRunner(() => ok);
+
+    await statusCommand(run, '/repo', null);
+
+    expect(calls).toEqual([
+      [
+        'git',
+        '--no-optional-locks',
+        '-c',
+        'core.fsmonitor=false',
+        '-c',
+        'diff.autoRefreshIndex=false',
+        'status',
+        '--porcelain=v1',
+        '-z',
+        '--no-renames',
+        '--untracked-files=all',
+      ],
+    ]);
+  });
+});
+
+const failedWith = (code: number, message: string): ExecResult => ({
   code,
   stdout: '',
   stderr: code === 0 ? '' : message,
@@ -130,18 +120,6 @@ const failedWith = (code: number, message: string) => ({
 const gitAnswer =
   (outputs: GitOutputs) =>
   (args: string[]): ExecResult => {
-    const identity = identityAnswer(mainLayout)(args);
-
-    if (identity !== null) {
-      return identity;
-    }
-
-    if (args.includes('status')) {
-      const statusText = outputs.statusText ?? ' M a.ts\0?? new.ts\0';
-
-      return { ...failedWith(outputs.status ?? 0, 'status failed'), stdout: statusText };
-    }
-
     if (args.includes('--verify')) {
       return { ...ok, code: outputs.head };
     }
@@ -160,23 +138,18 @@ const gitAnswer =
 const changedFiles = (count: number): string =>
   Array.from({ length: count }, (_, index) => ` M file-${index}.ts\0`).join('');
 
-describe('readChanges with a repository', () => {
+describe('changeSnapshot', () => {
   test('lists the changed files with their counts against HEAD', async () => {
     const { run, calls } = fakeRunner(gitAnswer({ head: 0 }));
 
-    const result = await readChanges(run, '/repo/src', null, () => true);
+    const snapshot = await changeSnapshot(run, '/repo', null, ' M a.ts\0?? new.ts\0');
 
-    expect(snapshotOf(result).root).toBe('/repo');
-    expect(snapshotOf(result).hasHead).toBe(true);
+    expect(snapshot.root).toBe('/repo');
+    expect(snapshot.hasHead).toBe(true);
 
-    const snapshotRows = snapshotOf(result).files.map((file) => [
-      file.path,
-      file.status,
-      file.add,
-      file.del,
-    ]);
+    const rows = snapshot.files.map((file) => [file.path, file.status, file.add, file.del]);
 
-    expect(snapshotRows).toEqual([
+    expect(rows).toEqual([
       ['a.ts', 'M', 3, 1],
       ['new.ts', 'A', 0, 0],
     ]);
@@ -187,28 +160,35 @@ describe('readChanges with a repository', () => {
   test('adds the staged and unstaged counts when the repository has no commit yet', async () => {
     const { run, calls } = fakeRunner(gitAnswer({ head: 128 }));
 
-    const result = await readChanges(run, '/repo', null, () => true);
+    const snapshot = await changeSnapshot(run, '/repo', null, ' M a.ts\0');
 
-    expect(snapshotOf(result).hasHead).toBe(false);
-    expect(snapshotOf(result).files[0]).toMatchObject({ path: 'a.ts', add: 5, del: 1 });
+    expect(snapshot.hasHead).toBe(false);
+    expect(snapshot.files[0]).toMatchObject({ path: 'a.ts', add: 5, del: 1 });
     expect(calls.filter((call) => call.includes('--numstat'))).toHaveLength(2);
   });
 
-  test('fails with the status error and reads no counts when status fails', async () => {
-    const { run, calls } = fakeRunner(gitAnswer({ head: 0, status: 128 }));
+  test('reads no head and no counts when every shown file is untracked', async () => {
+    const { run, calls } = fakeRunner(gitAnswer({ head: 0 }));
 
-    const failure = await readChanges(run, '/repo', null, () => true).catch(
-      (error: unknown) => error,
-    );
+    const snapshot = await changeSnapshot(run, '/repo', null, '?? a.ts\0?? b.ts\0');
 
-    expect(failure).toEqual(new Error('status failed'));
-    expect(calls.filter((call) => call.includes('--numstat'))).toHaveLength(0);
+    expect(snapshot.hasHead).toBe(false);
+    expect(snapshot.files.map((file) => file.path)).toEqual(['a.ts', 'b.ts']);
+    expect(calls).toEqual([]);
+  });
+
+  test('still counts a tracked file beside an untracked one', async () => {
+    const { run, calls } = fakeRunner(gitAnswer({ head: 0 }));
+
+    await changeSnapshot(run, '/repo', null, '?? a.ts\0 M b.ts\0');
+
+    expect(calls.filter((call) => call.includes('--verify'))).toHaveLength(1);
   });
 
   test('fails with the count error and reads no more counts when a count read fails', async () => {
     const { run, calls } = fakeRunner(gitAnswer({ head: 128, numstat: 1 }));
 
-    const failure = await readChanges(run, '/repo', null, () => true).catch(
+    const failure = await changeSnapshot(run, '/repo', null, ' M a.ts\0').catch(
       (error: unknown) => error,
     );
 
@@ -217,21 +197,21 @@ describe('readChanges with a repository', () => {
   });
 
   test('keeps the first 1,000 files and marks the list as limited past that', async () => {
-    const { run } = fakeRunner(gitAnswer({ head: 0, statusText: changedFiles(1001) }));
+    const { run } = fakeRunner(gitAnswer({ head: 0 }));
 
-    const result = await readChanges(run, '/repo', null, () => true);
+    const snapshot = await changeSnapshot(run, '/repo', null, changedFiles(1001));
 
-    expect(snapshotOf(result).files).toHaveLength(1000);
-    expect(snapshotOf(result).limited).toBe(true);
+    expect(snapshot.files).toHaveLength(1000);
+    expect(snapshot.limited).toBe(true);
   });
 
   test('does not mark a list of exactly 1,000 files as limited', async () => {
-    const { run } = fakeRunner(gitAnswer({ head: 0, statusText: changedFiles(1000) }));
+    const { run } = fakeRunner(gitAnswer({ head: 0 }));
 
-    const result = await readChanges(run, '/repo', null, () => true);
+    const snapshot = await changeSnapshot(run, '/repo', null, changedFiles(1000));
 
-    expect(snapshotOf(result).files).toHaveLength(1000);
-    expect(snapshotOf(result).limited).toBe(false);
+    expect(snapshot.files).toHaveLength(1000);
+    expect(snapshot.limited).toBe(false);
   });
 });
 

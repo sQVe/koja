@@ -49,14 +49,26 @@ export type RowSize = keyof typeof rowHeight;
 
 export const diffSize = {
   headerHeight: 34,
+  // A document keeps fixed rows; a diff derives its own from the font.
   rowHeight: 18,
   lineNumberWidth: 30,
   minimumWidth: 300,
-  characterWidth: 7,
-  widthPadding: 50,
+  widthPadding: 20,
   fileListHeightLimit: 200,
   fileListHeightMinimum: 44,
+  // Four digits, the width a diff's line numbers keep when every number is shorter.
+  gutterCharacters: 4,
 } as const;
+
+// A diff draws at the terminal's font size, so its rows and columns follow the font.
+const diffLineHeight = 1.8;
+
+const diffCharacterWidth = 0.64;
+
+export const diffMetrics = (fontSize: number): { rowHeight: number; characterWidth: number } => ({
+  rowHeight: Math.ceil(fontSize * diffLineHeight),
+  characterWidth: fontSize * diffCharacterWidth,
+});
 
 // A document's lines: a gutter bar, a right-aligned line number, and the text.
 export const documentSize = {

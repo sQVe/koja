@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import {
   chainable,
@@ -7,6 +7,7 @@ import {
   herdrFake,
   kitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import { clearSharedScans } from './scans.ts';
 
 interface Watch {
   pending: boolean;
@@ -35,6 +36,11 @@ interface ChangesView {
   close: () => void;
   render: (cx: unknown) => unknown;
   refresh: (cx: unknown) => void;
+}
+
+interface SpawnedTask {
+  done: boolean;
+  cancelled: boolean;
 }
 
 let cwd = '/repo/a';
@@ -71,7 +77,18 @@ let renderedNote: string | null = null;
 
 let renderedDiff: unknown[] = [];
 
-let renderedDiffWidth = 0;
+let renderedFontSize = 0;
+
+let windowActive = true;
+
+// The view measures time to decide when to read again, so the tests own the clock and each sleep
+// advances it. A sleep that costs nothing would let a scan start in the same millisecond it was
+// asked for, and the panel would read again at once, forever.
+const clock = { now: 1000000 };
+
+const realNow = Date.now;
+
+Date.now = () => clock.now;
 
 const commands: string[][] = [];
 
@@ -95,26 +112,64 @@ const input = {
   },
 };
 
-const context = {
-  notify: () => {
-    if (rendering) {
-      throw new Error('cx.notify() is not allowed during the `render` phase');
+const spawned: SpawnedTask[] = [];
+
+// Herdr leaves a cancelled task's promise pending for ever, so its body stops at the next sleep.
+const sleepFor =
+  (task: SpawnedTask) =>
+  async (milliseconds = 0): Promise<void> => {
+    if (task.cancelled) {
+      await new Promise<void>(() => {
+        // A cancelled task never settles, so its body stops here.
+      });
     }
 
-    notifications += 1;
-  },
-  focus_handle: () => ({ focus: () => undefined }),
-  spawn: (callback: (cx: unknown) => Promise<void>) => {
-    if (failNextSpawn) {
-      failNextSpawn = false;
+    clock.now += milliseconds;
+  };
 
-      throw new Error('task limit reached');
-    }
+const notify = (): void => {
+  if (rendering) {
+    throw new Error('cx.notify() is not allowed during the `render` phase');
+  }
 
-    void callback(context).catch((error: unknown) => {
+  notifications += 1;
+};
+
+const spawn = (callback: (cx: unknown) => Promise<void>) => {
+  if (failNextSpawn) {
+    failNextSpawn = false;
+
+    throw new Error('task limit reached');
+  }
+
+  const record: SpawnedTask = { done: false, cancelled: false };
+
+  spawned.push(record);
+
+  const taskContext = { ...context, sleep: sleepFor(record) };
+
+  void callback(taskContext)
+    .catch((error: unknown) => {
       spawnErrors.push(error);
+    })
+    .finally(() => {
+      record.done = true;
     });
-  },
+
+  return {
+    is_done: () => record.done,
+    cancel: () => {
+      record.cancelled = true;
+      record.done = true;
+    },
+  };
+};
+
+const context = {
+  notify,
+  focus_handle: () => ({ focus: () => undefined }),
+  sleep: sleepFor({ done: false, cancelled: false }),
+  spawn,
 };
 
 await mock.module('gpui-base', () =>
@@ -129,6 +184,8 @@ await mock.module('gpui-kit', () => gpuiKitFake());
 await mock.module('herdr', () =>
   herdrFake({
     checking: () => checkingNow,
+    settings: () => ({ font_size: 13 }),
+    window: () => ({ active: windowActive, visible: windowActive }),
     focused: () => ({ pane: null, cwd, terminal: null }),
     watchFolder: () => {
       let settle: Pick<Watch, 'resolve' | 'reject'> | null = null;
@@ -213,6 +270,7 @@ await mock.module('../../kit/index.ts', () =>
   kitIndexFake({
     colors: () => ({}),
     diffSize: { minimumWidth: 300, characterWidth: 7, widthPadding: 50 },
+    terminalFontSize: () => 13,
     withTextRole: (element: unknown) => element,
     repeat: (_context: unknown, milliseconds: number, handler: (cx: unknown) => void) => {
       timerMilliseconds = milliseconds;
@@ -246,15 +304,26 @@ await mock.module('./rows.ts', () => ({
 
     return chainable();
   },
-  diffArea: (rows: unknown[], diffWidth: number) => {
-    renderedDiff = rows;
-    renderedDiffWidth = diffWidth;
+  diffArea: (options: { rows: unknown[]; fontSize: number }) => {
+    renderedDiff = options.rows;
+    renderedFontSize = options.fontSize;
 
     return chainable();
   },
 }));
 
+afterEach(() => {
+  // A test that stops early must not leave a read waiting on a scan that never lands.
+  for (const task of spawned) {
+    task.cancelled = true;
+    task.done = true;
+  }
+
+  spawned.length = 0;
+});
+
 afterAll(() => {
+  Date.now = realNow;
   mock.restore();
 });
 
@@ -276,7 +345,10 @@ beforeEach(() => {
   renderedCommit = null;
   renderedNote = null;
   renderedDiff = [];
-  renderedDiffWidth = 0;
+  renderedFontSize = 0;
+  windowActive = true;
+  clock.now = 1000000;
+  clearSharedScans();
   commands.length = 0;
   watchers.length = 0;
   spawnErrors.length = 0;
@@ -390,7 +462,7 @@ describe('Changes view', () => {
       'Cannot preview this diff: fatal: ambiguous argument Use -- to separate paths',
     ]);
 
-    expect(renderedDiffWidth).toBeGreaterThan(300);
+    expect(renderedFontSize).toBe(13);
   });
 
   test('a preview whose diff command fails without a message says only that it failed', async () => {
@@ -492,8 +564,7 @@ describe('Changes view', () => {
     expect(renderedList?.watchLine?.kind).toBe('error');
 
     statusText = ' M a.ts\0?? hidden.ts\0';
-    blockStatus = true;
-    blockAfterReads = 2;
+    blockNextStatusRead();
     const readsBeforeRetry = statusReads;
 
     renderedList?.onRetryWatch(context);
@@ -553,7 +624,7 @@ describe('Changes view', () => {
 
     expect(watchers[0]?.cancelled).toBe(true);
     expect(watchers.filter((watch) => watch.pending)).toHaveLength(1);
-    expect(statusReads).toBe(4);
+    expect(statusReads).toBe(2);
   });
 
   test('closing the view cancels its watch and starts no read', async () => {
@@ -580,7 +651,7 @@ describe('Changes view', () => {
     await settle();
 
     expect(watchers[0]?.cancelled).toBe(true);
-    expect(watchers.filter((watch) => watch.pending)).toHaveLength(0);
+    expect(watchers.filter((watch) => watch.pending)).toHaveLength(1);
 
     blockStatus = false;
     statusGate?.();
@@ -603,6 +674,7 @@ describe('Changes view', () => {
     statusGate?.();
     await settle();
     view.render(context);
+    await settle();
 
     expect(watchers[0]?.cancelled).toBe(true);
     expect(watchers.filter((watch) => watch.pending)).toHaveLength(1);
@@ -612,14 +684,14 @@ describe('Changes view', () => {
   test('an event on the current watch runs a new status read and shows the changed files', async () => {
     const view = await boot();
 
-    expect(statusReads).toBe(2);
+    expect(statusReads).toBe(1);
 
     statusText = ' M a.ts\0?? b.ts\0';
     watchers[0]?.resolve(['/repo/b.ts']);
     await settle();
     view.render(context);
 
-    expect(statusReads).toBe(3);
+    expect(statusReads).toBe(2);
     expect(renderedList?.files.map((file) => file.path)).toEqual(['a.ts', 'b.ts']);
   });
 
@@ -636,7 +708,7 @@ describe('Changes view', () => {
     view.refresh(context);
     await settle();
 
-    watchers[0]?.resolve([]);
+    watchers[0]?.resolve(['/repo/a.ts']);
     await settle();
     view.render(context);
 
@@ -646,35 +718,46 @@ describe('Changes view', () => {
     blockStatus = false;
     statusGate?.();
     await settle();
+
+    // A blocked scan counts as slow, so the panel waits five scan lengths before reading again.
+    clock.now += 120000;
+    timerHandler?.(context);
+    await settle();
     view.render(context);
 
-    expect(statusReads).toBe(4);
+    expect(statusReads).toBe(3);
     expect(renderedList?.files.map((file) => file.path)).toEqual(['a.ts', 'b.ts']);
     expect(renderedCommit?.enabled).toBe(true);
   });
 
-  test('the first good read starts one more read after the watch and keeps Commit off until it ends', async () => {
+  test('a watch event during the first read reads again once that read ends', async () => {
     blockStatus = true;
-    blockAfterReads = 1;
 
     const view = await loadView();
 
     view.init(null, context);
-    typeMessage();
     await settle();
-    view.render(context);
 
-    expect(statusReads).toBe(2);
+    expect(statusReads).toBe(1);
     expect(watchers).toHaveLength(1);
-    expect(renderedCommit?.enabled).toBe(false);
+
+    watchers[0]?.resolve(['/repo/a.ts']);
+    await settle();
+
+    expect(statusReads).toBe(1);
 
     blockStatus = false;
     statusGate?.();
     await settle();
+
+    // A blocked scan counts as slow, so the panel waits five scan lengths before reading again.
+    clock.now += 120000;
+    timerHandler?.(context);
+    await settle();
     view.render(context);
 
     expect(statusReads).toBe(2);
-    expect(renderedCommit?.enabled).toBe(true);
+    expect(renderedList?.files).toHaveLength(2);
   });
 
   test('timer ticks during a slow read start no extra read and Commit turns on after it', async () => {
@@ -684,10 +767,10 @@ describe('Changes view', () => {
     view.render(context);
 
     expect(renderedCommit?.enabled).toBe(true);
-    expect(timerMilliseconds).toBe(10000);
+    expect(timerMilliseconds).toBe(500);
 
     blockStatus = true;
-    timerHandler?.(context);
+    view.refresh(context);
     await settle();
 
     for (let index = 0; index < 3; index += 1) {
@@ -700,7 +783,7 @@ describe('Changes view', () => {
     await settle();
     view.render(context);
 
-    expect(statusReads).toBe(3);
+    expect(statusReads).toBe(2);
     expect(renderedCommit?.enabled).toBe(true);
   });
 
@@ -767,7 +850,6 @@ describe('Changes view', () => {
     const paths = (renderedList?.files ?? []).map((file) => file.path);
     const open = renderedList?.open ?? null;
     const diff = [...renderedDiff];
-    const diffWidth = renderedDiffWidth;
 
     failNextSpawn = true;
     renderedList?.onPick('b.ts', context);
@@ -778,7 +860,6 @@ describe('Changes view', () => {
     expect((renderedList?.files ?? []).map((file) => file.path)).toEqual(paths);
     expect(renderedList?.open).toBe(open);
     expect(renderedDiff).toEqual(diff);
-    expect(renderedDiffWidth).toBe(diffWidth);
   });
 
   test('a submit during a read commits once the read finishes', async () => {
@@ -872,12 +953,55 @@ describe('Changes view', () => {
     expect(commitCommands()).toBe(before);
   });
 
+  test('a watch event that changed no path reads nothing', async () => {
+    const view = await boot();
+    const reads = statusReads;
+
+    watchers[0]?.resolve([]);
+    await settle();
+
+    clock.now += 1000;
+    timerHandler?.(context);
+    await settle();
+
+    expect(statusReads).toBe(reads);
+    view.render(context);
+    expect(renderedList?.line).toBeNull();
+  });
+
+  test('a hidden window reads nothing, and reads again once it is back', async () => {
+    const view = await boot();
+
+    expect(statusReads).toBe(1);
+
+    windowActive = false;
+    clock.now += 60000;
+    timerHandler?.(context);
+    await settle();
+
+    expect(statusReads).toBe(1);
+
+    windowActive = true;
+    timerHandler?.(context);
+    await settle();
+
+    expect(statusReads).toBe(2);
+
+    clock.now += 1000;
+    timerHandler?.(context);
+    await settle();
+
+    expect(statusReads).toBe(2);
+    view.render(context);
+  });
+
   test('a background refresh requests a redraw before its read finishes', async () => {
     await boot();
 
     const before = notifications;
 
     blockStatus = true;
+    clock.now += 10000;
     timerHandler?.(context);
     await settle();
 
