@@ -1,8 +1,7 @@
-import { placeOf, repositoryOf } from '../src/data/gitIdentity.ts';
+import { keyOf, placeOf, repositoryOf } from '../src/data/gitIdentity.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { GitFacts, WorktreeGit } from '../src/data/snapshot.ts';
 import { isRecord } from '../src/kit/fields.ts';
-import { keyOf } from './fixtures.ts';
 import { pullFacts } from './pullFacts.ts';
 
 export type RawRecord = Record<string, unknown>;

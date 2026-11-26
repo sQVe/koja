@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { fixture } from '../../../tests/fixtures.ts';
+import { fixture } from '../../../tests/fixtureJson.ts';
 import { logged, noticeFor, repositoryKey, start, storeOf } from '../../../tests/pullRetryStore.ts';
 import {
   pullRetryOutcomesKey,

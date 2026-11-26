@@ -5,9 +5,8 @@ import { join } from 'node:path';
 
 import type { ExecResult } from 'herdr';
 
-import { keyOf } from '../../tests/fixtures.ts';
+import { keyOf, readGitIdentity, worktreeKeyOf } from './gitIdentity.ts';
 import type { GitIdentity, RunCommand } from './gitIdentity.ts';
-import { readGitIdentity, worktreeKeyOf } from './gitIdentity.ts';
 
 // Git hooks export variables such as GIT_DIR that would point every command at the outer repository.
 const outsideGit = Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'));

@@ -275,8 +275,8 @@ export const setupKojaSpaces = async (): Promise<void> => {
 };
 
 export const restoreKojaSpaces = (): void => {
-  for (const name of installedGlobals) {
-    restoreGlobal(name, savedGlobals.get(name));
+  for (const [name, descriptor] of savedGlobals) {
+    restoreGlobal(name, descriptor);
   }
 
   savedGlobals.clear();

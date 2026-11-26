@@ -15,12 +15,7 @@ import {
 import { PullSchedulerHarness } from '../../../tests/pullSchedulerHarness.ts';
 import type { PendingCall } from '../../../tests/pullSchedulerHarness.ts';
 import { repositoryOf } from '../gitIdentity.ts';
-import {
-  createPullRetryClient,
-  isExpired,
-  pullRetryLifetimeMilliseconds,
-  requestKey,
-} from './pullRetry.ts';
+import { createPullRetryClient, pullRetryLifetimeMilliseconds, requestKey } from './pullRetry.ts';
 import type { PullRetryClient, PullRetryOutcome, PullRetryRequest } from './pullRetry.ts';
 import type { PullScheduler } from '../pullScheduler.ts';
 
@@ -30,8 +25,6 @@ interface InterleavingState {
   clientB: PullRetryClient;
   scheduler: PullScheduler;
   now: number;
-  reads: Set<string>;
-  duplicates: Set<string>;
   seenByClient: Set<string>;
   issued: Map<string, number>;
   random: () => number;
@@ -63,33 +56,9 @@ const observeSeen = (outcomes: PullRetryOutcome[], consumer: string, seen: Set<s
   }
 };
 
-const recordTick = (state: InterleavingState, answeredKeys: Set<string>): void => {
-  const outcomes = state.harness.outcomes();
-  const answered = new Set(outcomes.map(requestKey));
-  const repositories = new Set<string>();
-
-  for (const request of state.harness.requests()) {
-    const key = requestKey(request);
-
-    if (isExpired(request.at, state.now)) {
-      continue;
-    }
-
-    answeredKeys.add(key);
-
-    if (!answered.has(key)) {
-      repositories.add(request.repository);
-    }
-  }
-
-  for (const repository of repositories) {
-    const readId = `${state.now}:${repository}`;
-
-    if (state.reads.has(readId)) {
-      state.duplicates.add(readId);
-    }
-
-    state.reads.add(readId);
+const observeAnswered = (outcomes: PullRetryOutcome[], answeredKeys: Set<string>): void => {
+  for (const outcome of outcomes) {
+    answeredKeys.add(requestKey(outcome));
   }
 };
 
@@ -169,9 +138,9 @@ const applyStep = async (state: InterleavingState, answeredKeys: Set<string>): P
       state.scheduler = state.harness.start({ pulls: seedPulls, readTimes: {} });
     }
 
-    recordTick(state, answeredKeys);
     state.scheduler.tick(gitFacts, new Map(), state.harness.spawn);
     await answerPending(state.harness, state.random);
+    observeAnswered(state.harness.outcomes(), answeredKeys);
   }
 
   observeRequests(state.harness.requests(), state.issued);
@@ -196,10 +165,12 @@ const expectFinalState = (state: InterleavingState, seed: number): void => {
     ).toBe(true);
   }
 
+  const outcomeKeys = outcomes.map(requestKey);
+
   expect(
-    [...state.duplicates],
-    `seed ${seed}: the owner started two reads for one repository in one tick`,
-  ).toEqual([]);
+    new Set(outcomeKeys).size,
+    `seed ${seed}: the owner recorded two outcomes for one request`,
+  ).toBe(outcomeKeys.length);
 
   for (const [key, expiresAt] of state.issued) {
     if (expiresAt <= state.now || state.seenByClient.has(key)) {
@@ -223,8 +194,6 @@ const checkInterleaving = async (seed: number, answeredKeys: Set<string>): Promi
     clientB: createPullRetryClient(harness.store, 'window-b', ids(`b${seed}`)),
     scheduler: harness.start({ pulls: seedPulls, readTimes: {} }),
     now: start,
-    reads: new Set(),
-    duplicates: new Set(),
     seenByClient: new Set(),
     issued: new Map(),
     random,

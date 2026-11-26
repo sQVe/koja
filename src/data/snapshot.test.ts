@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
-import { fixture, keyOf } from '../../tests/fixtures.ts';
+import { fixture } from '../../tests/fixtureJson.ts';
 import { gitFacts, pull, snapshotOf, validRaw } from '../../tests/snapshotRaw.ts';
+import { keyOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
 import type {
   Facts,

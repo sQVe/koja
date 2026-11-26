@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { fixture } from '../../tests/fixtures.ts';
+import { fixture } from '../../tests/fixtureJson.ts';
 import type { Lease, ReadShared } from './lease.ts';
 import { claimLease } from './lease.ts';
 import type { PullReadTimes, RepositoryReadTimes } from './pullReadTimes.ts';
