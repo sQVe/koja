@@ -83,9 +83,6 @@ let windowActive = true;
 
 let windowVisible = true;
 
-// The view measures time to decide when to read again, so the tests own the clock and each sleep
-// advances it. A sleep that costs nothing would let a scan start in the same millisecond it was
-// asked for, and the panel would read again at once, forever.
 const clock = { now: 1000000 };
 
 const realNow = Date.now;
@@ -116,7 +113,6 @@ const input = {
 
 const spawned: SpawnedTask[] = [];
 
-// Herdr leaves a cancelled task's promise pending for ever, so its body stops at the next sleep.
 const sleepFor =
   (task: SpawnedTask) =>
   async (milliseconds = 0): Promise<void> => {
@@ -722,7 +718,6 @@ describe('Changes view', () => {
     statusGate?.();
     await settle();
 
-    // A blocked scan counts as slow, so the panel waits five scan lengths before reading again.
     clock.now += 120000;
     timerHandler?.(context);
     await settle();
@@ -753,7 +748,6 @@ describe('Changes view', () => {
     statusGate?.();
     await settle();
 
-    // A blocked scan counts as slow, so the panel waits five scan lengths before reading again.
     clock.now += 120000;
     timerHandler?.(context);
     await settle();

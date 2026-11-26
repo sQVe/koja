@@ -215,7 +215,6 @@ const homeWithPalette = async (mod: string, palette: unknown[]): Promise<string>
   return home;
 };
 
-// The kit draws a row's spaces as non-breaking ones, so a lookup by words reads them back.
 const drawnWords = (element: DrawnElement): string[] =>
   drawnTexts(element).map((text) => text.replaceAll('\u00A0', ' '));
 

@@ -27,13 +27,11 @@ export const terminalFont = (): string => {
   return turnFont;
 };
 
-// The terminal's font size, which a document and a diff also draw at.
 export const terminalFontSize = (): number => {
   const size = settings()['font_size'];
 
   return typeof size === 'number' && Number.isFinite(size) ? size : defaultTerminalFontSize;
 };
 
-// A document or a diff draws at the terminal's font, whose size the person sets.
 export const terminalFontStyle = (element: Element, fontSize: number): Element =>
   element.font_family(terminalFont()).text_size(fontSize);

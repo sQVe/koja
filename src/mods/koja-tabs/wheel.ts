@@ -18,16 +18,12 @@ interface WheelTurn {
   step: TabStep | null;
 }
 
-// A wheel, a smooth-scrolling mouse, and a touchpad all report pixels, but a touchpad sends many
-// small events per gesture. The first step needs little travel and each next one more, so a short
-// swipe or one smoothed notch switches one tab and a longer swipe keeps going.
 const firstStep = 20;
 
 const nextStep = 60;
 
 const stepInterval = 100;
 
-// Phases often arrive only as moves, so a pause or a turn also starts a new gesture.
 const pause = 250;
 
 export const noWheelGesture: WheelGesture = { accumulated: 0, steps: 0, at: 0, last: 0 };

@@ -252,7 +252,6 @@ export default class Tabs extends View {
       .child(this.controls(enabled, root));
   }
 
-  // The strip scrolls by its direct children, so a tab's place in the list is its index.
   private revealTab(index: number): void {
     if (index >= 0) {
       this.scroll.scroll_to_item(index);

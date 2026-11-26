@@ -83,7 +83,6 @@ const countOutputs = async (
   return outputs;
 };
 
-// Counts need a commit and a tracked file; a folder of only untracked files has neither to read.
 export const changeSnapshot = async (
   run: RunCommand,
   root: string,

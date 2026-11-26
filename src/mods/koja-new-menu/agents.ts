@@ -38,7 +38,6 @@ export interface MenuActions {
   worktree: { space: string | null; folder: string | null };
 }
 
-// The last agents each machine reported, so the menu opens with them while it checks again.
 export const knownAgentsKey = 'new-menu.agents';
 
 const cachedAgent = (value: unknown): Agent | null => {
@@ -54,7 +53,6 @@ const cachedAgent = (value: unknown): Agent | null => {
   return { key, name, run: stringListOf(record['run']), installed };
 };
 
-// A space names its machine only when it is another one, so "" is this computer.
 const machineKey = (machine: string | null): string => machine ?? '';
 
 export const cachedAgents = (store: unknown, machine: string | null): Agent[] =>

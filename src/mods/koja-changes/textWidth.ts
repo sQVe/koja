@@ -3,7 +3,6 @@ const wideGlyph =
 
 const tabStops = 4;
 
-// A wide glyph takes two columns, and a combining mark adds none of its own.
 export const displayColumns = (text: string): number => {
   let columns = text.length;
 

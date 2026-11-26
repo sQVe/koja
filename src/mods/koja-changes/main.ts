@@ -27,7 +27,6 @@ interface WatchedRoot {
   handle: FolderWatchHandle;
 }
 
-// The scan decides when to look again, so the timer only checks whether a read is due.
 const tickMilliseconds = 500;
 
 const millisecondsPerSecond = 1000;

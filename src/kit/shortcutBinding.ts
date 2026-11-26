@@ -58,7 +58,6 @@ const isPlainKey = (stroke: string): boolean => stroke.length === 1;
 const capLabels = (keys: string, platform: Platform): string[] =>
   keyStrokes(keys).map((stroke) => (isPlainKey(stroke) ? stroke : formatStroke(stroke, platform)));
 
-// A key action names its command and arguments in shorthand or as a JSON object.
 const namesAction = (binding: ActionKeys, action: string): boolean =>
   binding.action === action || actionIdentity(binding.action) === action;
 

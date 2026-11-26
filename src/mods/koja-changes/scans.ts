@@ -34,7 +34,6 @@ declare global {
   var kojaRepoScans: Map<string, ScanEntry> | undefined;
 }
 
-// Two panels of the same folder run in one VM, so they share this table and one scan.
 const sharedScans = (): Map<string, ScanEntry> => {
   globalThis.kojaRepoScans ??= new Map<string, ScanEntry>();
 
@@ -56,7 +55,6 @@ const minimumPollMilliseconds = 10000;
 
 const maximumPollMilliseconds = 60000;
 
-// A slow scan repeats less often: five times its own length, up to a minute.
 const slowScanFactor = 5;
 
 const scanKey = (root: string, on: string | null): string => JSON.stringify([on, root]);
@@ -191,7 +189,6 @@ const chooseScan = (
   return scan;
 };
 
-// One `git status` per repository: a copy joins the scan another copy runs instead of starting one.
 export const repoStatus = async (
   host: ScanHost,
   root: string,

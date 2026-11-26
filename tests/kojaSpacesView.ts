@@ -431,7 +431,6 @@ export const cursorChildIndex = (view: FakeView): number => {
   );
 };
 
-// The place of the space's row among the direct children of the scrolling list.
 export const spaceChildIndex = (view: FakeView, id: string): number => {
   const list = elementsWithSizeHandler(view.render())[0];
 

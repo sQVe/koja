@@ -214,7 +214,6 @@ export default class Spaces extends View {
       .on_size_change((size) => {
         this.halfPage = halfPageOf(size.height, rowHeight.small);
 
-        // A block above growing, or the window resizing, shrinks the list and can hide the active space.
         if (this.revealedIndex >= 0) {
           this.scroll.scroll_to_item(this.revealedIndex);
         }
@@ -580,7 +579,6 @@ export default class Spaces extends View {
     const active = activeSpaceId();
     const activeIndex = activeElement === null ? -1 : elements.indexOf(activeElement);
 
-    // The list brings the active space into view when it changes, or when a row or header above it does.
     if (active === this.revealedActive && activeIndex === this.revealedIndex) {
       return;
     }

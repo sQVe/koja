@@ -39,7 +39,6 @@ export const emptyDue = (key: string): DueState => ({
   lastStatus: null,
 });
 
-// Showing the window again catches up once: scans were skipped while it was hidden.
 export const tickDue = (due: DueState, world: DueWorld, watched: boolean): DueState => {
   const missed = due.dirtyAt > 0 || !watched;
   const catchingUp = world.shownAgain && missed;
@@ -65,7 +64,6 @@ export const readDue = (due: DueState, world: DueWorld): boolean => {
 
 export const markDirty = (due: DueState, now: number): DueState => ({ ...due, dirtyAt: now + 1 });
 
-// A read that was asked for asks again when it lands, unless it already saw the edit.
 export const readRequest = (
   due: DueState,
   now: number,

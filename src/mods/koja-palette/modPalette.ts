@@ -3,7 +3,6 @@ import { exists, readdir, readFile } from 'fs/promises';
 
 import { isRecord, recordOf, stringOf } from '../../kit/fields.ts';
 
-// The raw `palette` list of one mod, with the mod that declared it.
 export interface ModPalette {
   mod: string;
   entries: unknown[];
@@ -27,7 +26,6 @@ const hasMain = async (modsDirectory: string, name: string): Promise<boolean> =>
   }
 };
 
-// A `mod.open` entry names the mod it opens, so a target without a main.js would open nothing.
 const opensMissingMod = async (
   entry: Record<string, unknown>,
   mods: readonly string[],
@@ -85,7 +83,6 @@ const paletteOfMod = async (
   return entries.length === 0 ? null : { mod, entries };
 };
 
-// Every mod's palette entries, from the mods folder of the app's home. An unreadable mod is skipped.
 export const readModPalettes = async (home: string): Promise<ModPalette[]> => {
   const modsDirectory = `${home}/mods`;
   const mods = await modNames(modsDirectory);

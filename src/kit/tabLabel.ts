@@ -51,7 +51,6 @@ const cleanTitle = (title: string): string =>
     .replace(/^\[ [!.] \] /, '')
     .trim();
 
-// cleanTitle would strip a path's leading ~ or /, so the path test drops only the status glyph.
 const isPath = (title: string): boolean =>
   /^[~/]|^[A-Za-z]:\\/.test(title.replace(/^[^\p{L}\p{N}~/]+/u, ''));
 

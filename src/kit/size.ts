@@ -56,11 +56,9 @@ export const diffSize = {
   widthPadding: 20,
   fileListHeightLimit: 200,
   fileListHeightMinimum: 44,
-  // Four digits, the width a diff's line numbers keep when every number is shorter.
   gutterCharacters: 4,
 } as const;
 
-// A diff draws at the terminal's font size, so its rows and columns follow the font.
 const diffLineHeight = 1.8;
 
 const diffCharacterWidth = 0.64;

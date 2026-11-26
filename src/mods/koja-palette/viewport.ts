@@ -47,7 +47,6 @@ export const clampIndex = (index: number, count: number): number =>
 export const rowAt = <T>(rows: readonly T[], at: number): T | undefined =>
   rows[clampIndex(at, rows.length)];
 
-// A row that opens a group is shown with its title, so the title is where the row starts.
 const topOf = (place: RowPlace | undefined): number => {
   if (place === undefined) {
     return 0;

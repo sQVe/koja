@@ -10,7 +10,6 @@ export const bindingAction = (command: string, args: Record<string, unknown>): s
   return namesBinding(value) ? `${command}:${value}` : command;
 };
 
-// keys.json takes a JSON object for an action: its command and the arguments it runs with.
 export const actionIdentity = (action: string): string | null => {
   if (!action.startsWith('{')) {
     return null;

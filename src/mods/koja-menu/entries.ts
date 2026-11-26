@@ -219,8 +219,6 @@ const overflowEntries = (host: MenuHost, target: MenuTarget, zoomed: boolean): M
   });
 };
 
-// A terminal outside a tab, such as a layout terminal block or a window, has no pane to split,
-// zoom, rename or close: the target names the block instead.
 const tabPaneEntries = (host: MenuHost, pane: string | undefined): MenuEntry[] => [
   commandEntry(host, 'Rename', 'square-pen', 'pane.rename', { pane }),
   commandEntry(host, 'Split right', 'panel-right', 'pane.split', { direction: 'right', pane }),

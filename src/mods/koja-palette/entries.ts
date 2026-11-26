@@ -362,9 +362,6 @@ const otherEntries = (host: PaletteHost): Entry[] =>
       };
     });
 
-// `app.theme` sets the half of its theme's lightness, so only a theme that can show now is offered:
-// a dark one in a dark window, a light one in a light one. A theme named like a layout is that
-// layout's own.
 const themeShows = (theme: ThemeChoice, host: PaletteHost, layouts: readonly string[]): boolean => {
   const sameLightness = theme.light === host.dark;
   const ownLayout = theme.name === host.layout || !layouts.includes(theme.name);
@@ -426,8 +423,6 @@ const argsFit = (args: Record<string, unknown>, command: Command): boolean => {
     .every((arg) => hasRequiredArg(command.name, args, arg.name));
 };
 
-// A mod's own command carries the mod's name before the dot, and the app cannot check its
-// arguments, so it must take none.
 const isOwnCommand = (command: string, mod: string, args: Record<string, unknown>): boolean => {
   const dot = command.indexOf('.');
   const named = dot >= 1 && command.slice(0, dot) === mod;
