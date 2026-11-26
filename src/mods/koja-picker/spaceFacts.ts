@@ -8,6 +8,7 @@ import { placeOfSpace } from '../../data/places.ts';
 import type { PullNeed } from '../../data/pullNeeds.ts';
 import { pullNeeds } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
+import { repoName, repositoryNameOf } from '../../data/repositoryName.ts';
 import type { Facts, GitFacts, WorktreeGit } from '../../data/snapshot.ts';
 import { pullOfBranch } from '../../data/snapshot.ts';
 
@@ -20,27 +21,17 @@ export interface SpaceFacts {
 // A row shows one work icon, so the most urgent need wins.
 const needRanks: Record<PullNeed, number> = { conflict: 0, failing: 1, review: 2, ready: 3 };
 
-const folderName = (path: string): string =>
-  (path.split('/').findLast((part) => part !== '') ?? '').replace(/\.git$/, '');
-
-const repoPathName = (path: string): string => {
-  const parts = path.split('/');
-  const last = parts.at(-1);
-  const checkout = last === '.git' || last === '.bare' ? parts.slice(0, -1).join('/') : path;
-
-  return folderName(checkout);
-};
-
 // A linked worktree sits in a folder of its own, so its project takes the name of the repository
 // it belongs to. A folder that is no repository takes its own name, as in the sidebar.
 const projectAt = (worktree: WorktreeGit | null, folder: string): string => {
   if (worktree === null) {
-    return folderName(folder);
+    return repoName(folder);
   }
 
-  return worktree.linked
-    ? repoPathName(worktree.repository.commonDirectory)
-    : folderName(worktree.root);
+  return repositoryNameOf(
+    worktree.linked ? null : worktree.root,
+    worktree.repository.commonDirectory,
+  );
 };
 
 const needOf = (pull: Pull): PullNeed | null => {
