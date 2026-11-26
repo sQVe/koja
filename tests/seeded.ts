@@ -9,7 +9,7 @@ export const pick = <T>(items: readonly T[], random: () => number): T => {
 };
 
 export const seededRandom = (seed: number): (() => number) => {
-  let state = seed + 1;
+  let state = (seed >>> 0) + 1;
 
   return () => {
     state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296;

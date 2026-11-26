@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { seededRandom } from '../../../tests/seeded.ts';
 import type { Lease, ReadShared } from '../lease.ts';
 import { claimLease } from '../lease.ts';
 import type { RecordNotices, RecordRejection } from '../recordNotices.ts';
@@ -550,16 +551,6 @@ describe('createPullRetryOutcomesPublisher', () => {
     expect(store.values[pullRetryOutcomesKey]).toEqual({ version: 1, outcomes: [outcome] });
   });
 });
-
-const seededRandom = (seed: number): (() => number) => {
-  let state = seed + 1;
-
-  return () => {
-    state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296;
-
-    return state / 4_294_967_296;
-  };
-};
 
 const newOwner = (store: Store): PullRetrySession =>
   createPullRetrySession({

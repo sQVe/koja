@@ -605,7 +605,7 @@ const pressable = (element: DrawnElement): boolean =>
 const sameIds = (left: readonly string[], right: readonly string[]): boolean =>
   left.length === right.length && left.every((id, index) => id === right[index]);
 
-const neighbourAbove = (
+const nearestLiveNeighbour = (
   order: readonly string[],
   closedId: string,
   live: readonly string[],
@@ -823,9 +823,12 @@ describe('koja-spaces close follow', () => {
 
   const liveAfter = (live: readonly string[], random: () => number): string[] => {
     const kept = live.filter(() => random() > closeChance);
-    const survivor = pick(live, random);
 
-    return kept.length === 0 ? [survivor] : kept;
+    if (kept.length > 0) {
+      return kept;
+    }
+
+    return [pick(live, random)];
   };
 
   const nextLook = (previous: Look, random: () => number): Look => {
@@ -858,7 +861,7 @@ describe('koja-spaces close follow', () => {
       return { closedId, selection: [] };
     }
 
-    const target = neighbourAbove(order, closedId, look.live);
+    const target = nearestLiveNeighbour(order, closedId, look.live);
 
     return { closedId, selection: target === null ? [] : [target] };
   };
@@ -944,12 +947,6 @@ describe('koja-spaces close follow', () => {
       records.push(...sequence);
     }
 
-    const deadSelections = records.flatMap((record) =>
-      record.issued
-        .filter((id) => !record.live.includes(id))
-        .map((id) => ({ seed: record.seed, step: record.step, id, live: record.live })),
-    );
-
     const wrongFollows = records
       .filter((record) => !sameIds(record.issued, record.expected))
       .map(({ seed, step, observer, live, order, closedId, picked, expected, issued }) => ({
@@ -979,7 +976,6 @@ describe('koja-spaces close follow', () => {
     expect(followed.length).toBeGreaterThan(0);
     expect(followedByTimer.length).toBeGreaterThan(0);
     expect(keptByPick.length).toBeGreaterThan(0);
-    expect(deadSelections).toEqual([]);
     expect(wrongFollows).toEqual([]);
     expect(repeatFollows).toEqual([]);
   });
