@@ -1,16 +1,17 @@
-import type { DiffRow } from './diffRows.ts';
+import type { DiffDocument } from './diffLayout.ts';
+import { measureDiff } from './diffLayout.ts';
 import { diffRows } from './diffRows.ts';
 import type { ChangesSnapshot } from './git.ts';
 import { loadFilePreview } from './preview.ts';
 import type { FilePreview } from './preview.ts';
 
 export class DiffPreview {
-  rows: DiffRow[] = [];
+  document: DiffDocument = measureDiff([]);
 
   private previewRequest = 0;
 
   setLines(lines: string[]): void {
-    this.rows = diffRows(lines);
+    this.document = measureDiff(diffRows(lines));
   }
 
   async load(

@@ -179,7 +179,7 @@ export default class Changes extends View {
 
     root.child(
       diffArea({
-        rows: this.preview.rows,
+        document: this.preview.document,
         open: this.open,
         fileCount: this.files.length,
         fontSize: terminalFontSize(),
@@ -492,7 +492,7 @@ export default class Changes extends View {
     const previous = {
       open: this.open,
       closed: this.closed,
-      rows: this.preview.rows,
+      document: this.preview.document,
     };
 
     this.open = openPath;
@@ -525,7 +525,7 @@ export default class Changes extends View {
     if (refusal !== null) {
       this.open = previous.open;
       this.closed = previous.closed;
-      this.preview.rows = previous.rows;
+      this.preview.document = previous.document;
       this.note = previewFailureNote(refusal);
     }
 

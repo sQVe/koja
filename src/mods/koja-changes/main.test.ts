@@ -77,6 +77,12 @@ let renderedNote: string | null = null;
 
 let renderedDiff: unknown[] = [];
 
+let renderedDiffDocument: {
+  rows: unknown[];
+  widestNumber: number;
+  widestText: number;
+} | null = null;
+
 let renderedFontSize = 0;
 
 let windowActive = true;
@@ -302,8 +308,12 @@ await mock.module('./rows.ts', () => ({
 
     return chainable();
   },
-  diffArea: (options: { rows: unknown[]; fontSize: number }) => {
-    renderedDiff = options.rows;
+  diffArea: (options: {
+    document: { rows: unknown[]; widestNumber: number; widestText: number };
+    fontSize: number;
+  }) => {
+    renderedDiff = options.document.rows;
+    renderedDiffDocument = options.document;
     renderedFontSize = options.fontSize;
 
     return chainable();
@@ -343,6 +353,7 @@ beforeEach(() => {
   renderedCommit = null;
   renderedNote = null;
   renderedDiff = [];
+  renderedDiffDocument = null;
   renderedFontSize = 0;
   windowActive = true;
   windowVisible = true;
@@ -847,6 +858,7 @@ describe('Changes view', () => {
     const paths = (renderedList?.files ?? []).map((file) => file.path);
     const open = renderedList?.open ?? null;
     const diff = [...renderedDiff];
+    const document = renderedDiffDocument;
 
     failNextSpawn = true;
     renderedList?.onPick('b.ts', context);
@@ -857,6 +869,7 @@ describe('Changes view', () => {
     expect((renderedList?.files ?? []).map((file) => file.path)).toEqual(paths);
     expect(renderedList?.open).toBe(open);
     expect(renderedDiff).toEqual(diff);
+    expect(renderedDiffDocument).toEqual(document);
   });
 
   test('a submit during a read commits once the read finishes', async () => {

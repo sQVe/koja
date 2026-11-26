@@ -9,19 +9,34 @@ export interface DiffLayout {
   width: number;
 }
 
-const widestNumber = (rows: DiffRow[]): number =>
-  Math.max(0, ...rows.map((row) => row.number ?? 0));
+export interface DiffDocument {
+  rows: DiffRow[];
+  widestNumber: number;
+  widestText: number;
+}
 
-const widestText = (rows: DiffRow[]): number =>
-  Math.max(0, ...rows.map((row) => displayColumns(row.text)));
+export const measureDiff = (rows: DiffRow[]): DiffDocument => {
+  let widestNumber = 0;
+  let widestText = 0;
 
-export const diffLayout = (rows: DiffRow[], fontSize: number): DiffLayout => {
+  for (const row of rows) {
+    widestNumber = Math.max(widestNumber, row.number ?? 0);
+    widestText = Math.max(widestText, displayColumns(row.text));
+  }
+
+  return { rows, widestNumber, widestText };
+};
+
+export const diffLayout = (document: DiffDocument, fontSize: number): DiffLayout => {
   const { rowHeight, characterWidth } = diffMetrics(fontSize);
 
-  const gutterCharacters = Math.max(diffSize.gutterCharacters, String(widestNumber(rows)).length);
+  const gutterCharacters = Math.max(
+    diffSize.gutterCharacters,
+    String(document.widestNumber).length,
+  );
 
   const gutterWidth = Math.ceil(gutterCharacters * characterWidth) + 2;
-  const textWidth = widestText(rows) * characterWidth;
+  const textWidth = document.widestText * characterWidth;
   const width = Math.max(diffSize.minimumWidth, textWidth + gutterWidth + diffSize.widthPadding);
 
   return { gutterCharacters, gutterWidth, rowHeight, width };

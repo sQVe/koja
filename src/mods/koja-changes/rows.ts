@@ -20,14 +20,14 @@ import {
   toggleButton,
   withTextRole,
 } from '../../kit/index.ts';
-import type { DiffLayout } from './diffLayout.ts';
+import type { DiffDocument, DiffLayout } from './diffLayout.ts';
 import { diffLayout } from './diffLayout.ts';
 import type { DiffRow } from './diffRows.ts';
 import { showsSelectionHint } from './selection.ts';
 import type { ChangeFile } from './status.ts';
 
 export interface DiffAreaOptions {
-  rows: DiffRow[];
+  document: DiffDocument;
   open: string | null;
   fileCount: number;
   fontSize: number;
@@ -237,15 +237,15 @@ const diffRow = (row: DiffRow, palette: Palette, layout: DiffLayout): Element =>
 
 export const diffArea = (options: DiffAreaOptions): Element => {
   const palette = colors();
-  const layout = diffLayout(options.rows, options.fontSize);
+  const layout = diffLayout(options.document, options.fontSize);
+  const rows = options.document.rows;
 
   const virtualList = v_virtual_list(
     'changes-diff',
-    options.rows.length,
+    rows.length,
     layout.rowHeight,
     (index) => String(index),
-    (range) =>
-      options.rows.slice(range.start, range.end).map((row) => diffRow(row, palette, layout)),
+    (range) => rows.slice(range.start, range.end).map((row) => diffRow(row, palette, layout)),
   ).size_full();
 
   const listColumn = div().w_full().min_w(layout.width).h_full().child(virtualList);
