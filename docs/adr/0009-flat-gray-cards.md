@@ -1,4 +1,4 @@
-# ADR 0009: One flat base with rounded cards and accent focus
+# ADR 0009: A two-tone base with rounded cards and foreground focus
 
 **Date**: 2026-11-03\
 **Status**: Accepted\
@@ -18,9 +18,10 @@ records the visual rules that those sources produce.
 
 ## Decision
 
-Koja uses one flat base color for the whole window, with rounded cards on top of it and an accent
-border for focus. The frame, panes, terminals, sidebar, and tab bar all share the base color of
-`catppuccin-latte-muted`, Koja's one theme.
+Koja uses two tones for the window, with rounded cards on top of the frame and a `foreground` border
+for focus. The frame, sidebar, and tab bar share the frame color `#d0d3d9` (`chrome` and `canvas`).
+The panes, the side panel, and the terminals share the pane body color `#dfe1e5` (`background` and
+`surface`). Both tones come from `catppuccin-latte-muted`, Koja's one theme.
 
 ### Text
 
@@ -59,13 +60,14 @@ border for focus. The frame, panes, terminals, sidebar, and tab bar all share th
 
 ### Panes and side panel
 
-- Panes and the side panel are rounded cards with a faint `selected` outline.
+- Panes and the side panel are rounded cards on the frame, with a 1 px `border` outline in
+  `#b6bbc4`.
 - Pane titles use the detail role, 11 px Regular. The focused pane's title is `foreground` and its
   icon `muted`; an unfocused pane's title is `muted` and its icon `dim`.
-- Focus also shows as the `accent` border, and the focused pane's header draws a faint fill from the
-  kit's focus value. Herdr cannot dim or tint an unfocused terminal, so the header is the one place
-  Koja can mark focus beyond the border. Koja adds no other mark of pane focus. The list cursor of a
-  marked section is a separate mark; see [Selection and hover](#selection-and-hover).
+- Focus also shows as the 1 px `foreground` border, and the focused pane's header draws a faint fill
+  from the kit's focus value. Herdr cannot dim or tint an unfocused terminal, so the header is the
+  one place Koja can mark focus beyond the border. Koja adds no other mark of pane focus. The list
+  cursor of a marked section is a separate mark; see [Selection and hover](#selection-and-hover).
 - In normal mode, Koja's overlay holds the keyboard, so Herdr draws no focus border. The focused
   pane's header then draws an `accent` tint at alpha `18`, with its title and icon in `accent`. The
   tint stays this light so the title and folder keep 4.5:1 contrast. Insert mode keeps the look
@@ -235,8 +237,8 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 
 ### Positive
 
-- Every work area shares one base, one card shape, and one focus color, so the window reads as one
-  surface.
+- Every work area sits on one frame, with one card shape and one focus color, so the window reads as
+  one surface.
 - Mods take text, rows, buttons, and states from the kit, so a rule changes in one place and a test
   catches a mod that sets its own text size or weight.
 - Users see every failed read, and never act on stale data by mistake.
@@ -257,6 +259,12 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 Koja would set `frame: "none"` on its popups and copy Herdr's border, radius, and shadow by hand.
 Rejected because Koja would have to follow every Herdr change to that copy, while a rounded
 background inside Herdr's frame already gives clean corners.
+
+### One flat base for the whole window
+
+Use one base color for the frame, the panes, the terminals, the sidebar, and the tab bar, as the
+earlier light theme did. Rejected because the panes then read as cut-outs of the frame rather than
+as cards on it, and the window loses the structure that the two tones give it.
 
 ### White panes on a gray frame
 
@@ -289,8 +297,8 @@ Koja would depend on a font the machine may lack.
 
 ### Focus shown by the border and title alone
 
-Keep the accent border and brighter title as the only focus marks. Rejected because in a split tab
-the focused pane was hard to find at a glance, and Herdr cannot dim the other panes instead.
+Keep the foreground border and brighter title as the only focus marks. Rejected because in a split
+tab the focused pane was hard to find at a glance, and Herdr cannot dim the other panes instead.
 
 ### Done as a green dot
 

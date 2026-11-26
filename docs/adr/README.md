@@ -30,7 +30,7 @@ run `git show <commit>:docs/adr/<file>` with the commit in its row.
 - [0004: Separate mods that share one UI kit](./0004-separate-mods-one-kit.md)
 - [0005: TypeScript mods bundled into one file each](./0005-typescript-bundled-per-mod.md)
 - [0007: One UI language through one kit](./0007-one-ui-language.md)
-- [0009: One flat base with rounded cards and accent focus](./0009-flat-gray-cards.md)
+- [0009: A two-tone base with rounded cards and foreground focus](./0009-flat-gray-cards.md)
 - [0010: Koja rolls up space and tab status itself](./0010-koja-rolls-up-agent-status.md)
 - [0011: Two AI judges from different model families gate UI mocks](./0011-two-ai-judges-gate-ui-mocks.md)
 - [0012: Normal mode gives each part of the app one plain letter](./0012-one-plain-letter-per-part.md)
