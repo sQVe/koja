@@ -208,12 +208,12 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
   lighter than the pane fill, a 1 px `border` outline, the pane radius, 6 px padding, and no shadow.
   The outline keeps the mid gray in both modes, so an overlay edge never reads as the insert-mode
   focus border or the normal-mode indigo.
-- A Koja dialog is a 360 px overlay card with one 13 px text size. A destructive ask puts the
-  `triangle-alert` icon in `blocked` before the title, and the body lines up with the title text.
-  The card's height follows its content, so a long title never pushes the buttons out of the card.
-  The main button carries the `↵` keycap; Cancel is a plain outline button with no keycap. Dialogs
-  are the one popup that keeps a close control, because a choice needs a visible way back, and
-  Escape also cancels.
+- The confirm and prompt dialogs are a 360 px overlay card with one 13 px text size. A destructive
+  ask puts the `triangle-alert` icon in `blocked` before the title, and the body lines up with the
+  title text. Their height follows their content, so a long title never pushes the buttons out of
+  the card. Every dialog's main button carries the `↵` keycap; Cancel is a plain outline button with
+  no keycap. Dialogs are the one popup that keeps a close control, because a choice needs a visible
+  way back, and Escape also cancels.
 
 Herdr's own dialogs keep Herdr's frame. Koja's popups use the same frame, so popups look the same
 whether Koja or Herdr opens them. Two popups are exceptions. The picker's list sits beside a
