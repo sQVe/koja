@@ -78,7 +78,7 @@ describe('documentLine', () => {
     expect(drawnTexts(line)).toEqual(['12', 'Keep marks visible.']);
   });
 
-  test('a bar stops short of its row, so adjacent commented lines stay apart', () => {
+  test('a bar stops short of its row', () => {
     const line = documentLine({ number: 6, text: 'Keep it.', bar: 'edited' });
     const bar = firstBar(line);
     const rowHeight = Number(line.styles['h']?.[0]);
@@ -120,6 +120,11 @@ describe('documentLine', () => {
     await Promise.resolve();
 
     expect(drawnFont(sidebarLine())).toEqual([defaultFont]);
+
+    settingsValues = { font: monospaceFont };
+    await Promise.resolve();
+
+    expect(drawnFont(sidebarLine())).toEqual([monospaceFont]);
 
     settingsValues = { font: 42 };
     await Promise.resolve();

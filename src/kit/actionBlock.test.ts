@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import {
   click,
+  clickablesWithText,
   drawn,
   drawnIcons,
   drawnTexts,
@@ -110,15 +111,20 @@ describe('actionBlock', () => {
     expect(elementWithText(block, wait)?.textColors).toEqual([palette.dim]);
   });
 
-  test('a failed save with no recovery draws no empty recovery row', () => {
-    const block = actionBlock({
+  test('a recovery row is drawn only when there is a recovery button', () => {
+    const withRecovery = failedSaveBlock();
+
+    const withoutRecovery = actionBlock({
       kind: 'failed',
       action: 'Retry save',
       onAction,
       failure: failure([]),
     });
 
-    expect(drawnTexts(block)).toEqual([
+    expect(withRecovery.kids[1]?.kids).toHaveLength(4);
+    expect(withoutRecovery.kids[1]?.kids).toHaveLength(3);
+
+    expect(drawnTexts(withoutRecovery)).toEqual([
       'Retry save',
       'Could not save: the folder is read-only',
       folder,
@@ -141,19 +147,13 @@ describe('actionBlock', () => {
 
   test('the main action and each recovery button run their own handler', () => {
     const block = failedSaveBlock();
-    const mainAction = elementWithText(block, 'Retry save');
-    const recovery = elementWithText(block, 'Copy path');
-    const errorLine = elementWithText(block, 'Could not save: the folder is read-only');
+    const [mainAction] = clickablesWithText(block, 'Retry save');
+    const [recovery] = clickablesWithText(block, 'Copy path');
 
-    expect(mainAction).not.toBeNull();
-    expect(recovery).not.toBeNull();
-    expect(errorLine).not.toBeNull();
+    expect(mainAction).toBeDefined();
+    expect(recovery).toBeDefined();
 
-    if (mainAction !== null && recovery !== null && errorLine !== null) {
-      click(errorLine);
-
-      expect(actionCalls).toBe(0);
-
+    if (mainAction !== undefined && recovery !== undefined) {
       click(recovery);
 
       expect(recoveryCalls).toBe(1);
@@ -162,7 +162,15 @@ describe('actionBlock', () => {
       click(mainAction);
 
       expect(actionCalls).toBe(1);
+      expect(recoveryCalls).toBe(1);
     }
+  });
+
+  test('the error and the folder are not controls', () => {
+    const block = failedSaveBlock();
+
+    expect(clickablesWithText(block, 'Could not save: the folder is read-only')).toEqual([]);
+    expect(clickablesWithText(block, folder)).toEqual([]);
   });
 
   test('a ready action draws its one button and no state block', () => {
