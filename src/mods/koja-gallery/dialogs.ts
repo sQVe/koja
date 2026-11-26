@@ -32,8 +32,12 @@ const dialogSurface = (width: number, height: number, dialog: Element): Element 
 const confirmDialog = (): Element =>
   dialogFrame({
     id: 'dialog-confirm-sample',
-    title: 'Close space?',
-    detail: 'Its 2 tabs will close.',
+    title: 'Close space “Design the sidebar”?',
+    lines: [
+      'Claude Code and Pi stop mid-task, and 4 tabs close.',
+      'Its folder, uncommitted changes, and branch stay.',
+    ],
+    destructive: true,
     actions: [button('Cancel', 'outline'), button('Close', 'danger')],
   });
 

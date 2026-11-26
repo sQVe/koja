@@ -314,6 +314,7 @@ export default class Worktree extends View {
       id: 'worktree',
       title,
       body: this.body(),
+      destructive: this.action === 'remove',
       actions: this.actions(),
     }).on_key_down((event, cx) => {
       this.keyDown(event, cx);

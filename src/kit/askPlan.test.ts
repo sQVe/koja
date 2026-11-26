@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { PaneInfo, Program, SpaceInfo, TabInfo } from 'herdr';
+import type { AgentInfo, PaneInfo, Program, SpaceInfo, TabInfo } from 'herdr';
 
 import type { AskFacts } from './askPlan.ts';
 import { dialogFor } from './askPlan.ts';
@@ -76,8 +76,26 @@ const facts = (
 ): AskFacts => ({
   spaces,
   panes,
+  agents: [],
   focus,
   terminals: [],
+});
+
+const agent = (spaceId: string, name: string): AgentInfo => ({
+  address: `a-${name}`,
+  pane: `p-${name}`,
+  space: spaceId,
+  space_name: '',
+  tab: 't1',
+  tab_index: 1,
+  tab_name: '',
+  status: 'working',
+  app: null,
+  program: { ...shell, key: name, name, agent: true, shell: false },
+  title: name,
+  seq: 0,
+  pinned: false,
+  focused: false,
 });
 
 const apiSpace = (): SpaceInfo => space('s1', 'api', [tab('t1', 'logs'), tab('t2', 'server')]);
@@ -121,26 +139,67 @@ describe('dialogFor', () => {
     });
   });
 
-  test('the close space detail counts a mod-only tab as zero terminals', () => {
-    const plan = dialogFor(
-      'space.close',
-      { id: 's2' },
-      facts([webSpace()], [modPane('m1', 't3')], focusValue),
-    );
+  test('the close space title quotes the name and the body names each agent and the tab count', () => {
+    const values = facts(spaceValues(), [], focusValue);
+
+    values.agents = [agent('s1', 'Claude Code'), agent('s1', 'Pi')];
+
+    const plan = dialogFor('space.close', { id: 's1' }, values);
 
     expect(plan).toMatchObject({
       kind: 'confirm',
-      dialog: { detail: 'web — 1 tabs, 0 terminals' },
+      dialog: {
+        title: 'Close space “api”?',
+        body: [
+          'Claude Code and Pi stop mid-task, and 2 tabs close.',
+          'Its folder, uncommitted changes, and branch stay.',
+        ],
+      },
     });
   });
 
-  test('the close space detail counts only panes with a terminal', () => {
-    const panes = [terminalPane('p1', 't3'), modPane('m1', 't3'), terminalPane('p2', 't3')];
-    const plan = dialogFor('space.close', { id: 's2' }, facts([webSpace()], panes, focusValue));
+  test('a space with no agent running gets a body that names only the tabs', () => {
+    const plan = dialogFor('space.close', { id: 's2' }, facts(spaceValues(), [], focusValue));
 
     expect(plan).toMatchObject({
       kind: 'confirm',
-      dialog: { detail: 'web — 1 tabs, 2 terminals' },
+      dialog: {
+        title: 'Close space “web”?',
+        body: ['1 tab closes.', 'Its folder, uncommitted changes, and branch stay.'],
+      },
+    });
+  });
+
+  test('the close body names one agent once, though it runs in two panes', () => {
+    const values = facts(spaceValues(), [], focusValue);
+
+    values.agents = [agent('s1', 'Claude Code'), agent('s1', 'Claude Code')];
+
+    const plan = dialogFor('space.close', { id: 's1' }, values);
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        body: [
+          'Claude Code stops mid-task, and 2 tabs close.',
+          'Its folder, uncommitted changes, and branch stay.',
+        ],
+      },
+    });
+  });
+
+  test('the close body leaves out an agent that runs in another space', () => {
+    const values = facts(spaceValues(), [], focusValue);
+
+    values.agents = [agent('s2', 'Pi')];
+
+    const plan = dialogFor('space.close', { id: 's1' }, values);
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        body: ['2 tabs close.', 'Its folder, uncommitted changes, and branch stay.'],
+      },
     });
   });
 
@@ -317,7 +376,7 @@ describe('dialogFor', () => {
     expect(plan).toMatchObject({
       kind: 'confirm',
       dialog: {
-        title: 'Close space?',
+        title: 'Close space “web”?',
         action: 'Close',
         destroys: true,
         command: { name: 'tab.close', args: { id: 't3', confirmed: true } },
@@ -370,7 +429,7 @@ describe('dialogFor', () => {
     expect(dialogFor('pane.close', {}, values)).toMatchObject({
       kind: 'confirm',
       dialog: {
-        title: 'Close space?',
+        title: 'Close space “web”?',
         action: 'Close',
         destroys: true,
         command: { name: 'pane.close', args: { pane: 'parent' } },
@@ -388,7 +447,7 @@ describe('dialogFor', () => {
     expect(dialogFor('pane.close', { pane: 'parent' }, values)).toMatchObject({
       kind: 'confirm',
       dialog: {
-        title: 'Close space?',
+        title: 'Close space “api”?',
         command: { name: 'pane.close', args: { pane: 'parent' } },
       },
     });
@@ -415,7 +474,7 @@ describe('dialogFor', () => {
       kind: 'confirm',
       dialog: {
         title: 'Close pane?',
-        detail: 'This pane and 2 other panes will close.',
+        body: ['This pane and 2 other panes will close.'],
         action: 'Close',
         destroys: true,
         command: { name: 'pane.close', args: { pane: 'parent' } },
@@ -441,7 +500,7 @@ describe('dialogFor', () => {
       kind: 'confirm',
       dialog: {
         title: 'Close pane?',
-        detail: 'This pane and 1 other pane will close.',
+        body: ['This pane and 1 other pane will close.'],
         command: { name: 'pane.close', args: { pane: 'parent' } },
       },
     });
@@ -466,7 +525,7 @@ describe('dialogFor', () => {
     expect(dialogFor('pane.close', { pane: 'parent' }, values)).toMatchObject({
       kind: 'confirm',
       dialog: {
-        title: 'Close space?',
+        title: 'Close space “web”?',
         command: { name: 'pane.close', args: { pane: 'parent' } },
       },
     });
@@ -485,7 +544,7 @@ describe('dialogFor', () => {
     expect(dialogFor('pane.close', { pane: 'parent' }, values)).toMatchObject({
       kind: 'confirm',
       dialog: {
-        title: 'Close space?',
+        title: 'Close space “web”?',
         command: { name: 'pane.close', args: { pane: 'parent' } },
       },
     });
@@ -506,7 +565,7 @@ describe('dialogFor', () => {
       kind: 'confirm',
       dialog: {
         title: 'Close pane?',
-        detail: 'This pane and 1 other pane will close.',
+        body: ['This pane and 1 other pane will close.'],
         command: { name: 'pane.close', args: { pane: 'parent' } },
       },
     });

@@ -1,6 +1,6 @@
-import type { PaneInfo, SpaceInfo, TabInfo } from 'herdr';
+import type { AgentInfo, PaneInfo, SpaceInfo, TabInfo } from 'herdr';
 
-import type { ConfirmDialog, PromptDialog } from './dialogPayload.ts';
+import type { ConfirmDialog, DialogCommand, PromptDialog } from './dialogPayload.ts';
 import { stringOf } from './fields.ts';
 
 interface AskFocus {
@@ -21,6 +21,7 @@ export interface AskFacts {
   terminals: TerminalLifetime[];
   spaces: SpaceInfo[];
   panes: PaneInfo[];
+  agents: AgentInfo[];
   focus: AskFocus | null;
 }
 
@@ -67,14 +68,50 @@ const tabTarget = (args: Record<string, unknown>, facts: AskFacts): TabPlace | u
   return placeOf(focusedSpaces, facts.focus?.tab);
 };
 
-const terminalCount = (space: SpaceInfo, paneList: PaneInfo[]): number => {
-  const tabIds = new Set(space.tabs.map((tab) => tab.id));
+const agentNames = (space: SpaceInfo, agentList: AgentInfo[]): string[] => {
+  const names = agentList
+    .filter((agent) => agent.space === space.id)
+    .map((agent) => agent.program.name);
 
-  return paneList.filter((pane) => tabIds.has(pane.tab) && pane.terminal !== null).length;
+  return [...new Set(names)];
 };
 
-const spaceDetail = (space: SpaceInfo, paneList: PaneInfo[]): string =>
-  `${space.name} — ${space.tabs.length} tabs, ${terminalCount(space, paneList)} terminals`;
+const joinNames = (names: string[]): string => {
+  if (names.length <= 2) {
+    return names.join(' and ');
+  }
+
+  return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+};
+
+const tabCount = (count: number): string => `${count} ${count === 1 ? 'tab closes' : 'tabs close'}`;
+
+const closeStops = (names: string[]): string => {
+  if (names.length === 0) {
+    return '';
+  }
+
+  const verb = names.length === 1 ? 'stops' : 'stop';
+
+  return `${joinNames(names)} ${verb} mid-task, and `;
+};
+
+const closeBody = (space: SpaceInfo, facts: AskFacts): string[] => {
+  const stops = closeStops(agentNames(space, facts.agents));
+
+  return [
+    `${stops}${tabCount(space.tabs.length)}.`,
+    'Its folder, uncommitted changes, and branch stay.',
+  ];
+};
+
+const closeDialog = (space: SpaceInfo, facts: AskFacts, command: DialogCommand): ConfirmDialog => ({
+  title: `Close space “${space.name}”?`,
+  body: closeBody(space, facts),
+  action: 'Close',
+  destroys: true,
+  command,
+});
 
 const currentName = (target: { name: string; named: boolean }): string =>
   target.named ? target.name : '';
@@ -92,13 +129,10 @@ const closeSpacePlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan
 
   return {
     kind: 'confirm',
-    dialog: {
-      title: 'Close space?',
-      detail: spaceDetail(space, facts.panes),
-      action: 'Close',
-      destroys: true,
-      command: { name: 'space.close', args: { id: space.id, confirmed: true } },
-    },
+    dialog: closeDialog(space, facts, {
+      name: 'space.close',
+      args: { id: space.id, confirmed: true },
+    }),
   };
 };
 
@@ -149,15 +183,12 @@ const renameTabPlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan 
 };
 
 // Closing the last tab closes its space, so it gets the space wording, as in Herdr.
-const closeLastTabPlan = (place: TabPlace, paneList: PaneInfo[]): AskPlan => ({
+const closeLastTabPlan = (place: TabPlace, facts: AskFacts): AskPlan => ({
   kind: 'confirm',
-  dialog: {
-    title: 'Close space?',
-    detail: spaceDetail(place.space, paneList),
-    action: 'Close',
-    destroys: true,
-    command: { name: 'tab.close', args: { id: place.tab.id, confirmed: true } },
-  },
+  dialog: closeDialog(place.space, facts, {
+    name: 'tab.close',
+    args: { id: place.tab.id, confirmed: true },
+  }),
 });
 
 const closeTabPlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan => {
@@ -175,7 +206,7 @@ const closeTabPlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan =
     return { kind: 'run' };
   }
 
-  return closeLastTabPlan(place, facts.panes);
+  return closeLastTabPlan(place, facts);
 };
 
 const addClosingChildren = (
@@ -231,17 +262,20 @@ const collateralClosePlan = (pane: PaneInfo, place: TabPlace, facts: AskFacts): 
   );
 
   const otherPanes = collateral.length === 1 ? '1 other pane' : `${collateral.length} other panes`;
+  const command = { name: 'pane.close', args: { pane: pane.pane } };
+
+  if (!survives) {
+    return { kind: 'confirm', dialog: closeDialog(place.space, facts, command) };
+  }
 
   return {
     kind: 'confirm',
     dialog: {
-      title: survives ? 'Close pane?' : 'Close space?',
-      detail: survives
-        ? `This pane and ${otherPanes} will close.`
-        : spaceDetail(place.space, facts.panes),
+      title: 'Close pane?',
+      body: [`This pane and ${otherPanes} will close.`],
       action: 'Close',
       destroys: true,
-      command: { name: 'pane.close', args: { pane: pane.pane } },
+      command,
     },
   };
 };
@@ -269,7 +303,7 @@ const closePanePlan = (args: Record<string, unknown>, facts: AskFacts): AskPlan 
     return { kind: 'run' };
   }
 
-  return closeLastTabPlan(place, facts.panes);
+  return closeLastTabPlan(place, facts);
 };
 
 const planners = new Map<string, PlanFunction>([

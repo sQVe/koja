@@ -162,6 +162,19 @@ export const sidebarSize = {
 
 export const indentWidth = 20;
 
+export const dialogSize = {
+  width: 360,
+  padding: 12,
+  blockGap: spacing.medium,
+  actionGap: 12,
+  // The title's line box is taller than its glyphs, so its top padding takes 6 px less.
+  titleTrim: 6,
+  markGap: spacing.small,
+  markTop: spacing.xsmall,
+  markInset: iconSize.small + spacing.small,
+  buttonHeight: 24,
+} as const;
+
 export const overlaySize = {
   // The key hint card sits this far above the bottom of the panes it describes.
   cardGapAbovePanes: 24,
@@ -177,10 +190,10 @@ export const overlaySize = {
   worktreeFormHeight: 260,
   worktreeListWidth: 560,
   worktreeListHeight: 480,
-  confirmWidth: 380,
-  confirmHeight: 120,
-  promptWidth: 380,
-  promptHeight: 150,
+  confirmWidth: dialogSize.width,
+  confirmHeight: 125,
+  promptWidth: dialogSize.width,
+  promptHeight: 129,
   groveWidth: 420,
   groveHeight: 280,
   // Leaves room in groveHeight for the field and the buttons; a longer message scrolls.
