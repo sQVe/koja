@@ -25,7 +25,15 @@ import {
   toggleButton,
 } from '../../kit/index.ts';
 import type { Agent, AgentLoad, AgentState, MenuTarget } from './agents.ts';
-import { agentState, installedAgents, menuActions, menuTarget } from './agents.ts';
+import {
+  agentState,
+  cachedAgents,
+  installedAgents,
+  knownAgentsKey,
+  menuActions,
+  menuTarget,
+  rememberAgents,
+} from './agents.ts';
 import { repositoryNameAt } from './repository.ts';
 
 interface MenuRow {
@@ -110,6 +118,12 @@ export default class NewMenu extends View {
     this.repository = this.readRepository();
     setShared(newMenuOpenKey, true);
 
+    const cached = cachedAgents(shared(knownAgentsKey), this.target.machine);
+
+    if (cached.length > 0) {
+      this.load = { status: 'loaded', agents: cached };
+    }
+
     if (checking()) {
       return;
     }
@@ -171,8 +185,13 @@ export default class NewMenu extends View {
         const agents = await knownAgents({ on: this.target.machine });
 
         this.load = { status: 'loaded', agents };
+
+        setShared(
+          knownAgentsKey,
+          rememberAgents(shared(knownAgentsKey), this.target.machine, agents),
+        );
       } catch {
-        this.load = { status: 'failed' };
+        this.load = { status: 'failed', agents: installedAgents(this.load) };
       } finally {
         this.reading = false;
         taskCx.notify();
@@ -205,24 +224,23 @@ export default class NewMenu extends View {
     };
   }
 
+  private agentRow(agent: Agent): MenuRow {
+    return {
+      id: agent.key,
+      start: mark('terminal'),
+      label: agent.name,
+      end: [],
+      enabled: true,
+      action: () => {
+        this.startAgent(agent);
+      },
+    };
+  }
+
   private agentRows(): Element {
     const state = agentState(this.load);
-
-    const rows =
-      state === null
-        ? installedAgents(this.load).map((agent) =>
-            this.row({
-              id: agent.key,
-              start: mark('terminal'),
-              label: agent.name,
-              end: [],
-              enabled: true,
-              action: () => {
-                this.startAgent(agent);
-              },
-            }),
-          )
-        : [this.stateRow(state)];
+    const agents = installedAgents(this.load).map((agent) => this.row(this.agentRow(agent)));
+    const rows = state === null ? agents : [...agents, this.stateRow(state)];
 
     return v_flex()
       .flex_none()

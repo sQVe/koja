@@ -17,6 +17,7 @@ import {
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import { emptyFacts, snapshotKey } from '../../data/snapshot.ts';
 import { newMenuOpenKey } from '../../kit/newMenu.ts';
+import { knownAgentsKey } from './agents.ts';
 
 Object.assign(globalThis, { kojaModName: 'koja-new-menu' });
 
@@ -31,8 +32,6 @@ let tasks: Promise<void>[] = [];
 let sharedValues: Record<string, unknown> = {};
 
 let runCalls: { command: string; args: Record<string, unknown> | undefined }[] = [];
-
-let sharedWrites: { key: string; value: unknown }[] = [];
 
 let closedOverlays: string[] = [];
 
@@ -125,7 +124,7 @@ await mock.module('herdr', () =>
       return null;
     },
     setShared: (key: string, value: unknown) => {
-      sharedWrites.push({ key, value });
+      sharedValues[key] = value;
 
       return null;
     },
@@ -172,10 +171,17 @@ const loaded = (await import(modulePath)) as {
   };
 };
 
-const openMenu = async (): Promise<InstanceType<typeof loaded.default>> => {
+const openBeforeCheck = (): InstanceType<typeof loaded.default> => {
   const view = new loaded.default();
 
   view.init(null, context);
+
+  return view;
+};
+
+const openMenu = async (): Promise<InstanceType<typeof loaded.default>> => {
+  const view = openBeforeCheck();
+
   await Promise.all(tasks);
 
   return view;
@@ -192,7 +198,6 @@ beforeEach(() => {
   tasks = [];
   sharedValues = {};
   runCalls = [];
-  sharedWrites = [];
   closedOverlays = [];
   openedOverlays = [];
   spaceList = [space];
@@ -227,7 +232,7 @@ describe('new menu', () => {
     const view = await openMenu();
     const tree = view.render();
 
-    expect(drawnTexts(tree)).toContain('Could not load agents');
+    expect(drawnTexts(tree)).toContain('Could not check installed agents');
     expect(clickablesWithText(tree, 'Retry')).toHaveLength(1);
   });
 
@@ -249,7 +254,44 @@ describe('new menu', () => {
 
     expect(agentLookups).toBe(2);
     expect(drawnTexts(tree)).toContain('Pi');
-    expect(drawnTexts(tree)).not.toContain('Could not load agents');
+    expect(drawnTexts(tree)).not.toContain('Could not check installed agents');
+  });
+
+  test('opens with the agents the last check found, before checking again', async () => {
+    agentReply = async () => [agentOf('Pi', true)];
+
+    await openMenu();
+
+    const answered: ((agents: unknown[]) => void)[] = [];
+
+    agentReply = () =>
+      new Promise<unknown[]>((resolve) => {
+        answered.push(resolve);
+      });
+
+    const reopened = openBeforeCheck();
+    const texts = drawnTexts(reopened.render());
+
+    expect(texts).toContain('Pi');
+    expect(texts).not.toContain('Checking installed agents…');
+
+    answered[0]?.([]);
+
+    await Promise.all(tasks);
+  });
+
+  test('keeps the agents of the last check when the check fails', async () => {
+    sharedValues[knownAgentsKey] = { '': [agentOf('Pi', true)] };
+
+    agentReply = async () => {
+      throw new Error('the shell did not answer');
+    };
+
+    const view = await openMenu();
+    const tree = view.render();
+
+    expect(drawnTexts(tree)).toContain('Pi');
+    expect(drawnTexts(tree)).toContain('Could not check installed agents');
   });
 
   test('lists only the agents that are installed', async () => {
@@ -331,11 +373,11 @@ describe('new menu', () => {
   test('marks the menu open while it shows and closed when it closes', async () => {
     const view = await openMenu();
 
-    expect(sharedWrites).toEqual([{ key: newMenuOpenKey, value: true }]);
+    expect(sharedValues[newMenuOpenKey]).toBe(true);
 
     view.close();
 
-    expect(sharedWrites.at(-1)).toEqual({ key: newMenuOpenKey, value: false });
+    expect(sharedValues[newMenuOpenKey]).toBe(false);
   });
 
   test('keeps every agent of a long list reachable', async () => {
