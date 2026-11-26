@@ -85,7 +85,8 @@ write_generation() {
 
   local id
   id=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n') || return 1
-  printf '%s\n' "$id" > "$generation_file"
+  # Write beside the id and rename it, so a reader never sees a truncated id.
+  printf '%s\n' "$id" > "$generation_file.next" && mv "$generation_file.next" "$generation_file"
 }
 
 root_generation() {
@@ -230,11 +231,12 @@ case ${1:-} in
       expected=$3
       generation=$4
       shift 4
-      current=$(cat "$generation" 2>/dev/null) || {
+      current=$(cat "$generation" 2>/dev/null) || current=''
+      if [ -z "$current" ]; then
         printf "sandbox %s root %s has no generation while waiting for the capture lock\n" "$name" "$root" >&2
         exit 1
-      }
-      if [ -z "$current" ] || [ "$current" != "$expected" ]; then
+      fi
+      if [ "$current" != "$expected" ]; then
         printf "sandbox %s root %s was replaced while waiting for the capture lock\n" "$name" "$root" >&2
         exit 1
       fi
