@@ -57,7 +57,7 @@ describe('duePullReads', () => {
     expect(duePullReads(state, ['a'], nothingRunning, 75_000, true)).toEqual(['a']);
   });
 
-  test('reads every 60 s while the window is visible and not while hidden', () => {
+  test('reads every 60 s while the window is active and not while inactive', () => {
     const state = emptyPullDueState();
 
     noteStart(state, 'a', 0);
@@ -68,7 +68,7 @@ describe('duePullReads', () => {
     expect(duePullReads(state, ['a'], nothingRunning, 60_000, true)).toEqual(['a']);
   });
 
-  test('a push read runs while the window is hidden', () => {
+  test('a push read runs while the window is inactive', () => {
     const state = emptyPullDueState();
 
     noteStart(state, 'a', 0);
@@ -90,7 +90,7 @@ describe('duePullReads', () => {
     expect(duePullReads(state, ['a'], nothingRunning, 60_000, false)).toEqual(['a']);
   });
 
-  test('a hidden window due check creates no repository entries', () => {
+  test('an inactive window due check creates no repository entries', () => {
     const state = emptyPullDueState();
 
     expect(duePullReads(state, ['a', 'b'], nothingRunning, 0, false)).toEqual([]);

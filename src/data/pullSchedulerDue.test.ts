@@ -79,7 +79,7 @@ describe('createPullScheduler due reads', () => {
     expect(harness.call(0)).toMatchObject({ command: 'git', args: ['remote'] });
   });
 
-  test('a hidden window suppresses the periodic read', () => {
+  test('an inactive window suppresses the periodic read', () => {
     harness.windowVisible = false;
 
     const scheduler = harness.start({

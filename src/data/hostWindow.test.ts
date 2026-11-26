@@ -44,7 +44,7 @@ describe('startDataHost with no window', () => {
 });
 
 describe('startDataHost with the window hidden', () => {
-  test('starts no periodic pull read in a tick while the window is hidden', async () => {
+  test('starts no periodic pull read in a tick while the window is inactive', async () => {
     dataHost.window = { active: true, visible: false };
 
     const copy = dataHost.startCopy();
