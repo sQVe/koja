@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../../tests/drawn.ts';
-import { drawn, drawnTexts } from '../../../../../tests/drawn.ts';
+import { descendants, drawn, drawnTexts } from '../../../../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, kitIndexFake } from '../../../../../tests/moduleFakes.ts';
 
 interface TokenLook {
@@ -52,11 +52,6 @@ const painted = (): DrawnElement => {
 await mock.module('gpui-base', () => gpuiBaseFake({ h_flex: painted, v_flex: painted }));
 await mock.module('gpui-kit', () => gpuiKitFake({ div: painted }));
 await mock.module('../../../../kit/index.ts', () => kitIndexFake({ icon: painted }));
-
-const descendants = (element: DrawnElement): DrawnElement[] => [
-  element,
-  ...element.kids.flatMap(descendants),
-];
 
 const tokenPath = '../koja.ts';
 

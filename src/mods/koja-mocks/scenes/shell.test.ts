@@ -1,7 +1,13 @@
 import { afterAll, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTexts, drawnTooltips } from '../../../../tests/drawn.ts';
+import {
+  descendants,
+  drawn,
+  drawnIcons,
+  drawnTexts,
+  drawnTooltips,
+} from '../../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -64,11 +70,6 @@ const { shellPullRequestScene } = (await import(shellPath)) as {
 const { pullRequestScene } = (await import(pullRequestPath)) as {
   pullRequestScene: (name: 'blocked') => DrawnElement;
 };
-
-const descendants = (element: DrawnElement): DrawnElement[] => [
-  element,
-  ...element.kids.flatMap(descendants),
-];
 
 const pullPane = (scene: DrawnElement): DrawnElement | undefined =>
   descendants(scene).findLast((element) => {

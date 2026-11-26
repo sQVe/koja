@@ -2,6 +2,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../../tests/drawn.ts';
 import {
+  descendants,
   drawn,
   drawnIcons,
   drawnTexts,
@@ -65,11 +66,6 @@ const { koja, kojaNormal } = (await import(tokensPath)) as {
   };
   kojaNormal: { ink: { dim: string }; pane: { focusedBorder: string; focusedHeaderFill: string } };
 };
-
-const descendants = (element: DrawnElement): DrawnElement[] => [
-  element,
-  ...element.kids.flatMap(descendants),
-];
 
 const paneOf = (scene: string, kind: string): DrawnElement => {
   const pane = descendants(contentScene(scene)).find((part) =>
