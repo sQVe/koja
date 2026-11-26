@@ -69,7 +69,8 @@ describe('koja-spaces stored git facts', () => {
   });
 });
 
-const kojaRepositoryKey = repositoryOf(null, '/code/koja/.git').key;
+const kojaRepository = repositoryOf(null, '/code/koja/.git');
+const kojaRepositoryKey = kojaRepository.key;
 
 const ticketFacts = (id: string, title: string, parent: string | null = null) => ({
   id,
@@ -85,6 +86,7 @@ const checkouts = [
     folder: '/code/me-666-login',
     commonDirectory: '/code/koja/.git',
     linked: true,
+    bare: false,
     branch: 'me-666-login',
   },
 ];
@@ -133,7 +135,7 @@ const useStackFacts = (
     },
   };
 
-  facts.stacks = stacksOf(repositoryOf(null, '/code/koja/.git'), ['me-666-login', 'me-667-logout']);
+  facts.stacks = stacksOf(kojaRepository, ['me-666-login', 'me-667-logout']);
 
   showWorktreeFacts(facts, named);
 };

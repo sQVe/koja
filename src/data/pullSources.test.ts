@@ -27,6 +27,7 @@ const factsOf = (worktrees: readonly Worktree[]): GitFacts => {
       root: worktree.folder,
       branch: worktree.branch === undefined ? 'main' : worktree.branch,
       linked: worktree.linked,
+      bare: false,
     };
   }
 
@@ -38,7 +39,7 @@ const pullSourcesOf = (
   stacks: Readonly<Record<string, RepositoryStacks>> = {},
 ): ReturnType<typeof pullSources> => pullSources(facts, stacks);
 
-const stackOfThree = (): Record<string, RepositoryStacks> =>
+const threeBranchStacks = (): Record<string, RepositoryStacks> =>
   stacksOf(repository, ['add-search', 'add-search-ui', 'add-search-tests']);
 
 const main = { folder: '/code/koja-z', linked: false };
@@ -75,7 +76,7 @@ describe('pullSources', () => {
   test('pull sources include every branch of an attached stack', () => {
     const facts = factsOf([{ folder: '/code/koja-z', linked: false, branch: 'add-search-ui' }]);
 
-    const [source] = [...pullSourcesOf(facts, stackOfThree()).values()];
+    const [source] = [...pullSourcesOf(facts, threeBranchStacks()).values()];
 
     expect(source?.branches).toEqual(['add-search', 'add-search-tests', 'add-search-ui']);
   });
@@ -83,7 +84,7 @@ describe('pullSources', () => {
   test('a stack with no checked-out branch adds no stack branches', () => {
     const facts = factsOf([{ folder: '/code/koja-z', linked: false, branch: 'main' }]);
 
-    const [source] = [...pullSourcesOf(facts, stackOfThree()).values()];
+    const [source] = [...pullSourcesOf(facts, threeBranchStacks()).values()];
 
     expect(source?.branches).toEqual(['main']);
   });

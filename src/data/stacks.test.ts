@@ -32,6 +32,27 @@ const recordOfSeveralStacks = (): Record<string, unknown> => {
   return record;
 };
 
+const recordWithBranch = (fields: Record<string, unknown>): Record<string, unknown> => ({
+  schemaVersion: 1,
+  repository: '',
+  stacks: [
+    {
+      trunk: { branch: 'main' },
+      branches: [{ branch: 'add-search', ...fields }],
+    },
+  ],
+});
+
+const parsedOrThrow = (text: string, heads: ReadonlyMap<string, string>): Stack[] => {
+  const parsed = parseStacks(text, heads);
+
+  if (parsed.kind === 'failed') {
+    throw new Error('the record did not parse');
+  }
+
+  return parsed.stacks;
+};
+
 const restackOfBranch = (
   stacks: readonly Stack[],
   branch: string,
@@ -161,47 +182,23 @@ describe('stacks', () => {
   });
 
   test('a base of the wrong type reads like a missing base', () => {
-    const record = recordOfSeveralStacks();
-    const stacks = record['stacks'];
+    const record = recordWithBranch({ base: 42 });
+    const stacks = parsedOrThrow(JSON.stringify(record), severalStacksHeads);
 
-    if (Array.isArray(stacks) && isRecord(stacks[0])) {
-      const branches = stacks[0]['branches'];
-
-      if (Array.isArray(branches) && isRecord(branches[1])) {
-        branches[1]['base'] = 42;
-      }
-    }
-
-    const parsed = parseStacks(JSON.stringify(record), severalStacksHeads);
-
-    expect(parsed.kind).toBe('parsed');
-
-    if (parsed.kind === 'parsed') {
-      expect(restackOfBranch(parsed.stacks, 'add-search-ui')).toBe('unknown');
-    }
+    expect(restackOfBranch(stacks, 'add-search')).toBe('unknown');
   });
 
   test('a malformed pull request reads like a missing one', () => {
-    const record = recordOfSeveralStacks();
-    const stacks = record['stacks'];
+    const recorded = recordWithBranch({ pullRequest: { number: 7 } });
+    const malformed = recordWithBranch({ pullRequest: 42 });
 
-    if (Array.isArray(stacks) && isRecord(stacks[0])) {
-      const branches = stacks[0]['branches'];
+    expect(
+      branchesOf(parsedOrThrow(JSON.stringify(recorded), severalStacksHeads))[0]?.pullNumber,
+    ).toBe(7);
 
-      if (Array.isArray(branches) && isRecord(branches[0])) {
-        branches[0]['pullRequest'] = 42;
-      }
-    }
-
-    const parsed = parseStacks(JSON.stringify(record), severalStacksHeads);
-
-    expect(parsed.kind).toBe('parsed');
-
-    if (parsed.kind === 'parsed') {
-      const [first] = branchesOf(parsed.stacks);
-
-      expect(first?.pullNumber).toBeNull();
-    }
+    expect(
+      branchesOf(parsedOrThrow(JSON.stringify(malformed), severalStacksHeads))[0]?.pullNumber,
+    ).toBeNull();
   });
 
   test('a paused rebase still parses', () => {

@@ -81,6 +81,30 @@ describe('createPullScheduler stack reads', () => {
     expect(harness.calls).toHaveLength(4);
   });
 
+  test('a repository that leaves the reads forgets its branch list', async () => {
+    const scheduler = harness.start({
+      pulls: seededRepositoryPulls,
+      readTimes: timesAt(schedulerRepository.key, start - 30_000),
+    });
+
+    const git = gitWithBranch('feature-1');
+    const stacks = stacksOf(schedulerRepository, ['feature-1', 'feature-2']);
+
+    scheduler.tick(git, {}, new Map(), harness.spawn);
+    scheduler.tick(git, stacks, new Map(), harness.spawn);
+    await harness.respondRemotes(0);
+    await harness.respondPulls(2, pullList(7));
+    scheduler.tick(git, stacks, new Map(), harness.spawn);
+
+    expect(harness.calls).toHaveLength(3);
+
+    scheduler.tick({ places: {}, worktrees: {} }, stacks, new Map(), harness.spawn);
+
+    scheduler.tick(git, stacksOf(schedulerRepository, ['feature-1']), new Map(), harness.spawn);
+
+    expect(harness.calls).toHaveLength(3);
+  });
+
   test('a stack branch change waits for the window to be active', () => {
     const scheduler = harness.start({
       pulls: seededRepositoryPulls,
