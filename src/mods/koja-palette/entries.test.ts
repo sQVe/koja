@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import type { ModeHint } from '../../kit/shortcutBinding.ts';
 import type { Entry, PaletteHost } from './entries.ts';
-import { allEntries, entryHint, paletteCount, paletteRows } from './entries.ts';
+import { allEntries, entryHint, headingOf, paletteCount, paletteRows } from './entries.ts';
 
 interface Command {
   name: string;
@@ -16,16 +16,18 @@ let platform: string | null = 'linux';
 let themeList: { name: string; label: string }[] = [];
 
 const hintIn =
-  (bindings: Record<string, string[]>) =>
+  (bindings: Record<string, ModeHint>) =>
   (...actions: string[]): ModeHint => {
-    const normal = actions.map((action) => bindings[action]).find((keys) => keys !== undefined);
+    const hint = actions.map((action) => bindings[action]).find((found) => found !== undefined);
 
-    return { normal: normal ?? [] };
+    return hint ?? { normal: [] };
   };
 
-const splitRightHint = hintIn({ 'pane.split:right': ['ctrl-shift-o'] });
+const splitRightHint = hintIn({ 'pane.split:right': { normal: ['ctrl-shift-o'] } });
 
-const layoutHint = hintIn({ 'layout.switch': ['ctrl-shift-l'] });
+const layoutHint = hintIn({
+  'layout.switch': { normal: ['ctrl-shift-l'], insert: ['tab'] },
+});
 
 const host = (): PaletteHost => ({
   commands: () => commandList,
@@ -393,6 +395,30 @@ describe('paletteRows', () => {
 
     expect(positions).toEqual([[], []]);
   });
+
+  test('gives a pane move its direction icon', () => {
+    commandList = [commandOf('pane.go')];
+
+    const moves = allEntries(host()).filter((item) => item.name === 'pane.go');
+    const directionIcons = moves.map((item) => [item.args['direction'], item.icon]);
+
+    expect(directionIcons).toEqual([
+      ['left', 'columns-2'],
+      ['right', 'columns-2'],
+      ['up', 'rows-2'],
+      ['down', 'rows-2'],
+    ]);
+  });
+});
+
+describe('headingOf', () => {
+  test('names a known group with its part letter', () => {
+    expect(headingOf('Tab')).toEqual({ label: 'Tabs', letter: 't' });
+  });
+
+  test('falls back to the group name without a part letter', () => {
+    expect(headingOf('Filler')).toEqual({ label: 'Filler', letter: null });
+  });
 });
 
 describe('entryHint', () => {
@@ -417,7 +443,7 @@ describe('entryHint', () => {
       args: { name: 'main' },
     };
 
-    expect(entryHint(item, layoutHint).normal).toEqual([]);
+    expect(entryHint(item, layoutHint)).toEqual({ normal: [] });
   });
 });
 

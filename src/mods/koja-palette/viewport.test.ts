@@ -102,8 +102,8 @@ describe('wheel', () => {
   });
 
   test('moves a wheel notch by its pixel delta too', () => {
-    expect(wheel(placesOf(['A'], false), 0, 100, 500, rowSize)).toEqual({
-      scroll: 100 - rowSize,
+    expect(wheel(placesOf(['A'], false), 0, 100, 500, 28)).toEqual({
+      scroll: 72,
       at: 0,
     });
   });

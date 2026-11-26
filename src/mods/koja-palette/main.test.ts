@@ -1,11 +1,36 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+import { drawn, drawnTexts, elementsWithStyle } from '../../../tests/drawn.ts';
+import type { DrawnElement } from '../../../tests/drawn.ts';
+import {
+  gpuiBaseFake,
+  gpuiKitFake,
+  herdrFake,
+  realKitIndexFake,
+} from '../../../tests/moduleFakes.ts';
+import { spacing } from '../../kit/size.ts';
 
 type KeyHandler = (
   event: { key: string },
   cx: { stop_propagation: () => void; notify: () => void },
 ) => void;
+
+type ChangeHandler = (event: unknown, cx: { notify: () => void }) => void;
+
+interface FakeView {
+  init: (props: unknown, cx: unknown) => void;
+  render: () => unknown;
+  close: () => void;
+}
+
+interface KeyBinding {
+  section: string;
+  keys: string;
+  action: string;
+}
+
+// The build defines this global for each mod; the kit reads it when it loads.
+Object.assign(globalThis, { kojaModName: 'koja' });
 
 const storage = new Map<string, string>();
 
@@ -18,78 +43,61 @@ Object.assign(globalThis, {
   },
 });
 
-let keyDownHandler: KeyHandler | null = null;
+const fillerCommands = Array.from({ length: 65 }, (_item, index) => ({
+  name: `filler.extra${index}`,
+  args: [],
+  about: '',
+}));
+
+const catalogCommands = [
+  { name: 'tab.new', args: [], about: '' },
+  { name: 'tab.close', args: [], about: '' },
+  ...fillerCommands,
+];
+
+let changeInput: ChangeHandler | null = null;
+let inputValue = '';
 let closeOverlayCalls = 0;
 let sharedValues: Record<string, unknown> = {};
 let sharedWrites: string[] = [];
 let chosenCommands: string[] = [];
 let submitInput: (() => void) | null = null;
-
-const chainable = (): unknown =>
-  new Proxy(() => undefined, {
-    get: (_target, key) => (key === 'then' ? undefined : chainable()),
-    apply: () => chainable(),
-  });
-
-// Keeps the one element through a chain of style calls, so a handler set late still lands on it.
-const surface = (): unknown => {
-  const element: unknown = new Proxy(() => undefined, {
-    get: (_target, key) => {
-      if (key === 'then') {
-        return undefined;
-      }
-
-      if (key === 'on_key_down') {
-        return (handler: KeyHandler) => {
-          keyDownHandler = handler;
-
-          return element;
-        };
-      }
-
-      return () => element;
-    },
-    apply: () => element,
-  });
-
-  return element;
-};
+let keyBindings: KeyBinding[] = [];
 
 const inputStub = {
-  on: (event: string, handler: () => void) => {
+  on: (event: string, handler: (() => void) | ChangeHandler) => {
     if (event === 'submit') {
-      submitInput = handler;
+      submitInput = handler as () => void;
+    }
+
+    if (event === 'change') {
+      changeInput = handler;
     }
   },
   focus: () => undefined,
-  value: () => '',
+  value: () => inputValue,
 };
 
 await mock.module('gpui-base', () =>
   gpuiBaseFake({
+    Input: { new: () => drawn() },
     InputState: { new: () => inputStub },
-    h_flex: surface,
-    v_flex: surface,
+    h_flex: () => drawn(),
+    v_flex: () => drawn(),
   }),
 );
 
 await mock.module('gpui-kit', () =>
   gpuiKitFake({
-    div: surface,
-    View: class {
-      render(): unknown {
-        return null;
-      }
-    },
+    div: () => drawn(),
+    svg: (path: string) => drawn(path),
   }),
 );
 
 await mock.module('herdr', () =>
   herdrFake({
-    commands: () => [
-      { name: 'tab.new', args: [], about: '' },
-      { name: 'tab.close', args: [], about: '' },
-    ],
+    commands: () => catalogCommands,
+    keys: () => keyBindings,
     layouts: () => [],
     openOverlay: () => 'overlay-2',
     run: () => null,
@@ -100,64 +108,49 @@ await mock.module('herdr', () =>
       return null;
     },
     shared: (key: string) => sharedValues[key],
+    theme: () => ({ foreground: '#111111' }),
   }),
 );
 
 const { overlayCloseCount, recordOverlayClose } = await import('../../kit/overlay/open.ts');
 
-await mock.module('../../kit/index.ts', () =>
-  kitIndexFake({
-    recordOverlayClose,
-    askFirst: (name: string) => {
-      chosenCommands.push(name);
-    },
-    closeOverlay: () => {
-      closeOverlayCalls += 1;
-    },
-    colors: () => ({ border: '#999ca7', muted: '#525460' }),
-    currentWindow: () => null,
-    detailText: chainable,
-    footerLine: surface,
-    highlightedText: surface,
-    hintFor: () => ({ normal: [] }),
-    icon: surface,
-    keyHint: chainable,
-    listRow: chainable,
-    mainColumnInsets: () => ({ left: 268, top: 34 }),
-    mainColumnPlacement: () => ({ left: 260, right: 8, top: 66 }),
-    overlayCard: surface,
-    overlayHeading: surface,
-    overlayHints: () => [],
-    overlayRow: surface,
-    overlaySize: { paletteWidth: 560, topOffset: 40 },
-    popupSurface: surface,
-    scrollThumb: surface,
-    searchField: chainable,
-    searchInputLine: surface,
-    sectionHeader: chainable,
-    shortcutFor: () => null,
-    spacing: { hairline: 1, none: 0 },
-    stateLine: surface,
-    stringOf: () => null,
-    themeChoices: [],
-    thumbPlace: () => null,
-  }),
-);
+const realKit = await realKitIndexFake([
+  'icon',
+  'keycap',
+  'listRow',
+  'overlay/card',
+  'overlay/heading',
+  'overlay/lines',
+  'overlay/row',
+  'overlay/scrollThumb',
+  'popupSurface',
+  'shortcut',
+  'size',
+  'stateLine',
+  'text',
+  'textRole',
+  'theme',
+  'themes',
+]);
 
-const loadView = async (): Promise<{
-  init: (props: unknown, cx: unknown) => void;
-  render: () => unknown;
-  close: () => void;
-}> => {
+await mock.module('../../kit/index.ts', () => ({
+  ...realKit,
+  askFirst: (name: string) => {
+    chosenCommands.push(name);
+  },
+  closeOverlay: () => {
+    closeOverlayCalls += 1;
+  },
+  currentWindow: () => null,
+  mainColumnInsets: () => ({ left: 268, top: 34 }),
+  mainColumnPlacement: () => ({ left: 260, right: 8, top: 66 }),
+  recordOverlayClose,
+}));
+
+const loadView = async (): Promise<FakeView> => {
   const modulePath = './main.ts';
 
-  const loaded = (await import(modulePath)) as {
-    default: new () => {
-      init: (props: unknown, cx: unknown) => void;
-      render: () => unknown;
-      close: () => void;
-    };
-  };
+  const loaded = (await import(modulePath)) as { default: new () => FakeView };
 
   return new loaded.default();
 };
@@ -167,18 +160,60 @@ const asyncContext = {
   timer: { after: () => undefined },
 };
 
+const openPalette = async (): Promise<FakeView> => {
+  const view = await loadView();
+
+  view.init(undefined, asyncContext);
+
+  return view;
+};
+
+const renderTree = (view: FakeView): DrawnElement => view.render() as DrawnElement;
+
+const setQuery = (query: string): void => {
+  inputValue = query;
+  changeInput?.({}, { notify: () => undefined });
+};
+
+const keyDownHandlerOf = (tree: DrawnElement): KeyHandler | null => {
+  const [element] = elementsWithStyle(tree, 'on_key_down');
+
+  return (element?.styles['on_key_down']?.[0] as KeyHandler | undefined) ?? null;
+};
+
+const rowOf = (tree: DrawnElement, index: number): DrawnElement | null =>
+  elementsWithStyle(tree, 'id').find(
+    (element) => element.styles['id']?.[0] === `palette-row-${index}`,
+  ) ?? null;
+
+const keycapLabelsOf = (element: DrawnElement): string[] =>
+  elementsWithStyle(element, 'font_family').flatMap((glyph) => drawnTexts(glyph));
+
+const rowKeycaps = (tree: DrawnElement, index: number): string[] => {
+  const row = rowOf(tree, index);
+
+  return row === null ? [] : keycapLabelsOf(row);
+};
+
+const thumbsOf = (tree: DrawnElement): DrawnElement[] =>
+  elementsWithStyle(tree, 'right').filter(
+    (element) => element.styles['right']?.[0] === -spacing.xsmall,
+  );
+
 afterAll(() => {
   mock.restore();
 });
 
 beforeEach(() => {
-  keyDownHandler = null;
+  changeInput = null;
+  inputValue = '';
   closeOverlayCalls = 0;
   sharedValues = {};
   sharedWrites = [];
   chosenCommands = [];
   storage.clear();
   submitInput = null;
+  keyBindings = [];
 });
 
 describe('palette overlay state', () => {
@@ -218,15 +253,10 @@ describe('palette overlay state', () => {
   });
 
   test('escape records one close and closes the palette', async () => {
-    const view = await loadView();
+    const view = await openPalette();
+    const handler = keyDownHandlerOf(renderTree(view));
 
-    view.init(undefined, asyncContext);
-    view.render();
-
-    keyDownHandler?.(
-      { key: 'escape' },
-      { stop_propagation: () => undefined, notify: () => undefined },
-    );
+    handler?.({ key: 'escape' }, { stop_propagation: () => undefined, notify: () => undefined });
 
     expect(overlayCloseCount()).toBe(1);
     expect(closeOverlayCalls).toBe(1);
@@ -249,5 +279,82 @@ describe('palette overlay state', () => {
     view.close();
 
     expect(overlayCloseCount()).toBe(2);
+  });
+});
+
+describe('palette footer count', () => {
+  test('draws the count of every command for an empty query', async () => {
+    const view = await openPalette();
+
+    expect(drawnTexts(renderTree(view))).toContain('67 commands');
+  });
+
+  test('draws the match count after a query', async () => {
+    const view = await openPalette();
+
+    setQuery('close');
+
+    expect(drawnTexts(renderTree(view))).toContain('1 match');
+  });
+});
+
+describe('palette headings', () => {
+  test('draws a heading for each shown group before a query', async () => {
+    const view = await openPalette();
+    const texts = drawnTexts(renderTree(view));
+
+    expect(texts).toContain('Tabs');
+    expect(texts).toContain('Filler');
+  });
+
+  test('draws no heading after a query', async () => {
+    const view = await openPalette();
+
+    setQuery('close');
+    const texts = drawnTexts(renderTree(view));
+
+    expect(texts).not.toContain('Tabs');
+    expect(texts).not.toContain('Filler');
+  });
+});
+
+describe('palette hints', () => {
+  test('draws the normal-mode keycaps on the rows', async () => {
+    sharedValues = { 'koja-modal': true };
+
+    const view = await openPalette();
+    const tree = renderTree(view);
+
+    expect(rowKeycaps(tree, 0)).toEqual(['t', 'n']);
+    expect(rowKeycaps(tree, 1)).toEqual(['t', 'q']);
+  });
+
+  test('draws the insert-mode keycaps on the rows', async () => {
+    keyBindings = [
+      { section: 'global', keys: 'ctrl-t', action: 'tab.new' },
+      { section: 'global', keys: 'ctrl-q', action: 'tab.close' },
+    ];
+
+    const view = await openPalette();
+    const tree = renderTree(view);
+
+    expect(rowKeycaps(tree, 0)).toEqual(['Ctrl+T']);
+    expect(rowKeycaps(tree, 1)).toEqual(['Ctrl+Q']);
+  });
+});
+
+describe('palette scroll thumb', () => {
+  test('draws a thumb when the list overflows', async () => {
+    const view = await openPalette();
+
+    expect(thumbsOf(renderTree(view))).toHaveLength(1);
+  });
+
+  test('draws no thumb when the list fits', async () => {
+    const view = await openPalette();
+
+    setQuery('close');
+
+    expect(thumbsOf(renderTree(view))).toEqual([]);
   });
 });
