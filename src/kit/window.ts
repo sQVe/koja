@@ -2,7 +2,7 @@ import { window } from 'herdr';
 
 import type { Platform } from './keys.ts';
 
-type WindowState = ReturnType<typeof window>;
+type WindowState = NonNullable<ReturnType<typeof window>>;
 
 export const currentWindow = (): WindowState | null => window();
 
