@@ -8,7 +8,13 @@ import type { Facts, PlaceGit, RepositoryPulls, WorktreeGit } from '../src/data/
 import { emptyFacts, snapshotKey, snapshotVersion } from '../src/data/snapshot.ts';
 import { writeSection } from '../src/kit/section.ts';
 import { rowHeight } from '../src/kit/size.ts';
-import { drawn, drawnTexts, elementsWithBorder, elementsWithSizeHandler } from './drawn.ts';
+import {
+  drawn,
+  drawnTexts,
+  elementsWithBorder,
+  elementsWithId,
+  elementsWithSizeHandler,
+} from './drawn.ts';
 import type { DrawnElement } from './drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, realKitIndexFake } from './moduleFakes.ts';
 
@@ -423,6 +429,13 @@ export const cursorChildIndex = (view: FakeView): number => {
   return (list?.kids ?? []).findIndex(
     (child) => elementsWithBorder(child, themeColors.accent).length > 0,
   );
+};
+
+// The place of the space's row among the direct children of the scrolling list.
+export const spaceChildIndex = (view: FakeView, id: string): number => {
+  const list = elementsWithSizeHandler(view.render())[0];
+
+  return (list?.kids ?? []).findIndex((child) => elementsWithId(child, `space-${id}`).length > 0);
 };
 
 export const reportHeight = (view: FakeView, height: number): void => {
