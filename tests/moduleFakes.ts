@@ -183,7 +183,6 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   paneName: () => '',
   paneFolder: () => null,
   paneProgram: () => null,
-  hintFor: () => ({ normal: [] }),
   popupSurface: noop,
   pressedKeycap: noop,
   programIcon: noop,
