@@ -139,4 +139,68 @@ describe('buildRows with stacks', () => {
     expect(buildRows('koja', null, fixture)[0]?.space.id).toBe('a');
     expect(reasonOf(buildRows('koja', null, fixture), 0)).toBeNull();
   });
+
+  test('sets the reason only when the stack match beats every field of the space', () => {
+    const equal = pickerData({
+      spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
+      panes: [],
+      facts: factsOf({ a: stackOf([stackPullOf({ branch: 'koja-old', number: 601 })]) }),
+    });
+
+    expect(reasonOf(buildRows('koja', null, equal), 0)).toBeNull();
+
+    const betterField = pickerData({
+      spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
+      panes: [],
+      facts: factsOf({ a: stackOf([stackPullOf({ branch: 'xkoja', number: 602 })]) }),
+    });
+
+    expect(reasonOf(buildRows('koja', null, betterField), 0)).toBeNull();
+
+    const betterStack = pickerData({
+      spaces: [spaceOf('a', 1, '504', [tabOf('a1', 1, true)])],
+      panes: [],
+      facts: factsOf({ a: stackOf([stackPullOf({ branch: 'add-search', number: 504 })]) }),
+    });
+
+    expect(reasonOf(buildRows('504', null, betterStack), 0)).toEqual({
+      value: '#504',
+      position: 1,
+      total: 1,
+      state: 'open',
+    });
+
+    const noFieldMatch = pickerData({
+      spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
+      panes: [],
+      facts: factsOf({ a: stackOf([stackPullOf({ branch: 'fix-crash', number: 603 })]) }),
+    });
+
+    expect(reasonOf(buildRows('h', null, noFieldMatch), 0)).toEqual({
+      value: 'fix-crash',
+      position: 1,
+      total: 1,
+      state: 'open',
+    });
+  });
+
+  test('an empty query gives a space with a stack score 0 and no reason', () => {
+    const fixture = pickerData({
+      spaces: [{ ...spaceOf('a', 1, '', []), folder: '' }],
+      panes: [],
+      facts: {
+        a: {
+          project: '',
+          pull: null,
+          need: null,
+          stack: stackOf([stackPullOf({ branch: 'add-search', number: 504 })]),
+        },
+      },
+    });
+
+    const rows = buildRows('', null, fixture);
+
+    expect(rows.map((row) => row.key)).toEqual(['space:a']);
+    expect(reasonOf(rows, 0)).toBeNull();
+  });
 });

@@ -37,6 +37,23 @@ describe('stackMatchOf', () => {
     expect(stackMatchOf('5041', mergedStack())).toBeNull();
   });
 
+  test('a digits query matches only an exactly equal PR number', () => {
+    const stack = stackOf([
+      stackPullOf({ branch: 'add-search', number: 504 }),
+      stackPullOf({ branch: 'fix-crash', number: 1504 }),
+    ]);
+
+    expect(stackMatchOf('#504', stack)?.reason).toEqual({
+      value: '#504',
+      position: 1,
+      total: 2,
+      state: 'open',
+    });
+
+    expect(stackMatchOf('504x', stack)).toBeNull();
+    expect(stackMatchOf('50', stack)).toBeNull();
+  });
+
   test('a ticket or branch names the PR it belongs to', () => {
     expect(stackMatchOf('ME-1182', ticketStack())?.reason).toEqual({
       value: 'ME-1182',
