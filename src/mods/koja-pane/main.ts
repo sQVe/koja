@@ -15,12 +15,15 @@ import {
   normalFocusFill,
   overlaySize,
   paneActions,
+  paneFolder,
+  paneName,
   paneHeaderFields,
   paneHeaderWidth,
   paneLeadingSlotWidth,
   paneBranchElement,
   paneFolderElement,
   paneOverflowButton,
+  paneProgram,
   paneTaskElement,
   programIcon,
   radius,
@@ -32,7 +35,6 @@ import {
 } from '../../kit/index.ts';
 import { headerTone } from './headerTone.ts';
 import { folderLabel } from './paneFolder.ts';
-import { paneFolder, paneName, paneProgram } from './paneLabel.ts';
 
 interface PaneMenuDetails {
   task: string | null;
@@ -86,7 +88,7 @@ const openPaneMenu = (pane: PaneInfo, details: PaneMenuDetails): void => {
   openOverlay({
     mod: 'koja-menu',
     kind: 'popup',
-    width: paneHeaderWidth.menuWidth,
+    width: overlaySize.menuWidth,
     height: overlaySize.menuHeight,
     props: {
       tab: 'pane',
