@@ -276,4 +276,20 @@ describe('planCard', () => {
     expect(back.sound).toBe(true);
     expect(back.sounded).toEqual(['a']);
   });
+
+  test('counts the ask it is already showing as sounded, without a sound', () => {
+    const plan = planCard({
+      asks: [ask('a')],
+      live: [ask('a')],
+      handled: [],
+      sounded: [],
+      visible: [],
+      open: open('a'),
+      signatures: signatures('a'),
+    });
+
+    expect(plan.sound).toBe(false);
+    expect(plan.sounded).toEqual(['a']);
+    expect(plan.soundedChanged).toBe(true);
+  });
 });

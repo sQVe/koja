@@ -31,17 +31,26 @@ const unique = (values: readonly string[]): string[] => [...new Set(values)];
 const sameSet = (left: readonly string[], right: readonly string[]): boolean =>
   left.length === right.length && left.every((value) => right.includes(value));
 
+const liveOnly = (identities: readonly string[], live: ReadonlySet<string>): string[] =>
+  unique(identities).filter((identity) => live.has(identity));
+
+const cardIsCurrent = (open: OpenCard | null, shown: Ask, signature: string): boolean =>
+  open !== null && open.identity === shown.identity && open.signature === signature;
+
 export const planCard = (sources: PlanSources): CardPlan => {
   const live = new Set(sources.live.map((ask) => ask.identity));
 
-  const handled = unique([...sources.handled, ...sources.visible]).filter((identity) =>
-    live.has(identity),
-  );
+  const handled = liveOnly([...sources.handled, ...sources.visible], live);
 
-  const sounded = unique(sources.sounded).filter((identity) => live.has(identity));
+  const sounded = liveOnly(sources.sounded, live);
 
   // `asks` arrives newest first, so the first unhandled entry is the newest.
   const shown = sources.asks.find((ask) => !handled.includes(ask.identity)) ?? null;
+
+  // A card shows an ask only after sounding for it, so the shown ask counts as sounded even when
+  // its card was open before this list existed.
+  const sound = shown !== null && !sounded.includes(shown.identity);
+  const nextSounded = sound ? [...sounded, shown.identity] : sounded;
 
   const plan: CardPlan = {
     close: null,
@@ -49,8 +58,8 @@ export const planCard = (sources: PlanSources): CardPlan => {
     sound: false,
     handled,
     handledChanged: !sameSet(handled, sources.handled),
-    sounded,
-    soundedChanged: !sameSet(sounded, sources.sounded),
+    sounded: nextSounded,
+    soundedChanged: !sameSet(nextSounded, sources.sounded),
   };
 
   if (shown === null) {
@@ -59,24 +68,9 @@ export const planCard = (sources: PlanSources): CardPlan => {
 
   const signature = sources.signatures.get(shown.identity) ?? '';
 
-  const current =
-    sources.open !== null &&
-    sources.open.identity === shown.identity &&
-    sources.open.signature === signature;
-
-  if (current) {
+  if (cardIsCurrent(sources.open, shown, signature)) {
     return plan;
   }
 
-  const sound = !sounded.includes(shown.identity);
-  const nextSounded = sound ? [...sounded, shown.identity] : sounded;
-
-  return {
-    ...plan,
-    close: sources.open?.id ?? null,
-    open: shown,
-    sound,
-    sounded: nextSounded,
-    soundedChanged: !sameSet(nextSounded, sources.sounded),
-  };
+  return { ...plan, close: sources.open?.id ?? null, open: shown, sound };
 };
