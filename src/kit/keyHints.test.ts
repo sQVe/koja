@@ -79,13 +79,12 @@ describe('partKeyHints', () => {
   });
 
   test('no count leaves a counted key with its base action', () => {
-    const base = actionName({ kind: 'command', command: 'tab.next' });
-
     for (const options of [{}, { count: null }]) {
       const rows = partKeyHints('g', options).groups.flatMap((group) => group.rows);
       const labels = rows.filter((row) => row.keys.join('') === 't').map((row) => row.label);
 
-      expect(labels).toEqual([base]);
+      expect(labels).toHaveLength(1);
+      expect(labels[0]).toBe(actionName({ kind: 'command', command: 'tab.next' }));
     }
   });
 
