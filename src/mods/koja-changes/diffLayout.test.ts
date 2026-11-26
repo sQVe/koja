@@ -26,6 +26,13 @@ describe('diffLayout', () => {
     expect(large).toBeGreaterThan(small);
   });
 
+  test('keeps the row height and gutter width for a 10 px font', () => {
+    const layout = diffLayout([row('a', 1)], 10);
+
+    expect(layout.rowHeight).toBe(18);
+    expect(layout.gutterWidth).toBe(28);
+  });
+
   test('gives a wide glyph two columns of width', () => {
     const narrow = diffLayout([row('n'.repeat(200), 1)], 14).width;
     const wide = diffLayout([row('名'.repeat(200), 1)], 14).width;
