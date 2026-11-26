@@ -25,7 +25,7 @@
 # instead of the default.
 set -euo pipefail
 
-here=$(cd "$(dirname "$0")" && pwd)
+here=$(cd -P -- "$(dirname "$0")" && pwd)
 checkout=$(dirname "$here")
 name=${RUTA_NAME-koja}
 
