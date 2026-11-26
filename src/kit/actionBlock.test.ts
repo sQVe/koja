@@ -85,6 +85,8 @@ const failure = (
 const failedSaveBlock = (): DrawnElement =>
   actionBlock({ kind: 'failed', action: 'Retry save', onAction, failure: failure() });
 
+const failureRows = (block: DrawnElement | undefined): number => block?.kids.length ?? 0;
+
 describe('actionBlock', () => {
   test('a failed save draws Retry save as the solid main action and no Send control', () => {
     const block = failedSaveBlock();
@@ -121,8 +123,10 @@ describe('actionBlock', () => {
       failure: failure([]),
     });
 
-    expect(withRecovery.kids[1]?.kids).toHaveLength(4);
-    expect(withoutRecovery.kids[1]?.kids).toHaveLength(3);
+    // The guard's effect is one more row with a button, and an empty row takes the block's gap.
+    expect(failureRows(withRecovery.kids[1])).toBe(failureRows(withoutRecovery.kids[1]) + 1);
+    expect(elementWithText(withRecovery, 'Copy path')).not.toBeNull();
+    expect(elementWithText(withoutRecovery, 'Copy path')).toBeNull();
 
     expect(drawnTexts(withoutRecovery)).toEqual([
       'Retry save',

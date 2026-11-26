@@ -114,8 +114,18 @@ describe('documentLine', () => {
   });
 
   test('a missing or non-text font setting draws the default terminal font', async () => {
-    expect(drawnFont(sidebarLine())).toEqual([monospaceFont]);
+    settingsValues = {};
+    await Promise.resolve();
 
+    expect(drawnFont(sidebarLine())).toEqual([defaultFont]);
+
+    settingsValues = { font: 42 };
+    await Promise.resolve();
+
+    expect(drawnFont(sidebarLine())).toEqual([defaultFont]);
+  });
+
+  test('a font the user sets after the default reaches the next line', async () => {
     settingsValues = {};
     await Promise.resolve();
 
@@ -125,10 +135,5 @@ describe('documentLine', () => {
     await Promise.resolve();
 
     expect(drawnFont(sidebarLine())).toEqual([monospaceFont]);
-
-    settingsValues = { font: 42 };
-    await Promise.resolve();
-
-    expect(drawnFont(sidebarLine())).toEqual([defaultFont]);
   });
 });
