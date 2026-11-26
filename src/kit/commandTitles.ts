@@ -1,4 +1,4 @@
-import { isRecord } from './fields.ts';
+import { isRecord, sortRecordKeys } from './fields.ts';
 
 export interface CommandTitle {
   command: string;
@@ -9,18 +9,16 @@ export interface CommandTitle {
 const paneDirections = ['left', 'right', 'up', 'down'];
 
 // The same command and arguments give one identity, whatever order the keys arrive in.
-const withSortedKeys = (value: unknown): unknown => {
+const withOrderedKeys = (value: unknown): unknown => {
   if (!isRecord(value)) {
     return value;
   }
 
-  const keys = Object.keys(value).toSorted();
-
-  return Object.fromEntries(keys.map((key) => [key, value[key]]));
+  return sortRecordKeys(value);
 };
 
 export const commandIdentity = (command: string, args: Record<string, unknown> = {}): string =>
-  `${command}:${JSON.stringify(args, (_key, value: unknown) => withSortedKeys(value))}`;
+  `${command}:${JSON.stringify(args, (_key, value: unknown) => withOrderedKeys(value))}`;
 
 export const focusPaneTitles: CommandTitle[] = paneDirections.map((direction) => ({
   command: 'pane.go',

@@ -73,6 +73,20 @@ describe('bindingFor', () => {
     );
   });
 
+  test('finds a key whose JSON action runs the same command and arguments in another key order', () => {
+    const bindings = [
+      {
+        section: 'global',
+        keys: 'ctrl-alt-r',
+        action: '{"command":"layout.resize","args":{"place":{"row":1,"column":2}}}',
+      },
+    ];
+
+    const identity = commandIdentity('layout.resize', { place: { column: 2, row: 1 } });
+
+    expect(bindingFor(bindings, identity)).toBe('ctrl-alt-r');
+  });
+
   test('leaves a JSON action with other arguments to its own command', () => {
     const bindings = [
       {

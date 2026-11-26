@@ -1,12 +1,4 @@
-import { isRecord } from '../kit/fields.ts';
-
-const compareKeys = ([first]: [string, unknown], [second]: [string, unknown]): number => {
-  if (first === second) {
-    return 0;
-  }
-
-  return first < second ? -1 : 1;
-};
+import { isRecord, sortRecordKeys } from '../kit/fields.ts';
 
 const sortedValue = (value: unknown): unknown => {
   if (Array.isArray(value)) {
@@ -17,9 +9,10 @@ const sortedValue = (value: unknown): unknown => {
     return value;
   }
 
-  const entries: [string, unknown][] = Object.entries(value)
-    .toSorted(compareKeys)
-    .map(([key, entry]) => [key, sortedValue(entry)]);
+  const entries: [string, unknown][] = Object.entries(sortRecordKeys(value)).map(([key, entry]) => [
+    key,
+    sortedValue(entry),
+  ]);
 
   return Object.fromEntries(entries);
 };
