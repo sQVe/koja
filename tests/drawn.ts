@@ -1,4 +1,6 @@
 export interface DrawnElement {
+  // Set only by `drawn()`, so the walk can tell a drawn handle from a mocked field.
+  drawn: true;
   kids: DrawnElement[];
   path: string | null;
   spins: boolean;
@@ -25,6 +27,7 @@ const addChild = (parent: DrawnElement, child: unknown): void => {
 
 export const drawn = (path: string | null = null): DrawnElement => {
   const element: DrawnElement = {
+    drawn: true,
     kids: [],
     path,
     spins: false,
@@ -124,20 +127,8 @@ export const drawnTree = (elements: DrawnElement[]): DrawnElement => {
   return root;
 };
 
-// A mocked field draws no element, so the walk stops at a child that records no drawn fields.
-const isDrawn = (value: unknown): value is DrawnElement => {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-
-  const candidate = value as Partial<DrawnElement>;
-
-  return (
-    Array.isArray(candidate.kids) &&
-    Array.isArray(candidate.texts) &&
-    Array.isArray(candidate.clickHandlers)
-  );
-};
+const isDrawn = (value: unknown): value is DrawnElement =>
+  typeof value === 'object' && value !== null && (value as Partial<DrawnElement>).drawn === true;
 
 const descendants = (element: DrawnElement): DrawnElement[] => [
   element,
