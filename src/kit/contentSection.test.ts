@@ -112,8 +112,13 @@ describe('contentSection', () => {
     });
 
     const header = headerOf(section);
-    const labelGroup = header.kids.at(-1) as DrawnElement;
+    const labelGroup = header.kids.find((kid) => drawnTexts(kid).includes('Checks'));
 
+    if (labelGroup === undefined) {
+      throw new Error('The header draws no label group.');
+    }
+
+    expect(header.kids.at(-1)).toBe(labelGroup);
     expect(drawnTexts(labelGroup)).toEqual(['Checks', '3']);
     expect(elementWithText(section, '3')?.textColors).toEqual([palette.dim]);
   });
