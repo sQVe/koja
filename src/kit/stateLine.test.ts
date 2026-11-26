@@ -83,6 +83,22 @@ describe('stateLine', () => {
     expect(elementsWithStyle(line, 'truncate')).toEqual([]);
   });
 
+  test('a wrapping line centres its mark and action on the text', () => {
+    const action = drawn();
+
+    action.texts.push('Retry');
+
+    const line = render({
+      kind: 'error',
+      text: 'A message long enough to wrap.',
+      action,
+      wrap: true,
+    });
+
+    expect(elementsWithStyle(line, 'items_center')).toHaveLength(1);
+    expect(elementsWithStyle(line, 'py')).toEqual([]);
+  });
+
   test('a line without wrap cuts its text to one line', () => {
     const line = render({ kind: 'error', text: 'Could not read git status.' });
 

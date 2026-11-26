@@ -1,8 +1,17 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTooltips, elementWithIcon } from '../../tests/drawn.ts';
+import {
+  drawn,
+  drawnIcons,
+  drawnTooltips,
+  elementWithIcon,
+  elementWithTooltip,
+  elementsWithStyle,
+  numberStyle,
+} from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
+import { iconSize } from './size.ts';
 
 type WorkNeed = 'conflict' | 'failing' | 'review' | 'restack' | 'merge';
 
@@ -27,7 +36,7 @@ const modulePath = './workIcon.ts';
 
 const { emptyWorkSlot, workIcon } = (await import(modulePath)) as {
   emptyWorkSlot: () => DrawnElement;
-  workIcon: (need: WorkNeed) => DrawnElement;
+  workIcon: (need: WorkNeed, options?: { bare?: boolean }) => DrawnElement;
 };
 
 afterAll(() => {
@@ -56,6 +65,29 @@ describe('workIcon', () => {
     });
 
     expect(drawnNeeds).toEqual(needs);
+  });
+
+  test('a bare need keeps its tooltip on a container that can carry the hover', () => {
+    const bare = workIcon('failing', { bare: true });
+    const tooltip = elementWithTooltip(bare);
+
+    expect(tooltip?.path).toBeNull();
+    expect(tooltip?.tooltipText).toBe('CI failing');
+  });
+
+  test('a bare need keeps no slot of its own, while the default keeps one', () => {
+    const sizedContainers = (need: WorkNeed, options: { bare?: boolean }): number =>
+      elementsWithStyle(workIcon(need, options), 'size').filter((part) => part.path === null)
+        .length;
+
+    expect(sizedContainers('failing', {})).toBe(1);
+    expect(sizedContainers('failing', { bare: true })).toBe(0);
+  });
+
+  test('a work need draws its glyph at the size the icon sets', () => {
+    const glyph = elementWithIcon(workIcon('failing'), 'circle-x.svg') ?? undefined;
+
+    expect(numberStyle(glyph, 'size')).toBe(iconSize.small);
   });
 
   test('the empty slot draws no icon and no tooltip', () => {

@@ -6,7 +6,7 @@ import type { Status } from 'herdr';
 import type { AttentionStatus } from './attentionStatus.ts';
 import type { FileStatus } from './fileStatus.ts';
 import { fileStatusColor } from './fileStatus.ts';
-import { icon, spinner } from './icon.ts';
+import { icon, spinner, spinnerIcon } from './icon.ts';
 import type { ThemeToken } from './palette.ts';
 import { badgeFillAlpha, withAlpha } from './palette.ts';
 import { controlSize, markSize, radius, spacing, textSize } from './size.ts';
@@ -14,6 +14,11 @@ import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 
 type ShownAttention = Exclude<AttentionStatus, 'idle'>;
+
+export interface StatusMarkOptions {
+  // Draws the working mark still, for a row of a part that failed to refresh. No other mark moves.
+  still?: boolean;
+}
 
 const dot = (size: number, color: Color): Element =>
   div()
@@ -30,7 +35,7 @@ const ring = (size: number, color: Color): Element =>
     .border(spacing.hairline)
     .border_color(color);
 
-export const statusMark = (status: Status | null): Element => {
+export const statusMark = (status: Status | null, options: StatusMarkOptions = {}): Element => {
   const slot = h_flex().w(markSize.slot).flex_none().items_center().justify_center();
   const palette = colors();
 
@@ -39,9 +44,9 @@ export const statusMark = (status: Status | null): Element => {
   }
 
   if (status === 'working') {
-    const spinnerMark = spinner().text_color(palette.working);
+    const workingMark = options.still === true ? spinnerIcon() : spinner();
 
-    return slot.child(spinnerMark);
+    return slot.child(workingMark.text_color(palette.working));
   }
 
   if (status === 'idle') {

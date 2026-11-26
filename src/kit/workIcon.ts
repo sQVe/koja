@@ -14,6 +14,11 @@ interface WorkLook {
   label: string;
 }
 
+export interface WorkIconOptions {
+  // Draws the icon without its slot, for a row that brings its own.
+  bare?: boolean;
+}
+
 const workLooks: Record<WorkNeed, WorkLook> = {
   conflict: { icon: 'triangle-alert', color: 'blocked', label: 'Conflict' },
   failing: { icon: 'circle-x', color: 'blocked', label: 'CI failing' },
@@ -24,9 +29,15 @@ const workLooks: Record<WorkNeed, WorkLook> = {
 
 export const emptyWorkSlot = (): Element => iconSlot(div());
 
-export const workIcon = (need: WorkNeed): Element => {
-  const look = workLooks[need];
-  const drawnIcon = icon(look.icon, 'small').text_color(colors()[look.color]);
+export const isWorkNeed = (value: string): value is WorkNeed => Object.hasOwn(workLooks, value);
 
-  return iconSlot(drawnIcon).tooltip(look.label).accessibility_label(look.label);
+export const workNeedColor = (need: WorkNeed): ThemeToken => workLooks[need].color;
+
+export const workIcon = (need: WorkNeed, options: WorkIconOptions = {}): Element => {
+  const look = workLooks[need];
+
+  const glyph = icon(look.icon, 'small').text_color(colors()[look.color]);
+  const mark = options.bare === true ? div().flex_none().child(glyph) : iconSlot(glyph);
+
+  return mark.tooltip(look.label).accessibility_label(look.label);
 };

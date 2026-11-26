@@ -1,20 +1,50 @@
 import { h_flex, v_flex } from 'gpui-base';
-import type { Element } from 'gpui-kit';
+import type { Context, Element } from 'gpui-kit';
 
-import type { Fact, ItemStateOptions, SourceLinkOptions } from '../../kit/index.ts';
+import type {
+  ContentSectionOptions,
+  Fact,
+  ItemStateOptions,
+  PartNoteOptions,
+  SourceLinkOptions,
+  StatusRowOptions,
+} from '../../kit/index.ts';
 import {
   actionBlock,
+  contentSection,
   contentSize,
   documentLine,
   factPairs,
   factRows,
   itemHeader,
+  partNote,
   sourceLink,
   spacing,
+  statusRow,
 } from '../../kit/index.ts';
 import { sample } from './sample.ts';
 
 type HeaderState = ItemStateOptions | null;
+
+interface SectionLook {
+  // The fold key, which every section states so two specimens with one label cannot share it.
+  key: string;
+  name: string;
+  parts: Element[];
+  count?: number;
+}
+
+export interface ContentPartsOptions {
+  // Fold keys, which a section may not share with another that draws the same label.
+  folded: ReadonlySet<string>;
+  onToggle: (key: string, cx: Context) => void;
+  // Shows the stale Checks sample with fresh rows, as a part that read again would.
+  checksRetried: boolean;
+  onRetryChecks: (cx: Context) => void;
+}
+
+// The gallery starts with this section folded, to show a folded header.
+export const foldedSectionNames = ['Files'] as const;
 
 const ticketFacts: Fact[] = [
   { label: 'Project', value: 'Koja' },
@@ -177,7 +207,163 @@ const documentLines = (): Element => {
   return v_flex().children(lines);
 };
 
-export const contentParts = (): Element[] => [
+const failingCheck = (stale: boolean): StatusRowOptions => ({
+  mark: 'failing',
+  name: 'typecheck',
+  detail: 'Type mismatch in rows.ts:48',
+  state: 'failing',
+  stale,
+});
+
+const runningCheck = (name: string, started: string, stale: boolean): StatusRowOptions => ({
+  mark: 'working',
+  name,
+  detail: `started ${started}`,
+  state: 'running',
+  stale,
+});
+
+const staleChecksNote: PartNoteOptions = { part: 'checks', age: '6m ago' };
+
+const checksCount = 3;
+const threadsCount = 2;
+const slicesCount = 3;
+const filesCount = 9;
+
+const isOpen = (options: ContentPartsOptions, key: string): boolean => !options.folded.has(key);
+
+const toggle =
+  (options: ContentPartsOptions, key: string): ((cx: Context) => void) =>
+  (cx) => {
+    options.onToggle(key, cx);
+  };
+
+const sectionOptions = (options: ContentPartsOptions, look: SectionLook): ContentSectionOptions => {
+  const section: ContentSectionOptions = {
+    name: look.name,
+    open: isOpen(options, look.key),
+    parts: look.parts,
+    onToggle: toggle(options, look.key),
+  };
+
+  return look.count === undefined ? section : { ...section, count: look.count };
+};
+
+const checksSection = (stale: boolean, options: ContentPartsOptions): Element => {
+  const showsStale = stale && !options.checksRetried;
+  const testsAge = showsStale ? '8m ago' : '2m ago';
+  const styleAge = showsStale ? '7m ago' : '1m ago';
+
+  const rows = [
+    statusRow(failingCheck(showsStale)),
+    statusRow(runningCheck('tests', testsAge, showsStale)),
+    statusRow(runningCheck('style', styleAge, showsStale)),
+  ];
+
+  const parts = showsStale
+    ? [partNote({ ...staleChecksNote, onRetry: options.onRetryChecks }), ...rows]
+    : rows;
+
+  // Both Checks specimens show the same label, so each folds on its own key.
+  const key = stale ? 'Checks with stale rows' : 'Checks with live rows';
+
+  return contentSection(
+    sectionOptions(options, { key, name: 'Checks', parts, count: checksCount }),
+  );
+};
+
+const threadRow = (reference: string, detail: string): StatusRowOptions => ({
+  mark: 'review',
+  name: reference,
+  detail,
+  state: 'unresolved',
+  stateTone: 'dim',
+});
+
+const threadsSection = (options: ContentPartsOptions): Element =>
+  contentSection(
+    sectionOptions(options, {
+      key: 'Threads',
+      name: 'Threads',
+      parts: [
+        statusRow(threadRow('rows.ts:48', 'sqve · 2h ago')),
+        statusRow(threadRow('repoLabel.ts:27–31', 'sqve · 1h ago')),
+      ],
+      count: threadsCount,
+    }),
+  );
+
+const slicesSection = (options: ContentPartsOptions): Element =>
+  contentSection(
+    sectionOptions(options, {
+      key: 'Slices',
+      name: 'Slices',
+      count: slicesCount,
+      parts: [
+        statusRow({
+          mark: 'done',
+          name: 'Read the ticket snapshot',
+          state: 'done',
+          stateTone: 'dim',
+        }),
+        statusRow({
+          mark: 'working',
+          name: 'Draw the shared content frame',
+          state: 'in progress',
+          stateTone: 'dim',
+        }),
+        statusRow({
+          mark: 'idle',
+          name: 'Check links and empty states',
+          state: 'backlog',
+          stateTone: 'dim',
+        }),
+      ],
+    }),
+  );
+
+const descriptionSection = (options: ContentPartsOptions): Element =>
+  contentSection(
+    sectionOptions(options, {
+      key: 'Description',
+      name: 'Description',
+      parts: [
+        statusRow({
+          mark: null,
+          name: 'Adds project groups, work-need marks, and a quieter selected row.',
+        }),
+      ],
+    }),
+  );
+
+const fileRow = (path: string, counts: string): StatusRowOptions => ({
+  mark: null,
+  name: path,
+  state: counts,
+  stateTone: 'dim',
+});
+
+const filesSection = (options: ContentPartsOptions): Element =>
+  contentSection(
+    sectionOptions(options, {
+      key: 'Files',
+      name: 'Files',
+      count: filesCount,
+      parts: [
+        statusRow(fileRow('src/kit/contentSection.ts', '+64 −0')),
+        statusRow(fileRow('src/kit/partNote.ts', '+48 −0')),
+        statusRow(fileRow('src/kit/sectionHeader.ts', '+18 −2')),
+        statusRow(fileRow('src/kit/stateLine.ts', '+4 −6')),
+        statusRow(fileRow('src/kit/statusMark.ts', '+3 −1')),
+        statusRow(fileRow('src/kit/statusRow.ts', '+59 −0')),
+        statusRow(fileRow('src/kit/workIcon.ts', '+12 −6')),
+        statusRow(fileRow('src/mods/koja-gallery/content.ts', '+120 −30')),
+        statusRow(fileRow('src/mods/koja-gallery/main.ts', '+18 −2')),
+      ],
+    }),
+  );
+
+export const contentParts = (options: ContentPartsOptions): Element[] => [
   sample('Source links', sourceLinks()),
   sample('Pull request header', pullHeader()),
   sample(
@@ -194,4 +380,10 @@ export const contentParts = (): Element[] => [
   sample('Failed save action', railFrame(failedSaveAction())),
   sample('Sent review action', railFrame(sentAction())),
   sample('Document with an edited line and commented lines', narrowFrame(documentLines())),
+  sample('Checks section with live rows', narrowFrame(checksSection(false, options))),
+  sample('Checks section with stale rows', narrowFrame(checksSection(true, options))),
+  sample('Threads section', narrowFrame(threadsSection(options))),
+  sample('Slices section', narrowFrame(slicesSection(options))),
+  sample('Section without a count', narrowFrame(descriptionSection(options))),
+  sample('Folded section', narrowFrame(filesSection(options))),
 ];

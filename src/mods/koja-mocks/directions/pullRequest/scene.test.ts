@@ -2,6 +2,7 @@ import { afterAll, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../../tests/drawn.ts';
 import {
+  descendants,
   drawn,
   drawnIcons,
   drawnTexts,
@@ -64,11 +65,6 @@ const scenes = [
   'unreachable',
   'normal',
   'zoomed',
-];
-
-const descendants = (element: DrawnElement): DrawnElement[] => [
-  element,
-  ...element.kids.flatMap(descendants),
 ];
 
 const paneOf = (name: string): DrawnElement => {

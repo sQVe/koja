@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTexts } from '../../../../../tests/drawn.ts';
+import { descendants, drawn, drawnIcons, drawnTexts } from '../../../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -45,11 +45,6 @@ const { koja } = (await import(kojaPath)) as { koja: unknown };
 afterAll(() => {
   mock.restore();
 });
-
-const descendants = (element: DrawnElement): DrawnElement[] => [
-  element,
-  ...element.kids.flatMap(descendants),
-];
 
 const tabWith = (window: DrawnElement, name: string): DrawnElement | undefined =>
   descendants(window).find((part) => part.kids.some((kid) => kid.texts.includes(name)));

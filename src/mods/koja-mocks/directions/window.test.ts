@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../tests/drawn.ts';
-import { drawn, drawnTexts, elementWithText } from '../../../../tests/drawn.ts';
+import { descendants, drawn, drawnTexts, elementWithText } from '../../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -57,11 +57,6 @@ const { agentPane, shellPane } = (await import(contentPath)) as {
 afterAll(() => {
   mock.restore();
 });
-
-const descendants = (element: DrawnElement): DrawnElement[] => [
-  element,
-  ...element.kids.flatMap(descendants),
-];
 
 const headerTexts = (window: DrawnElement, fakePane: FakePane): string[] => {
   const header = descendants(window).find(

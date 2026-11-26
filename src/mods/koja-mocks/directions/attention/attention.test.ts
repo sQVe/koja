@@ -1,7 +1,13 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../../tests/drawn.ts';
-import { clickablesWithText, drawn, drawnIcons, drawnTexts } from '../../../../../tests/drawn.ts';
+import {
+  clickablesWithText,
+  descendants,
+  drawn,
+  drawnIcons,
+  drawnTexts,
+} from '../../../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -84,11 +90,6 @@ const { koja, kojaNormal } = (await import(tokensPath)) as {
 afterAll(() => {
   mock.restore();
 });
-
-const descendants = (element: DrawnElement): DrawnElement[] => [
-  element,
-  ...element.kids.flatMap(descendants),
-];
 
 const directRow = (scene: DrawnElement, title: string): DrawnElement => {
   const row = descendants(scene).find((element) =>

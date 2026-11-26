@@ -1,4 +1,4 @@
-type ModuleFake = Record<string, unknown>;
+export type ModuleFake = Record<string, unknown>;
 
 type KeyHandler = (
   event: { key: string },
@@ -105,6 +105,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   closeOverlay: noop,
   colors: noop,
   contentSize: {},
+  contentSection: noop,
   controlSize: {},
   currentWindow: () => null,
   detailText: noop,
@@ -157,6 +158,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   paneTaskElement: noop,
   paneHeaderMenu: noop,
   paneHeaderMenuDetails: noop,
+  partNote: noop,
   popupFrameRadius: 8,
   popupSurface: noop,
   programIcon: noop,
@@ -192,6 +194,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   stackProgress: noop,
   stateLine: noop,
   statusMark: noop,
+  statusRow: noop,
   stringOf: () => null,
   tab: noop,
   tabLabel: noop,

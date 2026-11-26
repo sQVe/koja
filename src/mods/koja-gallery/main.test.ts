@@ -1,14 +1,8 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
-import { drawn, drawnTexts } from '../../../tests/drawn.ts';
+import { click, clickablesWithText, descendants, drawnTexts } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import {
-  chainable,
-  gpuiBaseFake,
-  gpuiKitFake,
-  herdrFake,
-  realKitIndexFake,
-} from '../../../tests/moduleFakes.ts';
+import { mockGalleryModules } from '../../../tests/gallery.ts';
 import { heartbeatKey, leaseExpiryMilliseconds } from '../../data/lease.ts';
 import { emptyFacts, snapshotKey } from '../../data/snapshot.ts';
 
@@ -29,54 +23,7 @@ let notifyCalls = 0;
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
-await mock.module('gpui-base', () =>
-  gpuiBaseFake({
-    h_flex: () => drawn(),
-    v_flex: () => drawn(),
-    InputState: { new: () => chainable() },
-  }),
-);
-
-await mock.module('gpui-kit', () =>
-  gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
-);
-
-await mock.module('herdr', () =>
-  herdrFake({ shared: (key: string) => sharedValues[key], theme: () => ({}) }),
-);
-
-const kitFake = await realKitIndexFake([
-  'actionBlock',
-  'age',
-  'button',
-  'dialog',
-  'documentLine',
-  'factRows',
-  'hoverCard',
-  'icon',
-  'iconNames',
-  'itemHeader',
-  'listRow',
-  'popupSurface',
-  'projectHeader',
-  'roleBadge',
-  'searchField',
-  'sectionHeader',
-  'size',
-  'sourceLink',
-  'spaceFooter',
-  'splitButton',
-  'stackProgress',
-  'stateLine',
-  'statusMark',
-  'tab',
-  'text',
-  'textField',
-  'textRole',
-  'theme',
-  'viewSwitch',
-  'workIcon',
-]);
+const kitFake = await mockGalleryModules({ shared: (key: string) => sharedValues[key] });
 
 await mock.module('../../kit/index.ts', () => kitFake);
 
@@ -95,6 +42,7 @@ const context = {
   notify: () => {
     notifyCalls += 1;
   },
+  stop_propagation: () => undefined,
   timer: {
     after: (milliseconds: number, handler: (cx: unknown) => void) => {
       const task: DeadlineTask = { milliseconds, handler, cancelled: false };
@@ -124,6 +72,22 @@ const openGallery = (): FakeView => {
 };
 
 const liveTasks = (): DeadlineTask[] => tasks.filter((task) => !task.cancelled);
+
+// The Checks specimen is the one whose sample label and single Checks header name it, whatever its
+// fold state draws.
+const checksHeaderOf = (gallery: DrawnElement, label: string): DrawnElement => {
+  const specimen = descendants(gallery).find(
+    (part) => drawnTexts(part).includes(label) && clickablesWithText(part, 'Checks').length === 1,
+  );
+
+  const [header] = specimen === undefined ? [] : clickablesWithText(specimen, 'Checks');
+
+  if (header === undefined) {
+    throw new Error(`The gallery draws no Checks specimen labelled ${label}.`);
+  }
+
+  return header;
+};
 
 beforeEach(() => {
   sharedValues = { [snapshotKey]: { version: 6, revision: 1, facts: emptyFacts() } };
@@ -180,5 +144,68 @@ describe('gallery data layer section', () => {
 
     expect(drawnTexts(view.render(context))).toContain('Unavailable');
     expect(tasks).toEqual([]);
+  });
+});
+
+describe('gallery section folding', () => {
+  test('folds one Checks specimen without folding the other, then opens it again', () => {
+    const view = openGallery();
+    const before = view.render(context);
+    const liveHeader = checksHeaderOf(before, 'Checks section with live rows');
+
+    click(liveHeader, context);
+
+    const folded = view.render(context);
+
+    expect(drawnTexts(folded)).not.toContain('started 2m ago');
+    expect(drawnTexts(folded)).toContain('started 8m ago');
+
+    click(liveHeader, context);
+
+    expect(drawnTexts(view.render(context))).toContain('started 2m ago');
+  });
+
+  test('opens the folded Files section from its header', () => {
+    const view = openGallery();
+    const before = view.render(context);
+
+    expect(drawnTexts(before)).not.toContain('src/kit/sectionHeader.ts');
+
+    const [header] = clickablesWithText(before, 'Files');
+
+    if (header === undefined) {
+      throw new Error('The gallery draws no foldable Files header.');
+    }
+
+    click(header, context);
+
+    expect(notifyCalls).toBe(1);
+    expect(drawnTexts(view.render(context))).toContain('src/kit/sectionHeader.ts');
+  });
+});
+
+describe('gallery retry wiring', () => {
+  test('reads the Checks part again when its stale note is retried', () => {
+    const view = openGallery();
+    const before = view.render(context);
+
+    expect(drawnTexts(before)).toContain('started 8m ago');
+
+    const [retry] = clickablesWithText(before, 'Retry');
+
+    if (retry === undefined) {
+      throw new Error('The gallery draws no Retry.');
+    }
+
+    click(retry, context);
+
+    expect(notifyCalls).toBe(1);
+
+    const after = drawnTexts(view.render(context));
+
+    expect(after).not.toContain('started 8m ago');
+    expect(after).not.toContain('started 7m ago');
+    expect(after.some((text) => text.includes('6m ago'))).toBe(false);
+    expect(after).toContain('started 2m ago');
   });
 });

@@ -10,6 +10,7 @@ export interface SectionHeaderOptions {
   label: string;
   size: 'default' | 'bar';
   start?: Element;
+  detail?: Element[];
   end?: Element[];
   interactive?: boolean;
   paddingStart?: number;
@@ -38,8 +39,17 @@ export const sectionHeader = (options: SectionHeaderOptions): Element => {
     header.child(options.start);
   }
 
-  const labelBox = div().flex_1().min_w(0).truncate();
+  const labelBox = div().min_w(0).truncate().flex_shrink(1);
   const label = withTextRole(labelBox, 'sectionHeading').child(options.label);
 
-  return header.child(label).children(options.end ?? []);
+  // The group takes the free width, so a detail stays beside the label and the end keeps the edge.
+  const labelGroup = h_flex()
+    .flex_1()
+    .min_w(0)
+    .gap(spacing.small)
+    .items_center()
+    .child(label)
+    .children(options.detail ?? []);
+
+  return header.child(labelGroup).children(options.end ?? []);
 };

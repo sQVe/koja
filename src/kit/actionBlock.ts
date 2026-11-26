@@ -69,7 +69,7 @@ const recoveryButton = (recovery: ActionRecovery): Element => {
     .px(spacing.small)
     .flex_none()
     .items_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .cursor_pointer()
     .border(spacing.hairline)
     .border_color(palette.border);

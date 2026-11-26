@@ -1,7 +1,7 @@
 import { afterAll, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../tests/drawn.ts';
-import { drawn } from '../../../../tests/drawn.ts';
+import { descendants, drawn } from '../../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -45,11 +45,6 @@ const { paneHeadersRolesScene } = (await import(scenePath)) as {
 afterAll(() => {
   mock.restore();
 });
-
-const descendants = (element: DrawnElement): DrawnElement[] => [
-  element,
-  ...element.kids.flatMap(descendants),
-];
 
 test('the focused specimen has a different border from the unfocused ones', () => {
   const scene = paneHeadersRolesScene();

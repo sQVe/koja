@@ -2,6 +2,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../../../tests/drawn.ts';
 import {
+  descendants,
   drawn,
   drawnIcons,
   drawnTexts,
@@ -146,11 +147,6 @@ const { acceptanceSection } = (await import(partsPath)) as {
 const { ticketFacts } = (await import(factsPath)) as {
   ticketFacts: (facts: FixtureFact[], tokens: Tokens) => DrawnElement;
 };
-
-const descendants = (element: DrawnElement): DrawnElement[] => [
-  element,
-  ...element.kids.flatMap(descendants),
-];
 
 const required = (
   elements: DrawnElement[],

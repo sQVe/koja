@@ -1,4 +1,8 @@
+// The mark of a handle `drawn()` made. Its value stays private, so no lookalike can forge it.
+const drawnBrand = { drawnHandle: true } as const;
+
 export interface DrawnElement {
+  drawn: typeof drawnBrand;
   kids: DrawnElement[];
   path: string | null;
   spins: boolean;
@@ -25,6 +29,7 @@ const addChild = (parent: DrawnElement, child: unknown): void => {
 
 export const drawn = (path: string | null = null): DrawnElement => {
   const element: DrawnElement = {
+    drawn: drawnBrand,
     kids: [],
     path,
     spins: false,
@@ -124,9 +129,14 @@ export const drawnTree = (elements: DrawnElement[]): DrawnElement => {
   return root;
 };
 
-const descendants = (element: DrawnElement): DrawnElement[] => [
+const isDrawn = (value: unknown): value is DrawnElement =>
+  typeof value === 'object' &&
+  value !== null &&
+  (value as Partial<DrawnElement>).drawn === drawnBrand;
+
+export const descendants = (element: DrawnElement): DrawnElement[] => [
   element,
-  ...element.kids.flatMap(descendants),
+  ...element.kids.filter(isDrawn).flatMap(descendants),
 ];
 
 export const drawnTexts = (element: DrawnElement): string[] =>
@@ -152,10 +162,23 @@ export const drawnIcons = (element: DrawnElement): string[] =>
 export const spinning = (element: DrawnElement): boolean =>
   descendants(element).some((part) => part.spins);
 
+export const elementWithTooltip = (element: DrawnElement): DrawnElement | null =>
+  descendants(element).find((part) => part.tooltipText !== null) ?? null;
+
 export const drawnTooltips = (element: DrawnElement): string[] =>
   descendants(element)
     .map((part) => part.tooltipText)
     .filter((tooltip): tooltip is string => tooltip !== null);
+
+export const numberStyle = (element: DrawnElement | undefined, style: string): number => {
+  const value = element?.styles[style]?.[0];
+
+  if (typeof value !== 'number') {
+    throw new TypeError(`The drawn element has no ${style} style.`);
+  }
+
+  return value;
+};
 
 export const elementWithText = (element: DrawnElement, text: string): DrawnElement | null =>
   descendants(element).find((part) => part.texts.includes(text)) ?? null;
@@ -169,8 +192,10 @@ export const elementWithIcon = (element: DrawnElement, name: string): DrawnEleme
 export const clickablesWithIcon = (element: DrawnElement, name: string): DrawnElement[] =>
   clickables(element).filter((part) => elementWithIcon(part, name) !== null);
 
-export const click = (element: DrawnElement): void => {
-  element.clickHandlers[0]?.({}, { stop_propagation: () => undefined });
+const quietContext = { stop_propagation: () => undefined };
+
+export const click = (element: DrawnElement, context: unknown = quietContext): void => {
+  element.clickHandlers[0]?.({}, context);
 };
 
 // A left press and release on the element alone; the fake does not pass events to parents.

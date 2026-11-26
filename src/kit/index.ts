@@ -13,7 +13,19 @@ export type { DialogButtonKind } from './button.ts';
 
 export { dialogFrame } from './dialog.ts';
 
+export { contentSection } from './contentSection.ts';
+
+export type { ContentSectionOptions } from './contentSection.ts';
+
 export { documentLine } from './documentLine.ts';
+
+export { partNote } from './partNote.ts';
+
+export type { PartNoteOptions } from './partNote.ts';
+
+export { statusRow } from './statusRow.ts';
+
+export type { StatusRowOptions } from './statusRow.ts';
 
 export { factPairs, factRows } from './factRows.ts';
 

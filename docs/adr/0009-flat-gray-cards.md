@@ -179,7 +179,8 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 - Done draws a small check icon in `done` green. A sidebar space that needs you draws the
   `message-circle-question` icon in `blocked` red. Tabs and picker rows keep the `blocked` dot, or
   the badge where there is room. Working stays the spinner, so shape as well as color tells the
-  states apart.
+  states apart. A row of a part that failed to refresh draws the working arc still, because nothing
+  stale animates.
 - A sidebar space with no agent shows a hollow ring in the `border` color, so every space row has a
   mark and the list reads as one column. The ring is quieter than the filled idle dot, so it does
   not read as a state. Rows outside the sidebar, such as tabs and picker rows, keep an empty slot.
@@ -245,8 +246,8 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 - Each mod keeps the pending, failed, stale, and fresh state of each resource apart, keyed by the
   repository or context it read. Retry reads that resource again at once, skipping the normal
   refresh delay. An error clears only when that same resource reads again.
-- A stale list keeps its rows below an error line with the age of the last good read. The age comes
-  early in the text, so a cut line still shows it.
+- A stale list keeps its rows below an error line with the age of the last good read. A content
+  pane's part note wraps instead of cutting, so a narrow pane still shows the age at its end.
 - The sidebar's PR read is the exception. Its line reads `Could not read PRs`, with no repository
   name and no age, because the project header above it names the repository and the sidebar shows
   only what the user should act on. The rows keep their last facts.

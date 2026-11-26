@@ -15,6 +15,7 @@ export interface StateLineOptions {
   // A button or a keyHint for the next step.
   action?: Element;
   wrap?: boolean;
+  paddingStart?: number;
 }
 
 const kindMark = (kind: StateKind): Element | null => {
@@ -46,14 +47,10 @@ export const stateLine = (options: StateLineOptions): Element => {
     .flex_none()
     .min_w(0)
     .min_h(rowHeight.small)
-    .px(spacing.large)
-    .gap(spacing.small);
-
-  if (wrap) {
-    line.items_start().py(spacing.xsmall);
-  } else {
-    line.items_center();
-  }
+    .pl(options.paddingStart ?? spacing.large)
+    .pr(spacing.large)
+    .gap(spacing.small)
+    .items_center();
 
   const mark = kindMark(options.kind);
 
