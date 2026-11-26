@@ -49,8 +49,13 @@ if [[ ! $guard_name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   exit 2
 fi
 
+if (( ${#name} > 32 )); then
+  echo "RUTA_NAME must be at most 32 characters, not '$name'" >&2
+  exit 2
+fi
+
 if (( ${#guard_name} > 32 )); then
-  echo "RUTA_NAME must be at most 32 characters, not '$guard_name'" >&2
+  echo "sandbox $guard_name must be at most 32 characters, so RUTA_NAME must be at most 24 for capture, not '$name'" >&2
   exit 2
 fi
 

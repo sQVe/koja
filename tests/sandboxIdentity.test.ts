@@ -773,17 +773,31 @@ describe('scripts/sandbox', () => {
     ['capture', 25, 2],
   ])('takes %s with a %i character name as exit %i', async (command, length, exitCode) => {
     const program = join(fakes, 'herdr-app-fake');
+    const given = 'a'.repeat(length);
 
     await writeProgram(program, 'exit 0');
     await writeRuta('ruta is up', 0);
 
-    const result = await runSandbox(command, {
-      RUTA_NAME: 'a'.repeat(length),
-      HERDR_APP_BIN: program,
-    });
+    const result = await runSandbox(command, { RUTA_NAME: given, HERDR_APP_BIN: program });
 
     expect(result.exitCode).toBe(exitCode);
-    expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(exitCode === 0);
+
+    if (exitCode === 0) {
+      const call = await readFile(join(fakes, 'calls'), 'utf8');
+
+      expect(call).toContain(`${given} ${repository} ${command}`);
+    } else {
+      expect(result.stderr).toContain(given);
+      expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
+    }
+  });
+
+  test('refuses a name with a character ruta does not take', async () => {
+    const result = await runSandbox('up', { RUTA_NAME: 'koja_bad' });
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain('koja_bad');
+    expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
   });
 
   test('prints the rules for a bare call instead of refusing', async () => {
