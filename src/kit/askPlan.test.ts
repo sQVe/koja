@@ -254,7 +254,7 @@ describe('dialogFor', () => {
     });
   });
 
-  test('a group with a finished agent stops without saying mid-task', () => {
+  test('a group with a finished agent warns only about the agent that is mid-task', () => {
     const values = facts(spaceValues(), [], focusValue);
 
     values.agents = [agent('s1', 'Claude Code'), agent('s1', 'Pi', 'done')];
@@ -265,7 +265,29 @@ describe('dialogFor', () => {
       kind: 'confirm',
       dialog: {
         body: [
-          'Claude Code and Pi stop, and 2 tabs close.',
+          'Claude Code stops mid-task, Pi stops, and 2 tabs close.',
+          'Its folder, uncommitted changes, and branch stay.',
+        ],
+      },
+    });
+  });
+
+  test('a mixed group keeps the mid-task names together', () => {
+    const values = facts(spaceValues(), [], focusValue);
+
+    values.agents = [
+      agent('s1', 'Claude Code', 'working', 'claude'),
+      agent('s1', 'Pi', 'blocked', 'pi'),
+      agent('s1', 'zsh', 'idle', 'zsh'),
+    ];
+
+    const plan = dialogFor('space.close', { id: 's1' }, values);
+
+    expect(plan).toMatchObject({
+      kind: 'confirm',
+      dialog: {
+        body: [
+          'Claude Code and Pi stop mid-task, zsh stops, and 2 tabs close.',
           'Its folder, uncommitted changes, and branch stay.',
         ],
       },

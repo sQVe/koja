@@ -102,16 +102,28 @@ const joinNames = (names: string[]): string => {
 
 const tabCount = (count: number): string => `${count} ${count === 1 ? 'tab closes' : 'tabs close'}`;
 
-const closeStops = (agents: AgentInfo[]): string => {
+const stopsClause = (agents: AgentInfo[], midTask: boolean): string => {
   if (agents.length === 0) {
     return '';
   }
 
   const labels = agentGroups(agents).map(groupLabel);
   const verb = agents.length === 1 ? 'stops' : 'stop';
-  const midTask = agents.every(isMidTask) ? ' mid-task' : '';
+  const warning = midTask ? ' mid-task' : '';
 
-  return `${joinNames(labels)} ${verb}${midTask}, and `;
+  return `${joinNames(labels)} ${verb}${warning}`;
+};
+
+const closeStops = (agents: AgentInfo[]): string => {
+  const clauses = [
+    stopsClause(agents.filter(isMidTask), true),
+    stopsClause(
+      agents.filter((agent) => !isMidTask(agent)),
+      false,
+    ),
+  ].filter((clause) => clause !== '');
+
+  return clauses.length === 0 ? '' : `${clauses.join(', ')}, and `;
 };
 
 const closeBody = (space: SpaceInfo, facts: AskFacts): string[] => {
