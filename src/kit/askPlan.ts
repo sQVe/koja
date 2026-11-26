@@ -135,11 +135,13 @@ const clauseSubject = (agents: AgentInfo[], sharedNames: Set<string>): string =>
   return `${joinNames(labels)} ${verb}`;
 };
 
+const hasAgents = (agents: AgentInfo[]): boolean => agents.length > 0;
+
 const midTaskClause = (agents: AgentInfo[], sharedNames: Set<string>): string =>
-  agents.length === 0 ? '' : `${clauseSubject(agents, sharedNames)} mid-task`;
+  hasAgents(agents) ? `${clauseSubject(agents, sharedNames)} mid-task` : '';
 
 const otherClause = (agents: AgentInfo[], sharedNames: Set<string>): string =>
-  agents.length === 0 ? '' : clauseSubject(agents, sharedNames);
+  hasAgents(agents) ? clauseSubject(agents, sharedNames) : '';
 
 const closeStops = (agents: AgentInfo[]): string => {
   const unique = uniqueAgents(agents);
