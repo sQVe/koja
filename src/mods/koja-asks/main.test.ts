@@ -144,7 +144,6 @@ const kitParts = [
   'fields',
   'icon',
   'layout',
-  'modName',
   'overlay/card',
   'overlay/lines',
   'overlay/overlay',
@@ -157,7 +156,7 @@ const kitParts = [
   'window',
 ];
 
-const kitFake = await realKitIndexFake(kitParts);
+const kitFake = { ...(await realKitIndexFake(kitParts)), modName: 'koja-asks' };
 
 await mock.module('../../kit/index.ts', () => kitFake);
 
