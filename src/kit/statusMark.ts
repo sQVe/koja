@@ -57,7 +57,7 @@ export const statusMark = (status: Status | null): Element => {
   return slot.child(dot(markSize.dot, palette[status]));
 };
 
-const questionBubble = (): Element =>
+export const questionBubble = (): Element =>
   icon('message-circle-question', 'small').text_color(colors().blocked);
 
 const blockedBubble = (): Element => statusMark(null).child(questionBubble());

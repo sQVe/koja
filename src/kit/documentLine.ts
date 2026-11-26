@@ -16,15 +16,25 @@ export interface DocumentLineOptions {
   bar?: LineBar;
 }
 
-const gutterBar = (bar: LineBar | undefined): Element => {
+type LineMark = 'fill' | 'stripe' | 'none';
+
+const markOf = (bar: LineBar | undefined): LineMark => {
+  if (bar === 'edited') {
+    return 'fill';
+  }
+
+  return bar === 'commented' ? 'stripe' : 'none';
+};
+
+const gutterBar = (mark: LineMark): Element => {
   const palette = colors();
   const slot = div().w(documentSize.markWidth).h(documentSize.markHeight).flex_none();
 
-  if (bar === 'edited') {
+  if (mark === 'fill') {
     return slot.bg(palette.working);
   }
 
-  if (bar === 'commented') {
+  if (mark === 'stripe') {
     const stripe = div().w(documentSize.stripeWidth).h_full().bg(palette.muted);
 
     return slot.child(stripe);
@@ -33,20 +43,20 @@ const gutterBar = (bar: LineBar | undefined): Element => {
   return slot;
 };
 
-const lineNumber = (line: DocumentLineOptions): Element => {
-  const ink = line.bar === undefined ? 'dim' : 'foreground';
+const lineNumber = (line: DocumentLineOptions, mark: LineMark): Element => {
+  const ink = mark === 'none' ? 'dim' : 'foreground';
   const slot = div().w(documentSize.numberWidth).flex_none().text_right();
 
   return withTextRole(slot, 'detail', ink).child(String(line.number));
 };
 
-const gutter = (line: DocumentLineOptions): Element =>
+const gutter = (line: DocumentLineOptions, mark: LineMark): Element =>
   h_flex()
     .flex_none()
     .gap(documentSize.markGap)
     .items_center()
-    .child(gutterBar(line.bar))
-    .child(lineNumber(line));
+    .child(gutterBar(mark))
+    .child(lineNumber(line, mark));
 
 const editedWord = (): Element => {
   const box = div().flex_none();
@@ -62,6 +72,8 @@ const lineText = (text: string): Element => {
 
 // The row draws the monospace role once, so its number, text, and mark share one font lookup.
 export const documentLine = (line: DocumentLineOptions): Element => {
+  const mark = markOf(line.bar);
+
   const row = h_flex()
     .h(documentSize.lineHeight)
     .flex_none()
@@ -69,10 +81,10 @@ export const documentLine = (line: DocumentLineOptions): Element => {
     .px(documentSize.inset)
     .gap(documentSize.textGap)
     .items_center()
-    .child(gutter(line))
+    .child(gutter(line, mark))
     .child(lineText(line.text));
 
-  if (line.bar === 'edited') {
+  if (mark === 'fill') {
     row.child(editedWord());
   }
 

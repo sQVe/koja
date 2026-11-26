@@ -1,7 +1,14 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTexts, elementWithText, spinning } from '../../tests/drawn.ts';
+import {
+  drawn,
+  drawnIcons,
+  drawnTexts,
+  elementWithText,
+  elementsWithBorder,
+  spinning,
+} from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 import type { ItemHeaderOptions } from './itemHeader.ts';
 import { textSize } from './size.ts';
@@ -76,10 +83,27 @@ describe('itemHeader', () => {
     expect(title?.styles['min_w']).toEqual([0]);
   });
 
-  test('the age draws once, in the dim ink', () => {
+  test('the age draws in the dim ink', () => {
     const header = itemHeader(readyOptions);
 
     expect(elementWithText(header, 'synced 1m ago')?.textColors).toEqual([palette.dim]);
+  });
+
+  test('a long state word cuts inside the chip and shows in full on hover', () => {
+    const header = itemHeader({
+      ...readyOptions,
+      state: { kind: 'inProgress', label: 'waiting on review', age: '1m ago' },
+    });
+
+    const label = elementWithText(header, 'waiting on review');
+    const chips = elementsWithBorder(header, palette.border);
+    const [chip] = chips;
+
+    expect(chips).toHaveLength(1);
+    expect(chip?.styles['min_w']).toEqual([0]);
+    expect(label?.styles['min_w']).toEqual([0]);
+    expect(label?.styles['truncate']).toBeDefined();
+    expect(label?.tooltipText).toBe('waiting on review');
   });
 
   test.each([
