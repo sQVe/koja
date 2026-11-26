@@ -137,8 +137,9 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 - If people find a selected item hard to tell from a hovered one, the kit adds one second cue to
   selected rows and active toggles, not a second hover style.
 - An icon button has no selected state, so it keeps its hover fill.
-- A hovered solid or danger button keeps its fill and label and draws a 1 px `foreground` ring,
-  because fading would dim the label below AA.
+- A hovered solid or danger button keeps its fill and label, because fading would dim the label
+  below AA, and draws a 1 px ring in a color that contrasts with the fill: `foreground`, or
+  `popover` when the fill is `foreground`.
 - A hover-only control, such as a pane header button, keeps its space, so a row does not shift when
   it appears.
 - Both kinds of sidebar project header end the same way: the hidden count when folded, then the age
