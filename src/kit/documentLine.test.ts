@@ -57,6 +57,13 @@ const firstBar = (line: DrawnElement): DrawnElement | undefined => elementsWithS
 
 const drawnFont = (line: DrawnElement): unknown[] | undefined => line.styles['font_family'];
 
+const fontAfter = async (values: Record<string, unknown>): Promise<unknown[] | undefined> => {
+  settingsValues = values;
+  await Promise.resolve();
+
+  return drawnFont(sidebarLine());
+};
+
 describe('documentLine', () => {
   test('an edited line fills its gutter bar with the warning ink and says edited once', () => {
     const line = documentLine({ number: 6, text: 'Keep the space visible.', bar: 'edited' });
@@ -114,26 +121,12 @@ describe('documentLine', () => {
   });
 
   test('a missing or non-text font setting draws the default terminal font', async () => {
-    settingsValues = {};
-    await Promise.resolve();
-
-    expect(drawnFont(sidebarLine())).toEqual([defaultFont]);
-
-    settingsValues = { font: 42 };
-    await Promise.resolve();
-
-    expect(drawnFont(sidebarLine())).toEqual([defaultFont]);
+    expect(await fontAfter({})).toEqual([defaultFont]);
+    expect(await fontAfter({ font: 42 })).toEqual([defaultFont]);
   });
 
   test('a font the user sets after the default reaches the next line', async () => {
-    settingsValues = {};
-    await Promise.resolve();
-
-    expect(drawnFont(sidebarLine())).toEqual([defaultFont]);
-
-    settingsValues = { font: monospaceFont };
-    await Promise.resolve();
-
-    expect(drawnFont(sidebarLine())).toEqual([monospaceFont]);
+    expect(await fontAfter({})).toEqual([defaultFont]);
+    expect(await fontAfter({ font: monospaceFont })).toEqual([monospaceFont]);
   });
 });
