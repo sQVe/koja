@@ -79,6 +79,12 @@ const malformedFields: [string, (snapshot: RawSnapshot, key: string) => void][] 
     },
   ],
   [
+    'a bare flag that is not a boolean',
+    (snapshot, key) => {
+      worktreeAt(snapshot, key).bare = 'yes';
+    },
+  ],
+  [
     'a repository place without a worktree',
     (snapshot, key) => {
       delete placeAt(snapshot, key).worktree;

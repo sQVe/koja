@@ -9,8 +9,9 @@ import {
   snapshotOf,
   validRaw,
   withBareFalse,
+  worktreeAt,
 } from '../../tests/snapshotRaw.ts';
-import { repositoryOf } from './gitIdentity.ts';
+import { repositoryOf, worktreeOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
 import type {
   Facts,
@@ -72,6 +73,17 @@ describe('parseSnapshot', () => {
     const stored = { version: 8, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
     expect(parseSnapshot(stored)).toEqual(stored);
+  });
+
+  test('a version 7 snapshot treats every worktree as a checkout', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
+    const key = worktreeOf(null, '/code/koja').key;
+    delete worktreeAt(stored, key).bare;
+
+    const parsed = parseSnapshot({ ...stored, version: 7 });
+
+    expect(parsed?.version).toBe(8);
+    expect(parsed?.facts.git.worktrees[key]?.bare).toBe(false);
   });
 
   test('a version 6 snapshot reads with empty stacks', () => {
