@@ -1,6 +1,8 @@
+// The mark of a handle `drawn()` made. Its value stays private, so no lookalike can forge it.
+const drawnBrand = { drawnHandle: true } as const;
+
 export interface DrawnElement {
-  // Set only by `drawn()`, so the walk can tell a drawn handle from a mocked field.
-  drawn: true;
+  drawn: typeof drawnBrand;
   kids: DrawnElement[];
   path: string | null;
   spins: boolean;
@@ -27,7 +29,7 @@ const addChild = (parent: DrawnElement, child: unknown): void => {
 
 export const drawn = (path: string | null = null): DrawnElement => {
   const element: DrawnElement = {
-    drawn: true,
+    drawn: drawnBrand,
     kids: [],
     path,
     spins: false,
@@ -128,7 +130,9 @@ export const drawnTree = (elements: DrawnElement[]): DrawnElement => {
 };
 
 const isDrawn = (value: unknown): value is DrawnElement =>
-  typeof value === 'object' && value !== null && (value as Partial<DrawnElement>).drawn === true;
+  typeof value === 'object' &&
+  value !== null &&
+  (value as Partial<DrawnElement>).drawn === drawnBrand;
 
 const descendants = (element: DrawnElement): DrawnElement[] => [
   element,
