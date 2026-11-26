@@ -33,7 +33,7 @@ export interface PullSchedulerDependencies {
   publish: () => void;
   publishReadTimes: (lease: Lease, times: PullReadTimes) => void;
   publishOutcomes: (lease: Lease, outcomes: PullRetryOutcome[]) => void;
-  windowActive: () => boolean;
+  windowVisible: () => boolean;
 }
 
 export interface PullSchedulerSeed {
@@ -164,8 +164,8 @@ class Scheduler implements PullScheduler {
 
   private startDueReads(sources: Map<string, PullSource>, spawn: Spawn, now: number): void {
     const running = new Set(this.running.keys());
-    const active = this.dependencies.windowActive();
-    const due = duePullReads(this.due, [...sources.keys()], running, now, active);
+    const visible = this.dependencies.windowVisible();
+    const due = duePullReads(this.due, [...sources.keys()], running, now, visible);
 
     for (const key of due) {
       const source = sources.get(key);

@@ -121,7 +121,7 @@ const createSchedulerBinding = (
       publish: publishSnapshot,
       publishReadTimes: readTimesPublisher.publish,
       publishOutcomes: outcomesPublisher.publish,
-      windowActive: () => currentWindow()?.active ?? false,
+      windowVisible: () => currentWindow()?.visible ?? false,
     },
     held,
     { pulls: seed.pulls, readTimes: readPullReadTimes(shared, recordNotices) },

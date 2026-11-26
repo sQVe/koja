@@ -71,7 +71,7 @@ export class PullSchedulerHarness {
   publishedTimes: PullReadTimes[] = [];
   publishedOutcomes: PullRetryOutcome[][] = [];
   now = start;
-  windowActive = true;
+  windowVisible = true;
   lease: Lease = { version: 1, owner: 'owner-a', generation: 1 };
   held: Lease | null = this.lease;
 
@@ -114,7 +114,7 @@ export class PullSchedulerHarness {
     this.publishedTimes = [];
     this.publishedOutcomes = [];
     this.now = start;
-    this.windowActive = true;
+    this.windowVisible = true;
     this.lease = { version: 1, owner: 'owner-a', generation: 1 };
     this.held = this.lease;
     this.seedLease();
@@ -175,7 +175,7 @@ export class PullSchedulerHarness {
           this.publishedOutcomes.push(structuredClone(list));
           outcomes.publish(lease, list);
         },
-        windowActive: () => this.windowActive,
+        windowVisible: () => this.windowVisible,
       },
       this.lease,
       initial,
