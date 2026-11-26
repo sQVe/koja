@@ -256,6 +256,7 @@ const seedGitFacts = (): void => {
   const facts = {
     git: { places, worktrees: { [mainKey]: main, [linkedKey]: linked } },
     pulls: {},
+    trackers: {},
   } satisfies Facts;
 
   values[snapshotKey] = { version: snapshotVersion, revision: 1, facts };

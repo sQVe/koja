@@ -36,8 +36,8 @@ const withGit = (
   places: Record<string, PlaceGit>,
   worktrees: Record<string, WorktreeGit>,
 ): DataState => {
-  const facts = { git: { places, worktrees }, pulls: {} };
-  const snapshot: Snapshot = { version: 4, revision: 1, facts };
+  const facts = { git: { places, worktrees }, pulls: {}, trackers: {} };
+  const snapshot: Snapshot = { version: 6, revision: 1, facts };
 
   return {
     kind: 'live',
