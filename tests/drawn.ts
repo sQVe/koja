@@ -132,10 +132,11 @@ const descendants = (element: DrawnElement): DrawnElement[] => [
 export const drawnTexts = (element: DrawnElement): string[] =>
   descendants(element).flatMap((part) => part.texts);
 
+const clickables = (element: DrawnElement): DrawnElement[] =>
+  descendants(element).filter((part) => part.clickHandlers.length > 0);
+
 export const clickablesWithText = (element: DrawnElement, text: string): DrawnElement[] =>
-  descendants(element).filter(
-    (part) => part.clickHandlers.length > 0 && drawnTexts(part).includes(text),
-  );
+  clickables(element).filter((part) => drawnTexts(part).includes(text));
 
 export const elementsWithBorder = (element: DrawnElement, color: string): DrawnElement[] =>
   descendants(element).filter((part) => part.borderColors.at(-1) === color);
@@ -164,6 +165,9 @@ export const elementsWithStyle = (element: DrawnElement, style: string): DrawnEl
 
 export const elementWithIcon = (element: DrawnElement, name: string): DrawnElement | null =>
   descendants(element).find((part) => part.path?.split('/').at(-1) === name) ?? null;
+
+export const clickablesWithIcon = (element: DrawnElement, name: string): DrawnElement[] =>
+  clickables(element).filter((part) => elementWithIcon(part, name) !== null);
 
 export const click = (element: DrawnElement): void => {
   element.clickHandlers[0]?.({}, { stop_propagation: () => undefined });

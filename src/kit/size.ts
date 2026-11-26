@@ -61,6 +61,8 @@ export const controlSize = {
   paneLabelMinWidth: 12,
   searchField: 40,
   sectionHeader: 26,
+  // One width for a split button and its menu, so the menu lines up with both edges.
+  splitButtonWidth: 208,
   sidebarHeader: 27,
   smallButton: 16,
   tabBar: 28,

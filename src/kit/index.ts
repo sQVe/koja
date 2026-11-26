@@ -51,6 +51,10 @@ export type { DropMark, RowState } from './listRow.ts';
 
 export { searchField } from './searchField.ts';
 
+export { splitButton, splitButtonOpenHeight } from './splitButton.ts';
+
+export type { SplitButtonChoice } from './splitButton.ts';
+
 export { textField } from './textField.ts';
 
 export { sectionHeader } from './sectionHeader.ts';
