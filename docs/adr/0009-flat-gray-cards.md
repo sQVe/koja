@@ -179,7 +179,8 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 - Done draws a small check icon in `done` green. A sidebar space that needs you draws the
   `message-circle-question` icon in `blocked` red. Tabs and picker rows keep the `blocked` dot, or
   the badge where there is room. Working stays the spinner, so shape as well as color tells the
-  states apart.
+  states apart. A row of a part that failed to refresh draws the working arc still, because nothing
+  stale animates.
 - A sidebar space with no agent shows a hollow ring in the `border` color, so every space row has a
   mark and the list reads as one column. The ring is quieter than the filled idle dot, so it does
   not read as a state. Rows outside the sidebar, such as tabs and picker rows, keep an empty slot.
