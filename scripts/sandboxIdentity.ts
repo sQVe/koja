@@ -36,6 +36,8 @@ export interface IdentityReport {
   lines: string[];
 }
 
+type NameHolderOptions = Omit<IdentityOptions, 'window'>;
+
 const windowStates: WindowState[] = ['answers', 'silent'];
 
 // Pairs of the path inside Herdr home and the path inside the checkout, as the installer plans them.
@@ -83,14 +85,14 @@ const copyFailures = async (
 const hashesByPath = (inputs: InstallInput[]): Map<string, string> =>
   new Map(inputs.map((input) => [input.path, input.hash]));
 
-const isFromCheckout = async (options: IdentityOptions, origin: InstallOrigin): Promise<boolean> =>
-  origin.checkout === (await realpath(options.checkout));
+const isFromCheckout = async (checkout: string, origin: InstallOrigin): Promise<boolean> =>
+  origin.checkout === (await realpath(checkout));
 
 const changedSinceInstall = async (
   options: IdentityOptions,
   origin: InstallOrigin | null,
 ): Promise<IdentityFailure[]> => {
-  if (origin === null || !(await isFromCheckout(options, origin))) {
+  if (origin === null || !(await isFromCheckout(options.checkout, origin))) {
     return [];
   }
 
@@ -113,7 +115,7 @@ const originFailures = async (
 
   const failures: IdentityFailure[] = [];
 
-  if (!(await isFromCheckout(options, record.origin))) {
+  if (!(await isFromCheckout(options.checkout, record.origin))) {
     failures.push({ kind: 'otherCheckout', installedFrom: record.origin.checkout });
   }
 
@@ -210,22 +212,70 @@ export const identityReport = async (options: IdentityOptions): Promise<Identity
   return { exitCode: 1, lines: failures.map((failure) => failureLine(options, failure)) };
 };
 
+const checkoutHoldingName = async (options: NameHolderOptions): Promise<string | null> => {
+  const record = await readRecord(options.home);
+  const origin = record?.origin ?? null;
+
+  if (origin === null) {
+    return null;
+  }
+
+  const fromThisCheckout = await isFromCheckout(options.checkout, origin);
+
+  return fromThisCheckout ? null : origin.checkout;
+};
+
+export const nameHolderReport = async (options: NameHolderOptions): Promise<IdentityReport> => {
+  const holder = await checkoutHoldingName(options);
+
+  if (holder === null) {
+    return { exitCode: 0, lines: [] };
+  }
+
+  return {
+    exitCode: 1,
+    lines: [
+      `sandbox ${options.name} serves ${holder}, not ${options.checkout}`,
+      `use another RUTA_NAME, or run this from ${holder}`,
+    ],
+  };
+};
+
 const isWindowState = (value: string | undefined): value is WindowState =>
   windowStates.some((state) => state === value);
 
+const checkedWindowState = (value: string | undefined): WindowState => {
+  if (!isWindowState(value)) {
+    throw new Error(`The window state must be one of ${windowStates.join(', ')}, not '${value}'`);
+  }
+
+  return value;
+};
+
+const writeReport = (report: IdentityReport): void => {
+  const text = report.lines.map((line) => `${line}\n`).join('');
+
+  process.stdout.write(text);
+  process.exitCode = report.exitCode;
+};
+
 if (import.meta.main) {
-  const [name, home, checkout, window] = process.argv.slice(2);
+  const [command, ...args] = process.argv.slice(2);
+  const [name, home, checkout, window] = args;
 
   if (name === undefined || home === undefined || checkout === undefined) {
-    throw new Error('usage: sandboxIdentity.ts <name> <herdr home> <checkout> <window state>');
+    throw new Error(
+      'usage: sandboxIdentity.ts <identity|guard> <name> <herdr home> <checkout> [window state]',
+    );
   }
 
-  if (!isWindowState(window)) {
-    throw new Error(`The window state must be one of ${windowStates.join(', ')}, not '${window}'`);
+  if (command === 'guard') {
+    writeReport(await nameHolderReport({ name, home, checkout }));
+  } else if (command === 'identity') {
+    const state = checkedWindowState(window);
+
+    writeReport(await identityReport({ name, home, checkout, window: state }));
+  } else {
+    throw new Error(`unknown command '${command}'; use identity or guard`);
   }
-
-  const report = await identityReport({ name, home, checkout, window });
-
-  process.stdout.write(`${report.lines.join('\n')}\n`);
-  process.exitCode = report.exitCode;
 }

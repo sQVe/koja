@@ -17,7 +17,9 @@
 #
 # Every command but install, identity, do, status, and hc goes to ruta; `ruta` without
 # arguments lists them. RUTA_NAME=<name> runs a second sandbox side by side, and
-# TAU_VERIFICATION_RUN names the sandbox koja-<run>.
+# TAU_VERIFICATION_RUN names the sandbox koja-<run>. A name belongs to the checkout that installed
+# it, so a command that would start, change, or remove another checkout's sandbox refuses and names
+# that checkout.
 # HERDR_APP_BIN runs another herdr-app (an installed copy, to try updates)
 # instead of the default.
 set -euo pipefail
@@ -38,6 +40,18 @@ if [[ ! $name =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
 fi
 
 root=/var/tmp/ruta-$name
+
+# A sandbox name belongs to the checkout that installed it, so this checkout must not start, change,
+# or remove a sandbox that another checkout holds. identity reports the holder, and guide and a bare
+# call only print ruta's rules, so they stay allowed.
+refuse_other_checkout() {
+  bun "$checkout/scripts/sandboxIdentity.ts" guard "$name" "$root/config/herdr-app" "$checkout"
+}
+
+case ${1:-} in
+  '' | identity | guide) ;;
+  *) refuse_other_checkout ;;
+esac
 
 find_binary() {
   local chosen=${HERDR_APP_BIN:-}
@@ -117,7 +131,7 @@ case ${1:-} in
     cd "$checkout"
     ruta status || exit 1
     state=$(window_state)
-    exec bun scripts/sandboxIdentity.ts "$name" "$root/config/herdr-app" "$checkout" "$state"
+    exec bun scripts/sandboxIdentity.ts identity "$name" "$root/config/herdr-app" "$checkout" "$state"
     ;;
   do | status) require_up; in_sandbox herdr-app "$@" ;;
   hc) require_up; shift; in_sandbox hc "$@" ;;

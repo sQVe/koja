@@ -18,7 +18,11 @@ import { dirname, join, resolve } from 'node:path';
 import type { CheckResult } from '../scripts/install.ts';
 import { install, shippedInputs } from '../scripts/install.ts';
 import type { IdentityFailure, IdentityOptions } from '../scripts/sandboxIdentity.ts';
-import { findIdentityFailures, identityReport } from '../scripts/sandboxIdentity.ts';
+import {
+  findIdentityFailures,
+  identityReport,
+  nameHolderReport,
+} from '../scripts/sandboxIdentity.ts';
 import { replaceOnce } from './scriptCopy.ts';
 
 let root: string;
@@ -420,9 +424,33 @@ describe('sandbox identity', () => {
   });
 });
 
+describe('sandbox name holder', () => {
+  test('names the checkout whose install holds the name', async () => {
+    const other = join(root, 'other');
+
+    await writeCheckout(other);
+    await installFrom(other);
+
+    const report = await nameHolderReport(options);
+
+    expect(report.exitCode).toBe(1);
+    expect(report.lines.join('\n')).toContain(other);
+  });
+
+  test('passes for the checkout whose install holds the name', async () => {
+    expect(await nameHolderReport(options)).toEqual({ exitCode: 0, lines: [] });
+  });
+
+  test('passes when the sandbox has no install record', async () => {
+    await rm(recordPath());
+
+    expect((await nameHolderReport(options)).exitCode).toBe(0);
+  });
+});
+
 const linesOf = (output: string): string[] => output.trim().split('\n');
 
-describe('scripts/sandbox identity', () => {
+describe('scripts/sandbox', () => {
   const script = resolve(import.meta.dir, '..', 'scripts', 'sandbox');
   const repository = resolve(import.meta.dir, '..');
   let name: string;
@@ -508,6 +536,17 @@ describe('scripts/sandbox identity', () => {
     const stream = exitCode === 0 ? '' : ' >&2';
 
     await writeProgram(join(fakes, 'ruta'), `${record}\necho '${line}'${stream}\nexit ${exitCode}`);
+  };
+
+  const installIntoSandbox = async (installedFrom: string): Promise<void> => {
+    await install({
+      home: join(sandboxRoot, 'config', 'herdr-app'),
+      checkout: installedFrom,
+      inputs: await shippedInputs(installedFrom),
+      modsDirectory: join(installedFrom, 'dist', 'mods'),
+      configDirectory: join(installedFrom, 'config'),
+      check: passingCheck,
+    });
   };
 
   beforeEach(async () => {
@@ -648,9 +687,52 @@ describe('scripts/sandbox identity', () => {
     expect(await snapshot(sandboxRoot)).toEqual(before);
   });
 
+  test.each(['up', 'restart'])(
+    'refuses to %s a sandbox that another checkout holds',
+    async (command) => {
+      const other = join(root, 'other-checkout');
+      const program = join(fakes, 'herdr-app-fake');
+
+      await writeCheckout(other);
+      await installIntoSandbox(other);
+      await writeProgram(program, 'exit 0');
+      await writeRuta('ruta is up', 0);
+
+      const result = await runSandbox(command, { RUTA_NAME: name, HERDR_APP_BIN: program });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.output).toContain(other);
+      expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
+    },
+  );
+
+  test('starts a sandbox that this checkout already holds', async () => {
+    const program = join(fakes, 'herdr-app-fake');
+
+    await installIntoSandbox(repository);
+    await writeProgram(program, 'exit 0');
+    await writeRuta('ruta is up', 0);
+
+    const result = await runSandbox('up', { RUTA_NAME: name, HERDR_APP_BIN: program });
+
+    expect(result.exitCode).toBe(0);
+
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(
+      `${name} ${repository} up -- ${program}\n`,
+    );
+  });
+
   test('serializes the install of two sandboxes', async () => {
     const record = join(fakes, 'installs');
-    const body = `printf 'start\\n' >>'${record}'\nsleep 0.3\nprintf 'end\\n' >>'${record}'`;
+
+    const body = [
+      'case "$1" in',
+      '  *sandboxIdentity.ts) exit 0 ;;',
+      'esac',
+      `printf 'start\\n' >>'${record}'`,
+      'sleep 0.3',
+      `printf 'end\\n' >>'${record}'`,
+    ].join('\n');
 
     await writeProgram(join(fakes, 'bun'), body);
     await writeProgram(join(sandboxRoot, 'bin', 'herdr-app'), 'exit 0');
