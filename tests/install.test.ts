@@ -1163,18 +1163,37 @@ describe('install', () => {
     expect(record?.origin?.allChecksPassed).toBe(true);
   });
 
-  test('removes the staging folder and half-copied file a killed install left behind', async () => {
+  test('removes the staging folder and half-copied files a killed install left behind', async () => {
     const staging = join(home, '.koja-check-leftover');
     const partial = join(home, '.keys.json.koja-01234567-89ab-cdef-0123-456789abcdef.tmp');
+
+    const recordTemporary = join(
+      home,
+      '.koja-install.json.01234567-89ab-cdef-0123-456789abcdef.tmp',
+    );
 
     await mkdir(staging, { recursive: true });
     await writeFile(join(staging, 'main.js'), 'staged\n');
     await writeFile(partial, 'partial\n');
+    await writeFile(recordTemporary, '{}\n');
 
     await run();
 
     expect(await exists(staging)).toBe(false);
     expect(await exists(partial)).toBe(false);
+    expect(await exists(recordTemporary)).toBe(false);
+  });
+
+  test('keeps a folder below the home that only starts with the staging prefix', async () => {
+    const nested = join(home, 'mods', 'koja-one', '.koja-check-kept');
+
+    await run();
+    await mkdir(nested, { recursive: true });
+    await writeFile(join(nested, 'notes.txt'), 'kept\n');
+
+    await run();
+
+    expect(await exists(join(nested, 'notes.txt'))).toBe(true);
   });
 
   test('writes install record version 3', async () => {

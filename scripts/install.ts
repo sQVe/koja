@@ -127,8 +127,6 @@ export const recordPath = (home: string): string => join(home, recordName);
 
 const lockName = '.koja-install.lock';
 
-const defaultChmodFile = (path: string, mode: number): Promise<void> => chmod(path, mode);
-
 const stagingPrefix = '.koja-check-';
 
 const lockTimeoutMilliseconds = 30_000;
@@ -1078,15 +1076,15 @@ const writeRecordFile = async (path: string, text: string): Promise<void> => {
 // An install that failed before it changed anything leaves a complete home behind, so the earlier
 // result stands instead of reporting an incomplete install for an unchanged home. A check that ran
 // is a verdict on the new mods, so that install stays unfinished even when nothing on disk changed.
+const decided = (progress: InstallProgress): boolean =>
+  progress.written.length > 0 || progress.removed.length > 0 || progress.checks.length > 0;
+
 const completedAfter = (plan: RecordPlan, progress: InstallProgress): boolean => {
   if (progress.applied) {
     return true;
   }
 
-  const decided =
-    progress.written.length > 0 || progress.removed.length > 0 || progress.checks.length > 0;
-
-  return plan.earlierCompleted && !decided;
+  return plan.earlierCompleted && !decided(progress);
 };
 
 const originAfter = (
@@ -1094,10 +1092,7 @@ const originAfter = (
   progress: InstallProgress,
   completed: boolean,
 ): InstallOrigin => {
-  const untouched =
-    progress.written.length === 0 && progress.removed.length === 0 && progress.checks.length === 0;
-
-  const unchanged = !progress.applied && untouched;
+  const unchanged = !progress.applied && !decided(progress);
 
   // Nothing ran and nothing changed, so the files still belong to the earlier install.
   if (unchanged && plan.earlierOrigin !== null) {
@@ -1212,7 +1207,7 @@ const publishAndRecord = async (
 export const install = async (options: InstallOptions): Promise<InstallResult> => {
   const home = resolve(options.home);
   const roots = options.roots ?? { userHome: resolve(homedir()), temporary: resolve(tmpdir()) };
-  const chmodFile = options.chmodFile ?? defaultChmodFile;
+  const chmodFile = options.chmodFile ?? chmod;
   const writeRecordTo = options.writeRecordFile ?? writeRecordFile;
   const temporaryRecordName = options.temporaryRecordName ?? defaultTemporaryRecordName;
   const removeStaging = options.removeStaging ?? removeStagingDirectory;
