@@ -23,7 +23,7 @@ export { hoveredAfter } from './hoverTarget.ts';
 
 export { keycap, keycaps, overlayHints, pressedKeycap } from './keycap.ts';
 
-export type { OverlayHint } from './keycap.ts';
+export type { OverlayHint } from './shortcutBinding.ts';
 
 export { listRow } from './listRow.ts';
 

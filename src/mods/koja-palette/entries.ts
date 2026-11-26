@@ -7,7 +7,7 @@ import {
   swapPaneTitles,
 } from '../../kit/commandTitles.ts';
 import type { IconName } from '../../kit/iconNames.ts';
-import type { ModeHint } from '../../kit/shortcutBinding.ts';
+import type { OverlayHint } from '../../kit/shortcutBinding.ts';
 import type { ThemeChoice } from '../../kit/themes.ts';
 import type { FuzzyMatch } from './fuzzy.ts';
 import { fuzzyMatch } from './fuzzy.ts';
@@ -41,7 +41,7 @@ export interface Row {
   positions: number[];
 }
 
-export type HintLookup = (...actions: string[]) => ModeHint;
+export type HintLookup = (...actions: string[]) => OverlayHint;
 
 export interface GroupHeading {
   label: string;
@@ -378,7 +378,7 @@ export const allEntries = (host: PaletteHost): Entry[] => {
   ];
 };
 
-export const entryHint = (entry: Entry, hint: HintLookup): ModeHint =>
+export const entryHint = (entry: Entry, hint: HintLookup): OverlayHint =>
   hint(bindingAction(entry.name, entry.args));
 
 export const headingOf = (group: string): GroupHeading =>

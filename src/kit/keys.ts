@@ -55,7 +55,7 @@ const keyLabel = (key: string): string => {
   return key.charAt(0).toUpperCase() + key.slice(1).toLowerCase();
 };
 
-const formatStroke = (stroke: string, platform: Platform): string => {
+export const formatStroke = (stroke: string, platform: Platform): string => {
   const { held, key } = splitStroke(stroke);
   const heldModifiers = new Set(held.map((modifier) => modifierAlias(modifier, platform)));
 
@@ -72,10 +72,13 @@ const formatStroke = (stroke: string, platform: Platform): string => {
   return parts.join(separator);
 };
 
-export const formatKeys = (keys: string, platform: Platform): string =>
+export const keyStrokes = (keys: string): string[] =>
   keys
     .trim()
     .split(/\s+/)
-    .filter((stroke) => stroke !== '')
+    .filter((stroke) => stroke !== '');
+
+export const formatKeys = (keys: string, platform: Platform): string =>
+  keyStrokes(keys)
     .map((stroke) => formatStroke(stroke, platform))
     .join(' ');

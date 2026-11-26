@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { bindingAction } from './binding.ts';
 import type { KeyBinding } from './shortcutBinding.ts';
 import { bindingFor, hintFor } from './shortcutBinding.ts';
 
@@ -106,5 +107,29 @@ describe('hintFor', () => {
 
   test('leaves the insert hint out without a global binding', () => {
     expect(hintFor([], 'linux', 'pane.split:right')).toEqual({ normal: ['w', 'v'] });
+  });
+
+  test('draws a modified normal-mode stroke in its display form', () => {
+    expect(hintFor([], 'linux', bindingAction('terminal.scroll', { pages: -0.5 }))).toEqual({
+      normal: ['Ctrl+U'],
+    });
+  });
+
+  test('keeps a plain shifted normal-mode key whole, so its cap marks the shift', () => {
+    expect(hintFor([], 'linux', bindingAction('tab.move', { by: -1 }))).toEqual({
+      normal: ['t', 'H'],
+    });
+  });
+
+  test('ignores a binding outside the global section in insert mode', () => {
+    const bindings = [binding('palette.open', 'ctrl-shift-p', 'pane')];
+
+    expect(hintFor(bindings, 'linux', 'palette.open')).toEqual({ normal: [] });
+  });
+
+  test('falls back to a later action when the first has no hint', () => {
+    expect(hintFor([], 'linux', 'unknown.action', 'pane.split:right')).toEqual({
+      normal: ['w', 'v'],
+    });
   });
 });
