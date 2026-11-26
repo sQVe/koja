@@ -11,7 +11,7 @@ export interface ContentSectionOptions {
   name: string;
   count?: number;
   open: boolean;
-  parts?: Element[];
+  parts: Element[];
   // Folds and unfolds the section from its header.
   onToggle?: (cx: Context) => void;
 }
@@ -54,5 +54,5 @@ export const contentSection = (options: ContentSectionOptions): Element => {
     return section;
   }
 
-  return section.children(options.parts ?? []);
+  return section.children(options.parts);
 };

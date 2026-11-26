@@ -157,6 +157,16 @@ export const drawnTooltips = (element: DrawnElement): string[] =>
     .map((part) => part.tooltipText)
     .filter((tooltip): tooltip is string => tooltip !== null);
 
+export const numberStyle = (element: DrawnElement | undefined, style: string): number => {
+  const value = element?.styles[style]?.[0];
+
+  if (typeof value !== 'number') {
+    throw new TypeError(`The drawn element has no ${style} style.`);
+  }
+
+  return value;
+};
+
 export const elementWithText = (element: DrawnElement, text: string): DrawnElement | null =>
   descendants(element).find((part) => part.texts.includes(text)) ?? null;
 

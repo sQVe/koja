@@ -12,8 +12,10 @@ export type IconSize = keyof typeof iconSize;
 export const icon = (name: IconName, size: IconSize = 'default'): Element =>
   svg(`mods/${modName}/icons/${name}.svg`).size(iconSize[size]).flex_none();
 
+export const spinnerIcon = (size: IconSize = 'xsmall'): Element => icon('loader-circle', size);
+
 export const spinner = (size: IconSize = 'xsmall'): Element =>
-  icon('loader-circle', size).spin(spinnerPeriod);
+  spinnerIcon(size).spin(spinnerPeriod);
 
 export const programIcon = (program: Program | null, size: IconSize = 'large'): Element => {
   const path = program?.icon ?? null;

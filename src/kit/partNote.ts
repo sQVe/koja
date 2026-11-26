@@ -34,6 +34,7 @@ const retryAction = (onRetry: ((cx: Context) => void) | undefined): Element => {
     .cursor_pointer()
     .hover((style) => style.bg(palette.hover))
     .on_click((_event, cx) => {
+      cx.stop_propagation();
       onRetry(cx);
     });
 };
@@ -42,12 +43,11 @@ const retryAction = (onRetry: ((cx: Context) => void) | undefined): Element => {
 export const partNote = (options: PartNoteOptions): Element => {
   const note = `Could not sync ${options.part} · showing ${options.part} from ${options.age}`;
 
-  const line = stateLine({
+  return stateLine({
     kind: 'error',
     text: note,
     action: retryAction(options.onRetry),
     paddingStart: sidebarSize.rowContentInset,
+    wrap: true,
   });
-
-  return line;
 };

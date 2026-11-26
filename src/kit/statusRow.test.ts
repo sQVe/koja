@@ -7,6 +7,7 @@ import {
   drawnTexts,
   elementWithIcon,
   elementWithText,
+  numberStyle,
   spinning,
 } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
@@ -55,18 +56,15 @@ const staleRunning: StatusRowOptions = {
 
 const frameOf = (row: DrawnElement): DrawnElement => row.kids[0] as DrawnElement;
 
-const firstNumber = (element: DrawnElement | undefined, style: string): number =>
-  Number(element?.styles[style]?.[0]);
-
 const nameEdge = (row: DrawnElement): number => {
   const frame = frameOf(row);
 
   return (
-    firstNumber(frame, 'mx') +
-    firstNumber(frame, 'border') +
-    firstNumber(frame, 'pl') +
-    firstNumber(frame.kids[0], 'w') +
-    firstNumber(frame, 'gap')
+    numberStyle(frame, 'mx') +
+    numberStyle(frame, 'border') +
+    numberStyle(frame, 'pl') +
+    numberStyle(frame.kids[0], 'w') +
+    numberStyle(frame, 'gap')
   );
 };
 
@@ -79,8 +77,17 @@ describe('statusRow', () => {
     expect(elementWithText(row, 'running')?.textColors).toEqual([palette.dim]);
   });
 
-  test('a live running row animates its mark', () => {
-    expect(spinning(statusRow({ ...staleRunning, stale: false }))).toBe(true);
+  test('a live running row animates its mark and colours its state word', () => {
+    const live = statusRow({ ...staleRunning, stale: false });
+
+    expect(spinning(live)).toBe(true);
+    expect(elementWithText(live, 'running')?.textColors).toEqual([palette.working]);
+  });
+
+  test('a row can keep its state word dim when the state is not the mark', () => {
+    const row = statusRow({ ...staleRunning, stale: false, stateTone: 'dim' });
+
+    expect(elementWithText(row, 'running')?.textColors).toEqual([palette.dim]);
   });
 
   test('a row draws its name, its state word, and then its detail line', () => {
@@ -102,11 +109,12 @@ describe('statusRow', () => {
   });
 
   test('every mark kind keeps the same slot, so the names share one edge', () => {
-    const nameEdges = ['failing', 'working', 'done', 'review', null].map((mark) =>
-      nameEdge(statusRow({ mark: mark as StatusRowOptions['mark'], name: 'typecheck' })),
-    );
+    const marks: StatusRowOptions['mark'][] = ['failing', 'working', 'done', 'review', null];
+    const nameEdges = marks.map((mark) => nameEdge(statusRow({ mark, name: 'typecheck' })));
+    const firstEdge = nameEdges[0] ?? Number.NaN;
 
-    expect(new Set(nameEdges).size).toBe(1);
+    expect(Number.isFinite(firstEdge)).toBe(true);
+    expect(nameEdges).toEqual(marks.map(() => firstEdge));
   });
 
   test('a status keeps its mark in the slot and a done row draws the check', () => {
@@ -119,6 +127,6 @@ describe('statusRow', () => {
   test('the detail line starts under the name', () => {
     const row = statusRow(staleRunning);
 
-    expect(row.kids[1]?.styles['ml']).toEqual([nameEdge(row)]);
+    expect(numberStyle(row.kids[1], 'pl')).toBe(nameEdge(row));
   });
 });

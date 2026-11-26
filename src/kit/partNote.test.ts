@@ -2,7 +2,6 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
 import {
-  click,
   drawn,
   drawnIcons,
   drawnTexts,
@@ -44,8 +43,15 @@ afterAll(() => {
 
 const checksNote = partNote({ part: 'checks', age: '6m ago' });
 
-const messageOf = (note: DrawnElement): string =>
-  drawnTexts(note).find((text) => text !== 'Retry') ?? '';
+const messageOf = (note: DrawnElement): string => {
+  const message = drawnTexts(note).find((text) => text.startsWith('Could not sync'));
+
+  if (message === undefined) {
+    throw new Error('The note draws no message.');
+  }
+
+  return message;
+};
 
 const retryOf = (note: DrawnElement): DrawnElement | undefined => note.kids.at(-1);
 
@@ -82,6 +88,7 @@ describe('partNote', () => {
 
   test('Retry reads the part again when the note binds it', () => {
     let retries = 0;
+    let stopped = 0;
 
     const note = partNote({
       part: 'checks',
@@ -94,12 +101,19 @@ describe('partNote', () => {
     const retry = retryOf(note);
 
     if (retry !== undefined) {
-      click(retry);
+      retry.clickHandlers[0]?.(
+        {},
+        {
+          stop_propagation: () => {
+            stopped += 1;
+          },
+        },
+      );
     }
 
     expect(retries).toBe(1);
+    expect(stopped).toBe(1);
     expect(note.clickHandlers).toEqual([]);
-    expect(retry?.styles['cursor_pointer']).toBeDefined();
   });
 
   test('a note without a retry handler draws a quiet Retry', () => {

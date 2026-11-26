@@ -6,7 +6,7 @@ import type { Status } from 'herdr';
 import type { AttentionStatus } from './attentionStatus.ts';
 import type { FileStatus } from './fileStatus.ts';
 import { fileStatusColor } from './fileStatus.ts';
-import { icon, spinner } from './icon.ts';
+import { icon, spinner, spinnerIcon } from './icon.ts';
 import type { ThemeToken } from './palette.ts';
 import { badgeFillAlpha, withAlpha } from './palette.ts';
 import { controlSize, markSize, radius, spacing, textSize } from './size.ts';
@@ -16,6 +16,7 @@ import { colors } from './theme.ts';
 type ShownAttention = Exclude<AttentionStatus, 'idle'>;
 
 export interface StatusMarkOptions {
+  // Draws the working mark still, for a row of a part that failed to refresh. No other mark moves.
   still?: boolean;
 }
 
@@ -43,7 +44,7 @@ export const statusMark = (status: Status | null, options: StatusMarkOptions = {
   }
 
   if (status === 'working') {
-    const workingMark = options.still === true ? icon('loader-circle', 'xsmall') : spinner();
+    const workingMark = options.still === true ? spinnerIcon() : spinner();
 
     return slot.child(workingMark.text_color(palette.working));
   }
