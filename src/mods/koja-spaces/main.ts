@@ -37,6 +37,14 @@ import {
   spacing,
   withTextRole,
 } from '../../kit/index.ts';
+import type { SpaceSelection, SpaceSelectionDeps } from '../../kit/space/spaceSelection.ts';
+import {
+  readSpaceSelection,
+  runSpaceCommand,
+  selectionMoved,
+} from '../../kit/space/spaceSelection.ts';
+import type { SpaceOrder } from '../../kit/spaceOrder.ts';
+import { closedSpaceCommand } from '../../kit/spaceOrder.ts';
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import { answeredPlaces, gitInfoAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
@@ -56,6 +64,12 @@ import type { WaitTimes } from './waitTimes.ts';
 import { advanceWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
 
 type SidebarDrag = { kind: 'space'; state: DragState } | { kind: 'project'; state: DragState };
+
+interface SidebarWatch {
+  focused: string | null;
+  order: SpaceOrder | null;
+  selection: SpaceSelection | null;
+}
 
 // Herdr's runtime has the Web Crypto global, but its declarations do not name it.
 declare const crypto: { randomUUID: () => string };
@@ -102,6 +116,12 @@ export default class Spaces extends View {
 
   private waitTimes: WaitTimes = readWaitTimes(storage.get(waitTimesKey));
 
+  private watched: SidebarWatch = {
+    focused: null,
+    order: null,
+    selection: readSpaceSelection(shared),
+  };
+
   private visibility: VisibilityState = initialVisibility(liveSpaceIds());
 
   private drag: SidebarDrag = { kind: 'space', state: noDrag };
@@ -145,6 +165,11 @@ export default class Spaces extends View {
     this.statuses = rollupStatuses(spaces(), panes(), terminals());
     this.visibility = this.advance(state);
 
+    const projects = this.projects(state);
+    const ids = liveSpaceIds();
+    const order = this.order.publish(projects, ids);
+
+    this.followClose(order);
     this.followMark(isSidebarMarked());
 
     const topStrip = div().flex_none().h(topStripHeight());
@@ -165,7 +190,7 @@ export default class Spaces extends View {
         this.endDrag();
         cx.notify();
       })
-      .children(this.listRows(state));
+      .children(this.listRows(state, projects, ids));
 
     return withTextRole(v_flex(), 'body')
       .size_full()
@@ -184,6 +209,28 @@ export default class Spaces extends View {
       this.pullRetries.settle(Date.now());
       this.checkWaits(timerCx);
     });
+  }
+
+  private followClose(order: SpaceOrder | null): void {
+    const focused = activeSpaceId();
+    const selection = readSpaceSelection(shared);
+    const liveIds = liveSpaceIds();
+
+    const command = closedSpaceCommand({
+      closedId: this.watched.focused,
+      order: this.watched.order,
+      liveIds,
+    });
+
+    const moved = selectionMoved(this.watched.selection, selection, this.watched.focused, liveIds);
+
+    this.watched = { focused, order, selection };
+
+    if (command !== null && !moved) {
+      // A record here would bump the count selectionMoved reads, and a record naming the closed
+      // space is ignored because its id is not live.
+      run(command.name, command.args);
+    }
   }
 
   private followMark(marked: boolean): void {
@@ -209,6 +256,10 @@ export default class Spaces extends View {
     });
   }
 
+  private selectionDeps(): SpaceSelectionDeps {
+    return { run, get: shared, set: setShared, shown: activeSpaceId };
+  }
+
   private applyCommand(command: string, cx: Context): void {
     const action = listActionOf(command);
 
@@ -230,7 +281,10 @@ export default class Spaces extends View {
     this.revealCursor = true;
 
     if (result.select !== null) {
-      run('space.select', { id: result.select });
+      runSpaceCommand(this.selectionDeps(), {
+        name: 'space.select',
+        args: { id: result.select },
+      });
     }
 
     cx.notify();
@@ -276,6 +330,8 @@ export default class Spaces extends View {
     const result = this.advance(readDataState(shared, Date.now()));
 
     this.visibility = result;
+
+    this.followClose(this.order.published());
 
     if (result.changed || result.waiting || waitsChanged) {
       cx.notify();
@@ -415,9 +471,7 @@ export default class Spaces extends View {
     this.pullRetries.request(git.repo.key, Date.now());
   };
 
-  private listRows(state: DataState): Element[] {
-    const projects = this.projects(state);
-    const ids = spaces().map((space) => space.id);
+  private listRows(state: DataState, projects: Project[], ids: readonly string[]): Element[] {
     const cursor = this.cursorRow(projects);
     const now = Date.now();
     const pulls = pullFactsOf(state);
@@ -431,8 +485,6 @@ export default class Spaces extends View {
 
       return element;
     };
-
-    this.order.publish(projects, ids);
 
     const keys = projects.map((project) => project.key);
 
@@ -506,7 +558,10 @@ export default class Spaces extends View {
         run('space.move', { id: move.id, index: move.index });
       }
     } else if (action?.kind === 'select' && project.main !== null) {
-      run('space.select', { id: project.main.space.id });
+      runSpaceCommand(this.selectionDeps(), {
+        name: 'space.select',
+        args: { id: project.main.space.id },
+      });
     }
 
     cx.notify();
@@ -597,7 +652,10 @@ export default class Spaces extends View {
         run('space.move', { id: move.id, index: move.index });
       }
     } else if (action?.kind === 'select') {
-      run('space.select', { id: action.id });
+      runSpaceCommand(this.selectionDeps(), {
+        name: 'space.select',
+        args: { id: action.id },
+      });
     }
 
     cx.notify();

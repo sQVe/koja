@@ -1,9 +1,10 @@
-import { focused, panes, run, shared, spaces, terminals } from 'herdr';
+import { focused, panes, run, setShared, shared, spaces, terminals } from 'herdr';
 
 import type { AskFacts } from './askPlan.ts';
 import { dialogFor } from './askPlan.ts';
 import { openConfirm, openPrompt } from './dialogOpen.ts';
 import { recordOf, stringOf } from './fields.ts';
+import { runSpaceCommand } from './space/spaceSelection.ts';
 import { readSpaceOrder, spaceStepCommand } from './spaceOrder.ts';
 
 const spaceSteps = new Map([
@@ -13,15 +14,19 @@ const spaceSteps = new Map([
 
 const stepSpace = (step: number): void => {
   const liveIds = spaces().map((space) => space.id);
+  const current = focused()?.space ?? null;
 
   const command = spaceStepCommand(step, {
     order: readSpaceOrder(shared),
     liveIds,
-    current: focused()?.space ?? null,
+    current,
   });
 
   if (command !== null) {
-    run(command.name, command.args);
+    runSpaceCommand(
+      { run, get: shared, set: setShared, shown: () => focused()?.space ?? null },
+      command,
+    );
   }
 };
 

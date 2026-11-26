@@ -15,6 +15,10 @@ export interface SpaceStepFacts extends LiveSpaceFacts {
   current: string | null;
 }
 
+export interface SpaceCloseFacts extends LiveSpaceFacts {
+  closedId: string | null;
+}
+
 export interface SpaceCommand {
   name: string;
   args?: Record<string, unknown>;
@@ -100,6 +104,47 @@ export const spaceStepCommand = (step: number, facts: SpaceStepFacts): SpaceComm
   }
 
   if (target === facts.current) {
+    return null;
+  }
+
+  return { name: 'space.select', args: { id: target } };
+};
+
+const nearestLiveBefore = (
+  shown: readonly string[],
+  index: number,
+  live: ReadonlySet<string>,
+): string | null => shown.slice(0, index).findLast((id) => live.has(id)) ?? null;
+
+const nearestLiveAfter = (
+  shown: readonly string[],
+  index: number,
+  live: ReadonlySet<string>,
+): string | null => shown.slice(index + 1).find((id) => live.has(id)) ?? null;
+
+export const closedSpaceCommand = (facts: SpaceCloseFacts): SpaceCommand | null => {
+  const order = facts.order;
+  const closedId = facts.closedId;
+
+  if (order === null || closedId === null) {
+    return null;
+  }
+
+  if (facts.liveIds.includes(closedId)) {
+    return null;
+  }
+
+  const index = order.shown.indexOf(closedId);
+
+  if (index === -1) {
+    return null;
+  }
+
+  const live = new Set(facts.liveIds);
+  const above = nearestLiveBefore(order.shown, index, live);
+  const target = above ?? nearestLiveAfter(order.shown, index, live);
+
+  if (target === null) {
     return null;
   }
 

@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { SpaceCommand, SpaceOrder, SpaceStepFacts } from './spaceOrder.ts';
+import type { SpaceCloseFacts, SpaceCommand, SpaceOrder, SpaceStepFacts } from './spaceOrder.ts';
 import {
   clearSpaceOrder,
+  closedSpaceCommand,
   readSpaceOrder,
   rootStepCommand,
   spaceStepCommand,
@@ -262,5 +263,54 @@ const rootSteps: [string, number, SpaceStepFacts, SpaceCommand | null][] = [
 describe('rootStepCommand', () => {
   test.each(rootSteps)('%s', (_name, step, given, expected) => {
     expect(rootStepCommand(step, given)).toEqual(expected);
+  });
+});
+
+const closing = (
+  closedId: string | null,
+  published: SpaceOrder | null,
+  liveIds: string[],
+): SpaceCloseFacts => ({ closedId, order: published, liveIds });
+
+const closeSteps: [string, SpaceCloseFacts, SpaceCommand | null][] = [
+  [
+    'selects the space above the closed one',
+    closing('worktree', order(sidebar), ['main', 'notes']),
+    select('main'),
+  ],
+  [
+    'selects the space below when the closed space was the first row',
+    closing('main', order(sidebar), ['worktree', 'notes']),
+    select('worktree'),
+  ],
+  [
+    'selects the last space of the project above',
+    closing('beta', order(['alpha', 'alpha-work', 'beta']), ['alpha', 'alpha-work']),
+    select('alpha-work'),
+  ],
+  [
+    'selects the space below when no row above is still live',
+    closing('worktree', order(sidebar), ['notes']),
+    select('notes'),
+  ],
+  ['skips a space that closed with it', closing('notes', order(sidebar), ['main']), select('main')],
+  [
+    'does nothing when the closed space is still live',
+    closing('worktree', order(sidebar), sidebar),
+    null,
+  ],
+  ['does nothing when no space had focus', closing(null, order(sidebar), ['main', 'notes']), null],
+  ['does nothing without a published order', closing('worktree', null, ['main', 'notes']), null],
+  [
+    'does nothing when the closed space was not a sidebar row',
+    closing('worktree', order(['main', 'notes'], ['worktree']), ['main', 'notes']),
+    null,
+  ],
+  ['does nothing when no space is left', closing('main', order(['main']), []), null],
+];
+
+describe('closedSpaceCommand', () => {
+  test.each(closeSteps)('%s', (_name, given, expected) => {
+    expect(closedSpaceCommand(given)).toEqual(expected);
   });
 });

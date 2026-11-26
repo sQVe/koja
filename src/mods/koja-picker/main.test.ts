@@ -1,8 +1,15 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
+import type { PaneInfo, Program, SpaceInfo, TabInfo } from 'herdr';
+
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 
 type KeyHandler = (event: { key: string; modifiers: { control: boolean } }, cx: unknown) => void;
+
+interface RunCall {
+  command: string;
+  args: Record<string, unknown> | undefined;
+}
 
 // The build defines this global for each mod; the picker's preview code reads it at load time.
 Object.assign(globalThis, { kojaModName: 'koja-picker' });
@@ -10,6 +17,10 @@ Object.assign(globalThis, { kojaModName: 'koja-picker' });
 let keyDownHandler: KeyHandler | null = null;
 let closeOverlayCalls = 0;
 let props: Record<string, unknown> = {};
+let spaceValues: SpaceInfo[] = [];
+let paneValues: PaneInfo[] = [];
+let focusedValue: { space: string } | null = null;
+let runCalls: RunCall[] = [];
 let sharedValues: Record<string, unknown> = {};
 let sharedWrites: string[] = [];
 let keyBindings: { keystroke: string; action: string; context?: string }[] = [];
@@ -71,12 +82,19 @@ const chainable = (onKeyDown?: (handler: KeyHandler) => void): unknown => {
 
 let inputValue = '';
 let inputChange: ((cx: unknown) => void) | null = null;
+let inputSubmit: (() => void) | null = null;
 
 const inputStub = {
   on: (event: string, handler: (event: unknown, cx: unknown) => void) => {
     if (event === 'change') {
       inputChange = (cx) => {
         handler({}, cx);
+      };
+    }
+
+    if (event === 'submit') {
+      inputSubmit = () => {
+        handler({}, renderedContext);
       };
     }
   },
@@ -117,17 +135,21 @@ await mock.module('herdr', () =>
 
       return { code: 0, stdout: '/tmp/koja-picker.test\n', stderr: '' };
     },
-    focused: () => null,
+    focused: () => focusedValue,
     hc: async (...args: unknown[]) => {
       recordEffect('hc', null)(...args);
 
       return { code: 0, stdout: 'w1:p1\n', stderr: '' };
     },
     nextCommand: () => new Promise<string>(() => {}),
-    panes: () => [],
+    panes: () => paneValues,
     props: () => props,
     readTextFile: async (...args: unknown[]) => recordEffect('readTextFile', null)(...args),
-    run: recordEffect('run', null),
+    run: (command: string, args?: Record<string, unknown>) => {
+      runCalls.push({ command, args });
+
+      return null;
+    },
     setShared: (key: string, value: unknown) => {
       sharedValues[key] = value;
       sharedWrites.push(key);
@@ -135,7 +157,7 @@ await mock.module('herdr', () =>
       return null;
     },
     shared: (key: string) => sharedValues[key],
-    spaces: () => [],
+    spaces: () => spaceValues,
     terminals: () => [],
     writeTextFile: async (...args: unknown[]) => recordEffect('writeTextFile', null)(...args),
   }),
@@ -231,6 +253,11 @@ beforeEach(() => {
   emptyText = '';
   inputValue = '';
   inputChange = null;
+  inputSubmit = null;
+  spaceValues = [];
+  paneValues = [];
+  focusedValue = null;
+  runCalls = [];
   checkingNow = false;
   overlayNow = null;
   sideEffects = [];
@@ -250,6 +277,60 @@ const resumedPreview = {
     viewer: 'w1:p1',
   },
 };
+
+const shell: Program = {
+  key: 'shell',
+  name: 'zsh',
+  icon: null,
+  tint: false,
+  tile: null,
+  color: null,
+  shell: true,
+  agent: false,
+};
+
+const tabOf = (id: string, index: number): TabInfo => ({
+  id,
+  index,
+  name: String(index),
+  named: false,
+  active: index === 1,
+  status: null,
+  panes: 1,
+  zoomed: false,
+  settled: false,
+  settled_at: null,
+  changed_at: null,
+  working_since: null,
+});
+
+const spaceOf = (id: string, index: number, tabs: TabInfo[]): SpaceInfo => ({
+  id,
+  index,
+  name: `name-${id}`,
+  named: true,
+  folder: `/code/${id}`,
+  machine: null,
+  branch: null,
+  active: index === 1,
+  status: null,
+  tabs,
+});
+
+const paneOf = (pane: string, tab: string): PaneInfo => ({
+  pane,
+  terminal: `terminal-${pane}`,
+  tab,
+  title: `title-${pane}`,
+  cwd: null,
+  branch: null,
+  status: null,
+  app: null,
+  program: shell,
+  focused: false,
+  zoomed: false,
+  movable: true,
+});
 
 describe('picker preview during herdr-app check', () => {
   test('a list with a running preview starts no process and writes no file', async () => {
@@ -424,5 +505,59 @@ describe('picker overlay state', () => {
     view.close();
 
     expect(overlayCloseCount()).toBe(2);
+  });
+});
+
+describe('picker space choice', () => {
+  test('choosing a space records the selection it runs', async () => {
+    spaceValues = [spaceOf('s1', 1, []), spaceOf('s2', 2, [])];
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+    keyDownHandler?.({ key: 'down', modifiers: { control: false } }, renderedContext);
+    inputSubmit?.();
+
+    expect(sharedValues['spaces.selection']).toEqual({ version: 1, count: 1, id: 's2' });
+    expect(runCalls).toContainEqual({ command: 'space.select', args: { id: 's2' } });
+  });
+});
+
+describe('picker tab and pane choice', () => {
+  const chooseRow = async (downs: number): Promise<void> => {
+    focusedValue = { space: 's1' };
+
+    spaceValues = [
+      spaceOf('s1', 1, [tabOf('k1', 1)]),
+      spaceOf('s2', 2, [tabOf('n1', 1), tabOf('n2', 2)]),
+    ];
+
+    paneValues = [paneOf('p1', 'k1'), paneOf('p2', 'n1'), paneOf('p3', 'n1'), paneOf('p4', 'n2')];
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    for (let step = 0; step < downs; step += 1) {
+      keyDownHandler?.({ key: 'down', modifiers: { control: false } }, renderedContext);
+    }
+
+    inputSubmit?.();
+  };
+
+  test('a tab row in another space records that space', async () => {
+    await chooseRow(1);
+
+    expect(sharedValues['spaces.selection']).toEqual({ version: 1, count: 1, id: 's2' });
+    expect(runCalls).toContainEqual({ command: 'tab.select', args: { id: 'n1' } });
+  });
+
+  test('a pane row in another space records that space', async () => {
+    await chooseRow(2);
+
+    expect(sharedValues['spaces.selection']).toEqual({ version: 1, count: 1, id: 's2' });
+    expect(runCalls).toContainEqual({ command: 'pane.focus', args: { pane: 'p2' } });
   });
 });
