@@ -51,9 +51,6 @@ const loaded = (await import(modulePath)) as {
   createGitScheduler: (dependencies: Dependencies, lease: Lease, seed: GitFacts) => SchedulerLike;
 };
 
-export const placeKeyOf = (machine: string | null, folder: string): string =>
-  placeOf(machine, folder).key;
-
 const ok: ExecResult = { code: 0, stdout: '', stderr: '' };
 
 const shell: Program = {
@@ -213,11 +210,11 @@ export class GitSchedulerHarness {
   }
 
   setFolder(machine: string | null, folder: string, git: FolderGit): void {
-    this.folders[placeKeyOf(machine, folder)] = git;
+    this.folders[placeOf(machine, folder).key] = git;
   }
 
   clearFolder(machine: string | null, folder: string): void {
-    Reflect.deleteProperty(this.folders, placeKeyOf(machine, folder));
+    Reflect.deleteProperty(this.folders, placeOf(machine, folder).key);
   }
 
   setNow(at: number): void {
@@ -282,7 +279,7 @@ export class GitSchedulerHarness {
       return { code: 128, stdout: '', stderr: this.failure };
     }
 
-    const git = this.folders[placeKeyOf(machine, folder)];
+    const git = this.folders[placeOf(machine, folder).key];
 
     if (git === undefined) {
       return { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
@@ -304,7 +301,7 @@ export class GitSchedulerHarness {
   }
 
   private async beginRead(machine: string | null, folder: string): Promise<void> {
-    const key = placeKeyOf(machine, folder);
+    const key = placeOf(machine, folder).key;
     const gate = this.gateOf(key);
 
     if (this.open.size >= readLimit) {

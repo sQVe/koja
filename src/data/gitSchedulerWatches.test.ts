@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
 import {
-  placeKeyOf,
   GitSchedulerHarness,
   mainCheckout,
   spaceOf,
   worldOf,
 } from '../../tests/gitSchedulerHarness.ts';
-import { worktreeOf } from './gitIdentity.ts';
+import { placeOf, worktreeOf } from './gitIdentity.ts';
 
 const harness = new GitSchedulerHarness();
 
@@ -63,7 +62,7 @@ describe('createGitScheduler watches', () => {
 
     expect(harness.watched).toEqual([]);
 
-    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/bare.git')]).toEqual({
+    expect(scheduler.gitFacts().places[placeOf(null, '/code/bare.git').key]).toEqual({
       kind: 'repository',
       worktree: worktreeOf(null, '/code/bare.git').key,
     });
@@ -79,7 +78,7 @@ describe('createGitScheduler watches', () => {
     await harness.complete(harness.startedAt(0));
 
     const watch = harness.watches.at(-1);
-    const key = placeKeyOf(null, '/code/koja');
+    const key = placeOf(null, '/code/koja').key;
 
     expect(scheduler.gitFacts().places[key]).toEqual({
       kind: 'repository',
@@ -128,7 +127,7 @@ describe('createGitScheduler watches', () => {
     scheduler.tick(worldOf([spaceOf('s2', '/code/bare.git')]), harness.context);
 
     expect(harness.watches.at(-1)?.cancelled).toBe(true);
-    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/bare.git')]).toBeDefined();
+    expect(scheduler.gitFacts().places[placeOf(null, '/code/bare.git').key]).toBeDefined();
   });
 
   test('reads once when a smaller representative becomes known during the debounce', async () => {
@@ -202,7 +201,7 @@ describe('createGitScheduler watches', () => {
     await harness.complete(harness.startedAt(2));
 
     const linkedWatch = harness.watches.at(-1);
-    const bare = placeKeyOf(null, '/code/repo');
+    const bare = placeOf(null, '/code/repo').key;
 
     expect(scheduler.gitFacts().places[bare]).toEqual({
       kind: 'repository',

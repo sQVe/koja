@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
+import { fixture } from '../../tests/fixtureJson.ts';
 import type { Lease, ReadShared } from './lease.ts';
 import { claimLease } from './lease.ts';
 import type { PullReadTimes, RepositoryReadTimes } from './pullReadTimes.ts';
@@ -15,9 +14,6 @@ import { createRecordNotices } from './recordNotices.ts';
 import { emptyFacts, snapshotKey } from './snapshot.ts';
 import type { Snapshot } from './snapshot.ts';
 import { readStoredSnapshot } from './storedSnapshot.ts';
-
-const fixture = (name: string): unknown =>
-  JSON.parse(readFileSync(join(import.meta.dir, 'fixtures', name), 'utf8'));
 
 const repositoryKey = JSON.stringify([null, '/code/koja/.git']);
 

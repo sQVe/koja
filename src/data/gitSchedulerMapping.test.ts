@@ -3,12 +3,11 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   GitSchedulerHarness,
   mainCheckout,
-  placeKeyOf,
   spaceOf,
   terminal,
   worldOf,
 } from '../../tests/gitSchedulerHarness.ts';
-import { repositoryOf, worktreeOf } from './gitIdentity.ts';
+import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 
 const harness = new GitSchedulerHarness();
 
@@ -55,8 +54,8 @@ describe('createGitScheduler place mapping fallback', () => {
     await harness.complete(harness.startedAt(0));
     await harness.complete(harness.startedAt(1));
 
-    const rootKey = placeKeyOf(remote, remoteRoot);
-    const aliasKey = placeKeyOf(remote, remoteAlias);
+    const rootKey = placeOf(remote, remoteRoot).key;
+    const aliasKey = placeOf(remote, remoteAlias).key;
     const shared = worktreeOf(remote, remoteRoot).key;
 
     expect(scheduler.gitFacts().places[rootKey]).toEqual({
@@ -112,7 +111,7 @@ describe('createGitScheduler place mapping fallback', () => {
     scheduler.tick(worldOf([root, alias]), harness.context);
     await harness.complete(harness.startedAt(1));
 
-    const aliasKey = placeKeyOf(null, aliasFolder);
+    const aliasKey = placeOf(null, aliasFolder).key;
     const linkedWorktree = worktreeOf(null, aliasFolder).key;
     const revisionBefore = harness.revision();
 
@@ -152,7 +151,7 @@ describe('createGitScheduler place mapping fallback', () => {
     scheduler.tick(worldOf([root, alias]), harness.context);
     await harness.complete(harness.startedAt(1));
 
-    const aliasKey = placeKeyOf(null, aliasFolder);
+    const aliasKey = placeOf(null, aliasFolder).key;
     const revisionBefore = harness.revision();
 
     harness.setFolder(null, aliasFolder, linkedCheckout('/code/other', 'a', rootFolder, 'release'));
@@ -205,7 +204,7 @@ describe('createGitScheduler place mapping fallback', () => {
     harness.setFolder(null, rootFolder, { ...mainCheckout(rootFolder), branch: 'feature\n' });
     harness.setFolder(null, aliasFolder, { ...mainCheckout(rootFolder), branch: 'feature\n' });
 
-    const aliasKey = placeKeyOf(null, aliasFolder);
+    const aliasKey = placeOf(null, aliasFolder).key;
     const mappingBefore = structuredClone(scheduler.gitFacts().places[aliasKey]);
     const revisionBefore = harness.revision();
     const publishedBefore = harness.published.length;
@@ -306,7 +305,7 @@ describe('createGitScheduler place mapping fallback', () => {
 
     await harness.complete(harness.startedAt(2));
 
-    expect(scheduler.gitFacts().places[placeKeyOf(null, extraFolder)]).toEqual({
+    expect(scheduler.gitFacts().places[placeOf(null, extraFolder).key]).toEqual({
       kind: 'repository',
       worktree: sharedWorktree,
     });
@@ -328,7 +327,7 @@ describe('createGitScheduler place mapping fallback', () => {
     await harness.complete(harness.startedAt(0));
     await harness.complete(harness.startedAt(1));
 
-    const aliasKey = placeKeyOf(null, aliasFolder);
+    const aliasKey = placeOf(null, aliasFolder).key;
     const revisionBefore = harness.revision();
 
     harness.setFolder(null, aliasFolder, {

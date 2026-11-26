@@ -3,11 +3,10 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   GitSchedulerHarness,
   mainCheckout,
-  placeKeyOf,
   spaceOf,
   worldOf,
 } from '../../tests/gitSchedulerHarness.ts';
-import { worktreeOf } from './gitIdentity.ts';
+import { placeOf, worktreeOf } from './gitIdentity.ts';
 
 const harness = new GitSchedulerHarness();
 
@@ -65,7 +64,7 @@ describe('createGitScheduler', () => {
 
     await harness.complete(harness.startedAt(0));
 
-    const left = placeKeyOf(null, '/code/koja');
+    const left = placeOf(null, '/code/koja').key;
 
     expect(harness.watched).toEqual([]);
 
@@ -77,7 +76,7 @@ describe('createGitScheduler', () => {
 
     expect(harness.watched).toEqual(['/code/tikk/.git']);
 
-    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/tikk')]).toEqual({
+    expect(scheduler.gitFacts().places[placeOf(null, '/code/tikk').key]).toEqual({
       kind: 'repository',
       worktree: worktreeOf(null, '/code/tikk').key,
     });
@@ -104,7 +103,7 @@ describe('createGitScheduler', () => {
     harness.failure = 'fatal: the machine is unreachable';
     await harness.complete(harness.startedAt(1));
 
-    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/koja')]).toEqual({
+    expect(scheduler.gitFacts().places[placeOf(null, '/code/koja').key]).toEqual({
       kind: 'repository',
       worktree: worktreeOf(null, '/code/koja').key,
     });
@@ -143,7 +142,7 @@ describe('createGitScheduler', () => {
 
       await harness.complete(harness.startedAt(1 + index));
 
-      expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/koja')]).toEqual({
+      expect(scheduler.gitFacts().places[placeOf(null, '/code/koja').key]).toEqual({
         kind: 'repository',
         worktree: worktreeOf(null, '/code/koja').key,
       });
@@ -161,7 +160,7 @@ describe('createGitScheduler', () => {
     scheduler.tick(world, harness.context);
     await harness.complete(harness.startedAt(0));
 
-    const key = placeKeyOf(null, '/code/koja');
+    const key = placeOf(null, '/code/koja').key;
 
     expect(harness.published.at(-1)?.places[key]).toEqual({ kind: 'failed' });
     expect(harness.revision()).toBe(1);
@@ -185,7 +184,7 @@ describe('createGitScheduler', () => {
 
     expect(harness.watched).toEqual([]);
 
-    expect(scheduler.gitFacts().places[placeKeyOf('qa-remote', '/srv/app')]).toEqual({
+    expect(scheduler.gitFacts().places[placeOf('qa-remote', '/srv/app').key]).toEqual({
       kind: 'repository',
       worktree: worktreeOf('qa-remote', '/srv/app').key,
     });
@@ -216,7 +215,7 @@ describe('createGitScheduler', () => {
     scheduler.tick(world, harness.context);
     await harness.complete(harness.startedAt(0));
 
-    const key = placeKeyOf(null, '/code/plain');
+    const key = placeOf(null, '/code/plain').key;
 
     expect(harness.published.at(-1)?.places[key]).toEqual({ kind: 'none' });
     expect(harness.watched).toEqual([]);

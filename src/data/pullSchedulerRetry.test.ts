@@ -2,50 +2,25 @@ import { describe, expect, test } from 'bun:test';
 
 import type { ExecResult } from 'herdr';
 
-import { PullSchedulerHarness, pullSchedulerStart } from '../../tests/pullSchedulerHarness.ts';
-import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
-import type { PullRetryRequest } from './pullRetry/pullRetry.ts';
-import type { GitFacts } from './snapshot.ts';
+import { requestFor, start } from '../../tests/pullRetryStore.ts';
+import { gitFactsOf } from '../../tests/pullSchedulerFixtures.ts';
+import { PullSchedulerHarness } from '../../tests/pullSchedulerHarness.ts';
+import { repositoryOf } from './gitIdentity.ts';
 
 const folders = ['/code/a', '/code/b', '/code/c'];
 
-const factsOf = (): GitFacts => {
-  const places: GitFacts['places'] = {};
-  const worktrees: GitFacts['worktrees'] = {};
-
-  for (const folder of folders) {
-    const place = placeOf(null, folder);
-    const worktree = worktreeOf(null, folder);
-
-    places[place.key] = { kind: 'repository', worktree: worktree.key };
-
-    worktrees[worktree.key] = {
-      repository: repositoryOf(null, `${folder}/.git`),
-      root: folder,
-      branch: 'main',
-      linked: false,
-    };
-  }
-
-  return { places, worktrees };
-};
+const git = gitFactsOf(
+  ...folders.map((folder) => ({ repository: repositoryOf(null, `${folder}/.git`), folder })),
+);
 
 const offline: ExecResult = { code: 1, stdout: '', stderr: 'offline' };
 
 const repositoryAt = (folder: string): string => repositoryOf(null, `${folder}/.git`).key;
 
-const requestFor = (repository: string, at: number): PullRetryRequest => ({
-  consumer: 'window-a',
-  id: 'r-1',
-  repository,
-  at,
-});
-
 describe('createPullScheduler Retry', () => {
   test('Retry ignores backoff and the cap', async () => {
     const harness = new PullSchedulerHarness();
     const scheduler = harness.start({ pulls: {}, readTimes: {} });
-    const git = factsOf();
 
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.settle();
@@ -62,7 +37,7 @@ describe('createPullScheduler Retry', () => {
 
     await harness.respondCall(failedRead, offline);
 
-    harness.setNow(pullSchedulerStart + 60_000);
+    harness.setNow(start + 60_000);
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.settle();
 
@@ -79,7 +54,7 @@ describe('createPullScheduler Retry', () => {
 
     expect(harness.calls).toHaveLength(5);
 
-    harness.setRequests([requestFor(repositoryAt('/code/a'), harness.now)]);
+    harness.setRequests([requestFor('window-a', 'r-1', harness.now, repositoryAt('/code/a'))]);
     scheduler.tick(git, new Map(), harness.spawn);
     await harness.settle();
 

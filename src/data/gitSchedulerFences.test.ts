@@ -3,11 +3,10 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   GitSchedulerHarness,
   mainCheckout,
-  placeKeyOf,
   spaceOf,
   worldOf,
 } from '../../tests/gitSchedulerHarness.ts';
-import { worktreeOf } from './gitIdentity.ts';
+import { placeOf, worktreeOf } from './gitIdentity.ts';
 import type { Lease } from './lease.ts';
 import type { GitFacts } from './snapshot.ts';
 import { emptyFacts } from './snapshot.ts';
@@ -107,7 +106,7 @@ describe('createGitScheduler fences', () => {
 
     const worktree = worktreeOf(null, '/code/a').key;
 
-    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/a/sub')]).toEqual({
+    expect(scheduler.gitFacts().places[placeOf(null, '/code/a/sub').key]).toEqual({
       kind: 'repository',
       worktree,
     });
@@ -115,7 +114,7 @@ describe('createGitScheduler fences', () => {
     harness.setFolder(null, '/code/a', { ...mainCheckout('/code/a'), branch: 'old\n' });
     await harness.complete(harness.startedAt(0));
 
-    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/a')]).toBeUndefined();
+    expect(scheduler.gitFacts().places[placeOf(null, '/code/a').key]).toBeUndefined();
 
     scheduler.tick(world, harness.context);
     expect(harness.started).toHaveLength(3);
@@ -124,7 +123,7 @@ describe('createGitScheduler fences', () => {
     harness.setFolder(null, '/code/a', { ...mainCheckout('/code/a'), branch: 'newer\n' });
     await harness.complete(harness.startedAt(2));
 
-    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/a')]).toEqual({
+    expect(scheduler.gitFacts().places[placeOf(null, '/code/a').key]).toEqual({
       kind: 'repository',
       worktree,
     });
@@ -152,7 +151,7 @@ describe('createGitScheduler fences', () => {
     scheduler.tick(worldOf([spaceOf('s2', '/code/a/sub')]), harness.context);
     expect(harness.started).toHaveLength(2);
 
-    const left = placeKeyOf(null, '/code/a');
+    const left = placeOf(null, '/code/a').key;
 
     expect(scheduler.gitFacts().places[left]).toBeUndefined();
 
@@ -201,7 +200,7 @@ describe('createGitScheduler fences', () => {
     harness.setFolder(null, '/code/a', { ...mainCheckout('/code/a'), branch: 'old\n' });
     await harness.complete(harness.startedAt(0));
 
-    expect(scheduler.gitFacts().places[placeKeyOf(null, '/code/a')]).toBeUndefined();
+    expect(scheduler.gitFacts().places[placeOf(null, '/code/a').key]).toBeUndefined();
     expect(harness.published.some(hasOldBranch)).toBe(false);
 
     scheduler.tick(worldOf([spaceOf('s1', '/code/a')]), harness.context);

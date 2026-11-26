@@ -4,7 +4,7 @@ import type { ExecResult, FolderWatch } from 'herdr';
 
 import { spaceOf } from '../../tests/gitSchedulerHarness.ts';
 import { herdrFake } from '../../tests/moduleFakes.ts';
-import { answerFrom } from '../../tests/pullAnswers.ts';
+import { answerFrom, branchCountOf } from '../../tests/pullAnswers.ts';
 import { pullFacts } from '../../tests/pullFacts.ts';
 import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
@@ -107,7 +107,7 @@ const runFake = async (
       return { code: 1, stdout: '', stderr: 'offline' };
     }
 
-    const branchCount = args.filter((argument) => argument.startsWith('branch')).length;
+    const branchCount = branchCountOf(args);
 
     return { code: 0, stdout: answerFrom(branchCount, pullList), stderr: '' };
   }

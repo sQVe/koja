@@ -1,16 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
+import { fixture } from '../../tests/fixtureJson.ts';
 import { repositoryOf } from './gitIdentity.ts';
 import type { RecordNotices, RecordRejection } from './recordNotices.ts';
 import { createRecordNotices } from './recordNotices.ts';
 import type { Snapshot } from './snapshot.ts';
 import { emptyFacts, snapshotKey } from './snapshot.ts';
 import { readStoredSnapshot } from './storedSnapshot.ts';
-
-const fixture = (name: string): unknown =>
-  JSON.parse(readFileSync(join(import.meta.dir, 'fixtures', name), 'utf8'));
 
 const memoryStore =
   (value: unknown) =>

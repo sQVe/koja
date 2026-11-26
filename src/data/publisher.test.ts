@@ -1,7 +1,7 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 
 import { runSnapshotNoticeScenario } from '../../tests/snapshotNoticeLifetime.ts';
-import { placeOf, repositoryOf } from './gitIdentity.ts';
+import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { Lease } from './lease.ts';
 import { claimLease, leaseExpiryMilliseconds } from './lease.ts';
 import { createSnapshotPublisher } from './publisher.ts';
@@ -25,16 +25,14 @@ const memoryStore = () => {
 
 type Store = ReturnType<typeof memoryStore>;
 
-const keyOf = (machine: string | null, path: string): string => JSON.stringify([machine, path]);
-
 const populatedFacts = (folders: string[]): Facts => {
   const places: Record<string, PlaceGit> = {};
   const worktrees: Record<string, WorktreeGit> = {};
 
   for (const folder of folders) {
-    const key = keyOf(null, folder);
+    const key = placeOf(null, folder).key;
 
-    places[placeOf(null, folder).key] = { kind: 'repository', worktree: key };
+    places[key] = { kind: 'repository', worktree: key };
 
     worktrees[key] = {
       repository: repositoryOf(null, `${folder}/.git`),
@@ -51,7 +49,7 @@ const factsWithBranch = (branch: string): Facts => ({
   git: {
     places: {},
     worktrees: {
-      [keyOf(null, '/one')]: {
+      [worktreeOf(null, '/one').key]: {
         repository: repositoryOf(null, '/one/.git'),
         root: '/one',
         branch,

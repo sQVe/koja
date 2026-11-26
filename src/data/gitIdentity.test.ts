@@ -5,8 +5,14 @@ import { join } from 'node:path';
 
 import type { ExecResult } from 'herdr';
 
+import {
+  placeOf,
+  readGitIdentity,
+  repositoryOf,
+  worktreeKeyOf,
+  worktreeOf,
+} from './gitIdentity.ts';
 import type { GitIdentity, RunCommand } from './gitIdentity.ts';
-import { readGitIdentity, worktreeKeyOf } from './gitIdentity.ts';
 
 // Git hooks export variables such as GIT_DIR that would point every command at the outer repository.
 const outsideGit = Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'));
@@ -69,8 +75,6 @@ const makeRepository = async (root: string, name = 'main'): Promise<string> => {
 const read = (folder: string, machine: string | null = null): Promise<GitIdentity> =>
   readGitIdentity(runGit, machine, folder);
 
-const keyOf = (machine: string | null, path: string): string => JSON.stringify([machine, path]);
-
 const exitWith = (code: number, stdout = '', stderr = ''): ExecResult => ({ code, stdout, stderr });
 
 const fakeRunner =
@@ -93,6 +97,10 @@ const isLayoutRead = (args: string[]): boolean =>
 
 const checkoutLayout = ['false', 'false', '/work/.git', '/work/.git'].join('\n');
 
+test('encodes a place key as the machine and path JSON pair', () => {
+  expect(placeOf('box', '/work').key).toBe('["box","/work"]');
+});
+
 describe('readGitIdentity', () => {
   test('maps a subfolder of a linked worktree to that worktree and its repository', async () => {
     await withTemp(async (root) => {
@@ -108,17 +116,17 @@ describe('readGitIdentity', () => {
 
       expect(identity).toEqual({
         kind: 'linked',
-        place: { machine: 'box', folder: subfolder, key: keyOf('box', subfolder) },
+        place: { machine: 'box', folder: subfolder, key: placeOf('box', subfolder).key },
         repository: {
           machine: 'box',
           commonDirectory: join(main, '.git'),
-          key: keyOf('box', join(main, '.git')),
+          key: repositoryOf('box', join(main, '.git')).key,
         },
-        worktree: { machine: 'box', top: linked, key: keyOf('box', linked) },
+        worktree: { machine: 'box', top: linked, key: worktreeOf('box', linked).key },
         branch: { kind: 'named', name: 'feature' },
       });
 
-      expect(worktree).toBe(keyOf('box', linked));
+      expect(worktree).toBe(worktreeOf('box', linked).key);
     });
   });
 
@@ -135,7 +143,7 @@ describe('readGitIdentity', () => {
         branch: { kind: 'named', name: 'main' },
       });
 
-      expect(worktree).toBe(keyOf(null, main));
+      expect(worktree).toBe(worktreeOf(null, main).key);
     });
   });
 
@@ -148,7 +156,7 @@ describe('readGitIdentity', () => {
       expect(identity).toMatchObject({
         kind: 'main',
         repository: { commonDirectory: join(checkout, '.git') },
-        worktree: { top: checkout, key: keyOf(null, checkout) },
+        worktree: { top: checkout, key: worktreeOf(null, checkout).key },
       });
     });
   });
@@ -182,8 +190,8 @@ describe('readGitIdentity', () => {
 
       expect(identity).toEqual({
         kind: 'bare',
-        place: { machine: null, folder: bare, key: keyOf(null, bare) },
-        repository: { machine: null, commonDirectory: bare, key: keyOf(null, bare) },
+        place: { machine: null, folder: bare, key: placeOf(null, bare).key },
+        repository: { machine: null, commonDirectory: bare, key: repositoryOf(null, bare).key },
         branch: { kind: 'named', name: 'main' },
       });
     });
@@ -199,7 +207,7 @@ describe('readGitIdentity', () => {
       const identity = await read(bare);
       const worktree = identity.kind === 'bare' ? worktreeKeyOf(identity) : null;
 
-      expect(worktree).toBe(keyOf(null, bare));
+      expect(worktree).toBe(worktreeOf(null, bare).key);
     });
   });
 
@@ -214,7 +222,7 @@ describe('readGitIdentity', () => {
 
       expect(identity).toMatchObject({
         kind: 'bare',
-        repository: { commonDirectory: bare, key: keyOf(null, bare) },
+        repository: { commonDirectory: bare, key: repositoryOf(null, bare).key },
       });
     });
   });
@@ -250,7 +258,7 @@ describe('readGitIdentity', () => {
 
       expect(identity).toEqual({
         kind: 'none',
-        place: { machine: null, folder: root, key: keyOf(null, root) },
+        place: { machine: null, folder: root, key: placeOf(null, root).key },
       });
     });
   });
@@ -268,7 +276,7 @@ describe('readGitIdentity', () => {
     await withTemp(async (root) => {
       const main = await makeRepository(root);
       const linked = join(root, 'linked');
-      const repositoryKey = keyOf(null, join(main, '.git'));
+      const repositoryKey = repositoryOf(null, join(main, '.git')).key;
 
       await git(main, 'worktree', 'add', '--quiet', '-b', 'feature', linked);
 
@@ -277,12 +285,12 @@ describe('readGitIdentity', () => {
 
       expect(first).toMatchObject({
         repository: { key: repositoryKey },
-        worktree: { key: keyOf(null, main) },
+        worktree: { key: worktreeOf(null, main).key },
       });
 
       expect(second).toMatchObject({
         repository: { key: repositoryKey },
-        worktree: { key: keyOf(null, linked) },
+        worktree: { key: worktreeOf(null, linked).key },
       });
     });
   });
@@ -312,7 +320,7 @@ describe('readGitIdentity', () => {
 
     expect(identity).toEqual({
       kind: 'failed',
-      place: { machine: null, folder: '/work', key: keyOf(null, '/work') },
+      place: { machine: null, folder: '/work', key: placeOf(null, '/work').key },
       error: 'fatal: detected dubious ownership',
     });
   });

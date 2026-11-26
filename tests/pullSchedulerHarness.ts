@@ -17,13 +17,15 @@ import { createPullScheduler } from '../src/data/pullScheduler.ts';
 import type { RecordNotices } from '../src/data/recordNotices.ts';
 import { createRecordNotices } from '../src/data/recordNotices.ts';
 import type { RepositoryPulls } from '../src/data/snapshot.ts';
-import { answerFrom } from './pullAnswers.ts';
+import { answerFrom, branchCountOf } from './pullAnswers.ts';
+import { start, storedRequests } from './pullRetryStore.ts';
 
 export interface PendingCall {
   command: string;
   args: string[];
   cwd: string;
   on: string | null;
+  settled: boolean;
   respond: (result: ExecResult) => void;
 }
 
@@ -32,8 +34,6 @@ interface Store {
   read: ReadShared;
   write: WriteShared;
 }
-
-export const pullSchedulerStart = 1_000_000;
 
 const memoryStore = (onRead: (key: string) => void): Store => {
   const values = new Map<string, unknown>();
@@ -70,7 +70,7 @@ export class PullSchedulerHarness {
   published: Record<string, RepositoryPulls>[] = [];
   publishedTimes: PullReadTimes[] = [];
   publishedOutcomes: PullRetryOutcome[][] = [];
-  now = pullSchedulerStart;
+  now = start;
   windowActive = true;
   lease: Lease = { version: 1, owner: 'owner-a', generation: 1 };
   held: Lease | null = this.lease;
@@ -91,6 +91,7 @@ export class PullSchedulerHarness {
       args,
       cwd: options.cwd,
       on: options.on,
+      settled: false,
       respond: settled.resolve,
     };
 
@@ -112,7 +113,7 @@ export class PullSchedulerHarness {
     this.published = [];
     this.publishedTimes = [];
     this.publishedOutcomes = [];
-    this.now = pullSchedulerStart;
+    this.now = start;
     this.windowActive = true;
     this.lease = { version: 1, owner: 'owner-a', generation: 1 };
     this.held = this.lease;
@@ -206,6 +207,7 @@ export class PullSchedulerHarness {
   }
 
   async respondCall(call: PendingCall, result: ExecResult): Promise<void> {
+    call.settled = true;
     call.respond(result);
     await this.settle();
   }
@@ -258,9 +260,12 @@ export class PullSchedulerHarness {
 
   async respondPulls(index: number, pulls: Pull[]): Promise<void> {
     const call = this.call(index);
-    const branchCount = call.args.filter((argument) => argument.startsWith('branch')).length;
 
-    await this.respond(index, { code: 0, stdout: answerFrom(branchCount, pulls), stderr: '' });
+    await this.respond(index, {
+      code: 0,
+      stdout: answerFrom(branchCountOf(call.args), pulls),
+      stderr: '',
+    });
   }
 
   callsIn(folder: string): PendingCall[] {
@@ -275,5 +280,9 @@ export class PullSchedulerHarness {
     }
 
     return stored.items;
+  }
+
+  requests(): PullRetryRequest[] {
+    return storedRequests(this.store, this.notices);
   }
 }
