@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "checkout": "/koja/checkout",
+  "allChecksPassed": true,
+  "inputs": [{ "path": "package.json", "hash": "aaaa" }],
+  "files": ["keys.json"]
+}

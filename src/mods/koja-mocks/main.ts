@@ -16,7 +16,7 @@ import {
   stateLine,
   stringOf,
 } from '../../kit/index.ts';
-import { findScene, sceneOrigin } from './catalog.ts';
+import { findScene, sceneOrigin, sceneReadyLine } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
 import { briefScene } from './directions/attention/brief.ts';
 import { cornerScene } from './directions/attention/corner.ts';
@@ -72,6 +72,11 @@ import {
   paletteNearPass,
 } from './scenes/smoke/palette.ts';
 import { statesScene } from './scenes/states.ts';
+
+interface SceneRender {
+  element: Element;
+  readyName: SceneName | null;
+}
 
 const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
   sidebar: sidebarScene,
@@ -240,6 +245,8 @@ export default class Mocks extends View {
 
   private readonly input: InputState = InputStates.new({ placeholder: 'Scene name…' });
 
+  private readyLogged = false;
+
   private sceneInputs: SceneInputs | null = null;
 
   override init(_props: unknown, cx: AsyncContext): void {
@@ -268,7 +275,11 @@ export default class Mocks extends View {
   override render(): Element {
     const name = sceneName();
 
-    return name === null ? this.picker() : this.scene(name);
+    if (name === null) {
+      return this.picker();
+    }
+
+    return this.scene(name);
   }
 
   private focusSelf(): void {
@@ -320,6 +331,7 @@ export default class Mocks extends View {
 
   private scene(name: string): Element {
     const content = this.sceneContent(name);
+    const title = content.readyName ?? name;
 
     const closeButton = iconButton({ name: 'x', size: 'small' })
       .accessibility_label('Close scene')
@@ -333,11 +345,14 @@ export default class Mocks extends View {
       .justify_between()
       .items_center()
       .px(spacing.large)
-      .child(detailText(name))
+      .child(detailText(title))
       .child(closeButton);
 
     const surface = popupSurface('mocks-scene')
       .h_full()
+      .on_size_change((_size, layoutCx) => {
+        this.announceReady(content.readyName, layoutCx);
+      })
       .on_key_down((event, keyCx) => {
         if (event.key === 'escape') {
           keyCx.stop_propagation();
@@ -345,23 +360,43 @@ export default class Mocks extends View {
         }
       })
       .child(header)
-      .child(content);
+      .child(content.element);
 
     return this.tracked(surface);
   }
 
-  private sceneContent(name: string): Element {
+  private sceneContent(name: string): SceneRender {
     const lookup = findScene(name);
 
     if ('error' in lookup) {
-      return stateLine({ kind: 'error', text: lookup.error });
+      return { element: stateLine({ kind: 'error', text: lookup.error }), readyName: null };
     }
 
     if (this.sceneInputs === null) {
-      return stateLine({ kind: 'error', text: 'The scene opened without its inputs.' });
+      const element = stateLine({ kind: 'error', text: 'The scene opened without its inputs.' });
+
+      return { element, readyName: null };
     }
 
-    return renderers[lookup.scene.name](this.sceneInputs);
+    return {
+      element: renderers[lookup.scene.name](this.sceneInputs),
+      readyName: lookup.scene.name,
+    };
+  }
+
+  private announceReady(name: SceneName | null, cx: Context): void {
+    if (name === null || this.readyLogged) {
+      return;
+    }
+
+    this.readyLogged = true;
+
+    // Layout runs in the frame that draws the scene, so the frame after it is the first one
+    // that shows the scene. A capture that waits for the line then shoots a drawn scene.
+    cx.timer.after(0, () => {
+      // eslint-disable-next-line no-console -- Herdr's mod log is console.log.
+      console.log(sceneReadyLine(name));
+    });
   }
 
   private tracked(element: Element): Element {

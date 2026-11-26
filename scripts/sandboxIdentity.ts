@@ -26,6 +26,7 @@ export type IdentityFailure =
   | { kind: 'recordUnreadable'; path: string }
   | { kind: 'recordWithoutOrigin' }
   | { kind: 'otherCheckout'; installedFrom: string }
+  | { kind: 'installIncomplete' }
   | { kind: 'checkFailed' }
   | { kind: 'notInstalled'; path: string }
   | { kind: 'differs'; path: string }
@@ -127,6 +128,10 @@ const originFailures = async (
     failures.push({ kind: 'otherCheckout', installedFrom: record.origin.checkout });
   }
 
+  if (!record.origin.completed) {
+    failures.push({ kind: 'installIncomplete' });
+  }
+
   if (!record.origin.allChecksPassed) {
     failures.push({ kind: 'checkFailed' });
   }
@@ -199,6 +204,10 @@ const failureLine = (options: IdentityOptions, failure: IdentityFailure): string
 
     case 'checkFailed': {
       return 'a mod check failed in the last install';
+    }
+
+    case 'installIncomplete': {
+      return 'the last install did not finish; run bun run sandbox install for an active sandbox, or bun run sandbox up, and retry';
     }
 
     case 'notInstalled': {

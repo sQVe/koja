@@ -11,6 +11,7 @@
 #   scripts/sandbox do <action> [json]   / status   drive it (herdr-app do / status)
 #   scripts/sandbox hc <args>     hc against the sandbox core
 #   scripts/sandbox shot [file]   screenshot of the window, in window pixels
+#   scripts/sandbox lock <command>  run a command under the sandbox capture lock
 #   scripts/sandbox move|click|drag|scroll|type|key|hold|release ...   fake input (window px)
 #   scripts/sandbox log           the window's log
 #   scripts/sandbox opened        links the window asked to open (logged, never opened)
@@ -24,7 +25,7 @@
 # instead of the default.
 set -euo pipefail
 
-here=$(cd "$(dirname "$0")" && pwd)
+here=$(cd -P -- "$(dirname "$0")" && pwd)
 checkout=$(dirname "$here")
 name=${RUTA_NAME-koja}
 
@@ -73,6 +74,41 @@ case ${1:-} in
   '' | guide | identity | log | opened | shot | status) ;;
   *) refuse_other_checkout ;;
 esac
+
+generation_file=$root/.koja-generation
+
+write_generation() {
+  if [[ ! -d $root ]]; then
+    echo "sandbox $name root $root is missing" >&2
+    return 1
+  fi
+
+  local id
+  id=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n') || return 1
+  # Write beside the id and rename it, so a reader never sees a truncated id.
+  printf '%s\n' "$id" > "$generation_file.next" && mv "$generation_file.next" "$generation_file"
+}
+
+root_generation() {
+  cat "$generation_file" 2>/dev/null
+}
+
+require_generation() {
+  if [[ -z ${KOJA_SANDBOX_GENERATION:-} ]]; then
+    return 0
+  fi
+
+  local current
+  current=$(root_generation) || {
+    echo "sandbox $name root $root has no generation under a running capture" >&2
+    exit 1
+  }
+
+  if [[ -z $current || $current != "$KOJA_SANDBOX_GENERATION" ]]; then
+    echo "sandbox $name root $root was replaced under a running capture" >&2
+    exit 1
+  fi
+}
 
 find_binary() {
   local chosen=${HERDR_APP_BIN:-}
@@ -125,7 +161,8 @@ in_sandbox() {
 
 install_mods() {
   require_up
-  (cd "$checkout" && in_sandbox HERDR_APP_HOME="$root/config/herdr-app" flock "$checkout" bun run herdr:install)
+  # The outer checkout lock covers the build and install, which skip taking it again.
+  (cd "$checkout" && in_sandbox HERDR_APP_HOME="$root/config/herdr-app" KOJA_CHECKOUT_LOCK_HELD="$checkout" flock "$checkout" bun run herdr:install)
   in_sandbox "$checkout/scripts/sandbox-ready"
 }
 
@@ -137,6 +174,8 @@ window_state() {
   fi
 }
 
+require_generation
+
 case ${1:-} in
   up | restart)
     command=$1
@@ -145,7 +184,17 @@ case ${1:-} in
     # The launch script runs from the checkout, so give it an absolute path.
     bin=$(realpath -ms -- "$bin")
     cd "$checkout"
-    exec ruta "$command" "$@" -- "$bin"
+    # Replace the id before the root can change, so a capture waiting on the lock aborts instead of
+    # shooting the window while it is replaced. A fresh root gets its id once it exists.
+    if [[ -d $root ]]; then
+      write_generation
+    fi
+    status=0
+    ruta "$command" "$@" -- "$bin" || status=$?
+    if (( status == 0 )); then
+      write_generation
+    fi
+    exit "$status"
     ;;
   install) install_mods ;;
   identity)
@@ -161,6 +210,41 @@ case ${1:-} in
     cd "$checkout"
     exec ruta shot ${file:+"$file"}
     ;;
+  lock)
+    shift
+    if (( $# == 0 )); then
+      echo "usage: scripts/sandbox lock <command>..." >&2
+      exit 2
+    fi
+    expected=$(root_generation) || {
+      echo "sandbox $name is not up; run 'scripts/sandbox up' first" >&2
+      exit 1
+    }
+    if [[ -z $expected ]]; then
+      echo "sandbox $name has no generation; run 'scripts/sandbox up' first" >&2
+      exit 1
+    fi
+    # The lock file sits beside the root, so replacing the root cannot split one lock in two.
+    exec flock --exclusive "$root.capture.lock" sh -c '
+      root=$1
+      name=$2
+      expected=$3
+      generation=$4
+      shift 4
+      current=$(cat "$generation" 2>/dev/null) || current=''
+      if [ -z "$current" ]; then
+        printf "sandbox %s root %s has no generation while waiting for the capture lock\n" "$name" "$root" >&2
+        exit 1
+      fi
+      if [ "$current" != "$expected" ]; then
+        printf "sandbox %s root %s was replaced while waiting for the capture lock\n" "$name" "$root" >&2
+        exit 1
+      fi
+      export KOJA_SANDBOX_GENERATION="$current"
+      exec "$@"
+    ' sh "$root" "$name" "$expected" "$generation_file" "$@"
+    ;;
+  guard) require_up ;;
   down)
     failed=0
     "$here/sandbox-machine" down || failed=1

@@ -2,13 +2,14 @@ import type { SpaceInfo } from 'herdr';
 import { exec, panes, spaces, terminals } from 'herdr';
 
 import { folderNameOf } from '../../data/fields.ts';
+import type { RunCommand } from '../../data/gitIdentity.ts';
 import { readGitIdentity } from '../../data/gitIdentity.ts';
 import { rollupStatuses, spaceFolder } from '../../kit/index.ts';
-import type { RemoveRisk, Workspace } from './grove.ts';
+import type { AgentRisk, RemoveRisks, Workspace } from './grove.ts';
 import {
   failureText,
   isWorkspaceWorktree,
-  removeRisk,
+  removeRisks,
   workspaceRoot,
   worktreeFolder,
 } from './grove.ts';
@@ -23,9 +24,21 @@ const probe = async (args: string[], cwd: string, machine: string | null): Promi
   return result.stdout;
 };
 
-export const readWorkspace = async (space: SpaceInfo): Promise<Workspace> => {
+export const readWorkspace = async (
+  space: SpaceInfo,
+  isCancelled: () => boolean,
+): Promise<Workspace> => {
   const start = spaceFolder(space, panes());
-  const identity = await readGitIdentity(exec, space.machine, start);
+
+  const run: RunCommand = async (command, args, options) => {
+    if (isCancelled()) {
+      throw new Error('The worktree dialog closed before the check finished.');
+    }
+
+    return exec(command, args, options);
+  };
+
+  const identity = await readGitIdentity(run, space.machine, start);
 
   if (identity.kind === 'failed') {
     throw new Error(identity.error);
@@ -53,16 +66,30 @@ export const readWorkspace = async (space: SpaceInfo): Promise<Workspace> => {
   return { space: space.id, machine: space.machine, folder, root, name: folderNameOf(folder) };
 };
 
-export const readRisk = async (workspace: Workspace): Promise<RemoveRisk> => {
+export const readRisk = async (workspace: Workspace): Promise<RemoveRisks> => {
   const status = await probe(
-    ['--no-optional-locks', 'status', '--porcelain'],
+    [
+      '--no-optional-locks',
+      'status',
+      '--porcelain',
+      '--untracked-files=normal',
+      '--ignore-submodules=none',
+    ],
     workspace.folder,
     workspace.machine,
   );
 
   const statuses = rollupStatuses(spaces(), panes(), terminals());
 
-  return removeRisk(status.trim() !== '', statuses.spaces[workspace.space]);
+  return removeRisks(status.trim() !== '', statuses.spaces[workspace.space]);
+};
+
+export const readAgentRisks = (workspace: Workspace): AgentRisk[] => {
+  const statuses = rollupStatuses(spaces(), panes(), terminals());
+
+  return removeRisks(false, statuses.spaces[workspace.space]).filter(
+    (risk): risk is AgentRisk => risk === 'agent',
+  );
 };
 
 export const findWorktreeFolder = async (
@@ -70,7 +97,7 @@ export const findWorktreeFolder = async (
   branch: string,
 ): Promise<string | null> => {
   const listing = await probe(
-    ['worktree', 'list', '--porcelain'],
+    ['worktree', 'list', '--porcelain', '-z'],
     workspace.folder,
     workspace.machine,
   );

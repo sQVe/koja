@@ -1,8 +1,10 @@
-import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 
+import type { DrawnElement } from '../../../tests/drawn.ts';
+import { drawn } from '../../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 import { overlaySize } from '../../kit/size.ts';
-import { findScene, sceneOrigin } from './catalog.ts';
+import { findScene, sceneOrigin, sceneReadyLine } from './catalog.ts';
 
 type SubmitHandler = (event: unknown, cx: { notify: () => void }) => void;
 
@@ -19,7 +21,11 @@ let closeCount = 0;
 let sceneProps: Record<string, unknown> = {};
 const shownKinds: string[] = [];
 const shownTexts: string[] = [];
+const spyOnLog = () => spyOn(console, 'log').mockImplementation(() => undefined);
+
 const createdInputs: InputStub[] = [];
+const pendingTimers: (() => void)[] = [];
+let log: ReturnType<typeof spyOnLog>;
 
 const createInput = (): InputStub => {
   const stub: InputStub = {
@@ -91,13 +97,15 @@ await mock.module('../../kit/index.ts', () =>
       return chainable();
     },
     modName: 'koja-mocks',
-    popupSurface: chainable,
+    popupSurface: () => drawn(),
     recordOf: (value: unknown) => (typeof value === 'object' && value !== null ? value : {}),
     searchField: chainable,
     spacing: {},
     stringOf: (value: unknown) => (typeof value === 'string' ? value : null),
   }),
 );
+
+await mock.module('./directions/attention/brief.ts', () => ({ briefScene: chainable }));
 
 const loadView = async (): Promise<{
   init: (props: unknown, cx: unknown) => void;
@@ -120,6 +128,28 @@ const asyncContext = {
   timer: { after: () => undefined },
 };
 
+const layoutContext = {
+  timer: {
+    after: (_milliseconds: number, handler: () => void) => {
+      pendingTimers.push(handler);
+    },
+  },
+};
+
+const drawScene = (view: { render: () => unknown }): void => {
+  const surface = view.render() as DrawnElement;
+
+  for (const handler of surface.sizeHandlers) {
+    handler({ width: 100, height: 100 }, layoutContext);
+  }
+};
+
+const runTimers = (): void => {
+  for (const timer of pendingTimers.splice(0)) {
+    timer();
+  }
+};
+
 const submitTyped = (text: string): void => {
   const [picker] = createdInputs;
 
@@ -138,10 +168,16 @@ afterAll(() => {
 beforeEach(() => {
   createdInputs.length = 0;
   openedSpecs.length = 0;
+  pendingTimers.length = 0;
   closeCount = 0;
   sceneProps = {};
   shownKinds.length = 0;
   shownTexts.length = 0;
+  log = spyOnLog();
+});
+
+afterEach(() => {
+  log.mockRestore();
 });
 
 describe('scene picker', () => {
@@ -226,6 +262,82 @@ describe('scene picker', () => {
     view.render();
 
     expect(shownKinds.at(-1)).toBe('empty');
+  });
+});
+
+describe('scene readiness', () => {
+  test('a scene writes its ready line only after the frame that draws it has run', async () => {
+    sceneProps = { scene: ' attention-brief ' };
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    expect(log).not.toHaveBeenCalled();
+    expect(pendingTimers).toEqual([]);
+
+    drawScene(view);
+
+    expect(log).not.toHaveBeenCalled();
+    expect(pendingTimers).toHaveLength(1);
+
+    runTimers();
+
+    expect(log.mock.calls).toEqual([[sceneReadyLine('attention-brief')]]);
+  });
+
+  test('a scene laid out again writes no second ready line', async () => {
+    sceneProps = { scene: 'attention-brief' };
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+    drawScene(view);
+    runTimers();
+
+    view.render();
+    drawScene(view);
+    runTimers();
+
+    expect(log.mock.calls).toHaveLength(1);
+  });
+
+  test('the picker writes no ready line', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+    drawScene(view);
+    runTimers();
+
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  test('an unknown scene writes no ready line', async () => {
+    sceneProps = { scene: 'no-such-scene' };
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+    drawScene(view);
+    runTimers();
+
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  test('a scene without its inputs writes no ready line', async () => {
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    sceneProps = { scene: 'attention-brief' };
+    view.render();
+    drawScene(view);
+    runTimers();
+
+    expect(log).not.toHaveBeenCalled();
   });
 });
 

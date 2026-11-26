@@ -24,6 +24,7 @@ run `git show <commit>:docs/adr/<file>` with the commit in its row.
 - [0003: Bun as runtime, package manager, test runner, and bundler](./0003-bun-toolchain.md)
 - [0006: Install real files with an allowlisted installer](./0006-install-real-files.md)
 - [0008: Forks keep their Herdr base and update by three-way merge](./0008-track-herdr-upstream.md)
+- [0018: Dev scripts and mods trust the local user](./0018-trust-the-local-user.md)
 
 ### Mods and UI
 

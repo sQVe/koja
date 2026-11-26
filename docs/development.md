@@ -38,6 +38,11 @@ bun run herdr:install
 install into another Herdr home, and `HERDR_APP_BIN` to check the mods with another herdr-app
 binary. Run `bun run herdr:watch` to build and install again on every save in `src/` or `config/`.
 
+An interrupted install can leave `.koja-install.lock` in the Herdr home. Stop the watch and every
+other install for that home, check that no installer still runs, then remove only that lock file and
+retry. The installer never removes a regular lock sentinel it did not create, and it reports this
+recovery when the lock waits too long.
+
 Then switch Herdr to Koja's layout. This is the one-time real install step, not QA; try mods in the
 sandbox below instead:
 

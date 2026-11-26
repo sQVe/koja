@@ -187,6 +187,23 @@ const sceneSizes = {
 
 export type SceneName = keyof typeof sceneSizes;
 
+const sceneReadyPrefix = 'koja-mocks scene ready: ';
+
+export const sceneReadyLine = (name: string): string => `${sceneReadyPrefix}${name}`;
+
+export const sceneReadyName = (line: string): string | null => {
+  const marker = line.indexOf(sceneReadyPrefix);
+
+  if (marker === -1) {
+    return null;
+  }
+
+  const rest = line.slice(marker + sceneReadyPrefix.length).split('\n')[0] ?? '';
+  const name = rest.trim();
+
+  return name === '' ? null : name;
+};
+
 // Logical px from the top left of the window, where every scene window opens.
 export const sceneOrigin: Point = { x: spacing.xxlarge, y: overlaySize.topOffset };
 

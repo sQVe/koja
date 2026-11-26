@@ -65,6 +65,7 @@ const writeCheckout = async (folder: string): Promise<void> => {
   await writeAt(join(folder, 'config', 'layouts', 'koja.json'), '{ "id": "root" }\n');
   await writeAt(join(folder, 'scripts', 'build.ts'), 'export {};\n');
   await writeAt(join(folder, 'scripts', 'install.ts'), 'export {};\n');
+  await writeAt(join(folder, 'scripts', 'fileLock.ts'), 'export {};\n');
   await writeAt(join(folder, 'package.json'), '{}\n');
   await writeAt(join(folder, 'bun.lock'), '{}\n');
   await writeAt(join(folder, 'dist', 'mods', 'koja-tabs', 'main.js'), 'export default 1;\n');
@@ -159,16 +160,32 @@ describe('sandbox identity', () => {
   test('fails when the record names its shipped inputs without their hashes', async () => {
     const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
 
-    await writeFile(recordPath(), JSON.stringify({ ...record, inputs: ['package.json'] }));
+    await writeFile(
+      recordPath(),
+      JSON.stringify({
+        version: 2,
+        checkout: record['checkout'],
+        allChecksPassed: record['allChecksPassed'],
+        inputs: ['package.json'],
+        files: record['files'],
+      }),
+    );
 
     expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
   });
 
   test('fails when the record names no shipped inputs', async () => {
     const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
-    const { inputs: _, ...withoutInputs } = record;
 
-    await writeFile(recordPath(), JSON.stringify(withoutInputs));
+    await writeFile(
+      recordPath(),
+      JSON.stringify({
+        version: 2,
+        checkout: record['checkout'],
+        allChecksPassed: record['allChecksPassed'],
+        files: record['files'],
+      }),
+    );
 
     expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordWithoutOrigin' }]);
   });
@@ -198,10 +215,54 @@ describe('sandbox identity', () => {
     await installFrom(checkout, { check: failingCheck });
 
     expect(await findIdentityFailures(options)).toEqual([
+      { kind: 'installIncomplete' },
       { kind: 'checkFailed' },
       { kind: 'notInstalled', path: 'config/keys.json' },
       { kind: 'notInstalled', path: 'config/layouts/koja.json' },
+      { kind: 'notInstalled', path: 'dist/mods/koja-tabs/icons/x.svg' },
+      { kind: 'notInstalled', path: 'dist/mods/koja-tabs/main.js' },
     ]);
+  });
+
+  test('fails when a previous version 2 record claims success but not completion', async () => {
+    const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
+
+    await writeFile(
+      recordPath(),
+      JSON.stringify({
+        version: 2,
+        checkout: record['checkout'],
+        allChecksPassed: true,
+        inputs: record['inputs'],
+        files: record['files'],
+      }),
+    );
+
+    expect(await findIdentityFailures(options)).toEqual([{ kind: 'installIncomplete' }]);
+  });
+
+  test('names a sandbox command when the install is incomplete', async () => {
+    const record = JSON.parse(await readFile(recordPath(), 'utf8')) as Record<string, unknown>;
+
+    await writeFile(
+      recordPath(),
+      JSON.stringify({
+        version: 3,
+        checkout: record['checkout'],
+        allChecksPassed: true,
+        completed: false,
+        inputs: record['inputs'],
+        files: record['files'],
+      }),
+    );
+
+    const report = await identityReport(options);
+    const line = report.lines.find((entry) => entry.includes('did not finish'));
+
+    expect(report.exitCode).toBe(1);
+    expect(line).toContain('bun run sandbox install');
+    expect(line).toContain('bun run sandbox up');
+    expect(line).not.toContain('herdr:install');
   });
 
   test('fails when a built mod file has no installed copy', async () => {
@@ -265,6 +326,7 @@ describe('sandbox identity', () => {
     ],
     ['scripts/build.ts', [{ kind: 'changedSinceInstall', path: 'scripts/build.ts' }]],
     ['scripts/install.ts', [{ kind: 'changedSinceInstall', path: 'scripts/install.ts' }]],
+    ['scripts/fileLock.ts', [{ kind: 'changedSinceInstall', path: 'scripts/fileLock.ts' }]],
     ['package.json', [{ kind: 'changedSinceInstall', path: 'package.json' }]],
     ['bun.lock', [{ kind: 'changedSinceInstall', path: 'bun.lock' }]],
   ])('fails when %s changed after the install', async (path, expected) => {

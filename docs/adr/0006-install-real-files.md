@@ -20,14 +20,32 @@ An installer copies real files into `~/.config/herdr-app`. It writes only the fi
 built mods, its layout, its theme, its fonts, `keys.json`, and `settings.json`. It removes only
 files that an earlier install wrote and the current one no longer has, so it records the files it
 writes in Herdr's folder. The record also names the checkout it installed from, whether every mod
-check passed, and the source files that decide what it installs. It replaces a symlink in its way
-with a real file and never writes through one. It runs `herdr-app check` on every installed mod. A
-watch mode builds and installs on every save, so edits stay in the repository.
+check passed, and the source files that decide what it installs. It reserves its record, lock, and
+staging names, so no plan or record can name them. It replaces a symlink in its way with a real file
+and never writes through one. Each file goes through a temporary file in its destination folder,
+receives its mode, and is renamed into place, so Herdr never reads a half-written file. It runs
+`herdr-app check` on a staged copy of the intended final mod tree, so a stale file cannot hide a
+missing asset. A watch mode builds and installs on every save, so edits stay in the repository.
 
-The installer writes and checks the mods before it touches config. It copies `keys.json`, the
-layout, the theme, the fonts, and `settings.json`, and removes stale files, only when every mod
-check passed. A failed check leaves the earlier config and stale files in place, so keys and layouts
-keep naming mods that worked. Mod files already copied stay; nothing is rolled back.
+The installer checks the staged mod tree before it changes the live one. When every mod check
+passes, it publishes the staged mod files and then copies `keys.json`, the layout, the theme, the
+fonts, and `settings.json`, and removes stale files. A failed check leaves the live mods, earlier
+config, and stale files in place, so keys and layouts keep naming mods that worked. After a
+successful install, every matching planned file counts as owned, including one it did not rewrite.
+The record marks an install complete only after config and cleanup succeed, and keeps partial
+ownership after a failure so the next run can recover. It also records whether every mod check
+passed, apart from whether the install completed, so a failure after the checks does not read as a
+failed check.
+
+One checkout has a single writer for the shared `dist/mods` output. A build and an install take the
+same `flock` on the checkout directory: the build holds it while it stages and publishes the mods,
+and the installer holds it before it reads that tree. Every installer takes the checkout lock before
+the home lock, so two installs cannot wait on each other in opposite orders. A sandbox launcher
+holds that same checkout lock around its whole build and install command; the inner acquisition
+skips the lock only because that caller already holds it. An installer refuses a missing built mods
+tree with its own error instead of treating it as an empty plan, so a reader never mistakes an
+absent build for a deliberate empty one. Both locks are `flock` locks, so a killed installer leaves
+no lock file that someone has to remove by hand.
 
 `keys.json`, the layout, and `settings.json` live in the repository, because they name Koja's mods
 and theme, and a rename must change them in the same commit.

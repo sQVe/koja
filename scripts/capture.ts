@@ -1,8 +1,8 @@
-import { mkdir, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { lstat, mkdir, mkdtemp, rename, rm } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
 
 import type { Point } from '../src/mods/koja-mocks/catalog.ts';
-import { findScene, sceneOrigin } from '../src/mods/koja-mocks/catalog.ts';
+import { findScene, sceneOrigin, sceneReadyName } from '../src/mods/koja-mocks/catalog.ts';
 
 export interface Size {
   width: number;
@@ -24,10 +24,19 @@ export interface Sandbox {
   status: () => Promise<Status>;
 }
 
+export interface Images {
+  size: (path: string) => Promise<Size>;
+  crop: (shot: string, box: Box, target: string) => Promise<void>;
+}
+
 export interface CaptureContext {
   sandbox: Sandbox;
+  images: Images;
+  pickerSettleMilliseconds: number;
   waitMilliseconds: number;
 }
+
+type Move = (from: string, to: string) => Promise<void>;
 
 const modName = 'koja-mocks';
 
@@ -41,8 +50,6 @@ const pollMilliseconds = 200;
 
 // The mod takes focus about 600 ms after it draws, so keys sent earlier can be lost.
 const pickerSettleMilliseconds = 1000;
-
-const sceneSettleMilliseconds = 1000;
 
 export const cropBox = (origin: Point, size: Size, scale: number): Box => ({
   x: Math.round(origin.x * scale),
@@ -106,11 +113,6 @@ const sandboxCli: Sandbox = {
   status: async () => parseStatus(await runCommand([sandboxCommand, 'status'])),
 };
 
-const defaultContext: CaptureContext = {
-  sandbox: sandboxCli,
-  waitMilliseconds: defaultWaitMilliseconds,
-};
-
 // Status lists overlays by mod name, so the picker and the scene both show as modName.
 const hasModOverlay = (status: Status): boolean => status.overlays.includes(modName);
 
@@ -138,7 +140,11 @@ const waitUntil = (
   waitMilliseconds: number,
 ): Promise<void> => pollUntil(isDone, failure, Date.now() + waitMilliseconds);
 
-const openScene = async (context: CaptureContext, sceneName: string): Promise<void> => {
+const openScene = async (
+  context: CaptureContext,
+  sceneName: string,
+  baseline: string,
+): Promise<void> => {
   const { sandbox } = context;
 
   await sandbox.run(['do', 'mod.open', '--name', modName]);
@@ -149,12 +155,28 @@ const openScene = async (context: CaptureContext, sceneName: string): Promise<vo
     context.waitMilliseconds,
   );
 
-  await Bun.sleep(pickerSettleMilliseconds);
+  await Bun.sleep(context.pickerSettleMilliseconds);
 
   await sandbox.run(['type', sceneName]);
   await sandbox.run(['key', 'Return']);
 
-  await Bun.sleep(sceneSettleMilliseconds);
+  await waitUntil(
+    async () => {
+      const log = await sandbox.run(['log']);
+
+      if (!log.startsWith(baseline)) {
+        throw new Error(
+          'The sandbox log no longer starts with the text read before the scene opened; the log was rotated or truncated.',
+        );
+      }
+
+      const lines = log.slice(baseline.length).split('\n');
+
+      return lines.some((line) => sceneReadyName(line) === sceneName);
+    },
+    `The ${modName} scene "${sceneName}" did not become ready.`,
+    context.waitMilliseconds,
+  );
 };
 
 const closeScene = async (context: CaptureContext): Promise<void> => {
@@ -183,8 +205,19 @@ const parseShotSize = (output: string): Size => {
   return { width, height };
 };
 
-const readShotSize = async (path: string): Promise<Size> =>
-  parseShotSize(await runCommand(['identify', '-format', '%w %h', path]));
+const imageTools: Images = {
+  size: async (path) => parseShotSize(await runCommand(['identify', '-format', '%w %h', path])),
+  crop: async (shot, box, target) => {
+    await runCommand(['magick', shot, '-crop', cropGeometry(box), '+repage', target]);
+  },
+};
+
+const defaultContext: CaptureContext = {
+  sandbox: sandboxCli,
+  images: imageTools,
+  pickerSettleMilliseconds,
+  waitMilliseconds: defaultWaitMilliseconds,
+};
 
 const saveCrop = async (
   context: CaptureContext,
@@ -193,7 +226,7 @@ const saveCrop = async (
 ): Promise<void> => {
   const shotPath = join(folder, 'shot.png');
   const { zoom: scale } = await context.sandbox.status();
-  const shot = await readShotSize(shotPath);
+  const shot = await context.images.size(shotPath);
   const box = cropBox(sceneOrigin, scene, scale);
 
   if (!cropFits(box, shot)) {
@@ -202,14 +235,7 @@ const saveCrop = async (
     );
   }
 
-  await runCommand([
-    'magick',
-    shotPath,
-    '-crop',
-    cropGeometry(box),
-    '+repage',
-    join(folder, 'crop.png'),
-  ]);
+  await context.images.crop(shotPath, box, join(folder, 'crop.png'));
 
   const record = {
     scene: scene.name,
@@ -221,10 +247,193 @@ const saveCrop = async (
   await Bun.write(join(folder, 'capture.json'), `${JSON.stringify(record, null, 2)}\n`);
 };
 
-const printError = (error: unknown): void => {
-  const message = error instanceof Error ? error.message : String(error);
+const isMissing = (error: unknown): boolean =>
+  error instanceof Error && 'code' in error && error.code === 'ENOENT';
 
-  process.stderr.write(`${message}\n`);
+const captureFileExists = async (path: string): Promise<boolean> => {
+  try {
+    const info = await lstat(path);
+
+    if (!info.isFile()) {
+      throw new Error(`The capture target ${path} is not a file.`);
+    }
+
+    return true;
+  } catch (error) {
+    if (isMissing(error)) {
+      return false;
+    }
+
+    throw error;
+  }
+};
+
+const existingCaptureFiles = async (folder: string): Promise<string[]> => {
+  const existing: string[] = [];
+
+  for (const file of outputFiles) {
+    // eslint-disable-next-line no-await-in-loop -- all targets are checked before anything moves.
+    if (await captureFileExists(join(folder, file))) {
+      existing.push(file);
+    }
+  }
+
+  return existing;
+};
+
+const refuseNonFileTargets = async (folder: string): Promise<void> => {
+  await existingCaptureFiles(folder);
+};
+
+const messageOf = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const removeStagingAfterFailure = async (staging: string, error: unknown): Promise<never> => {
+  try {
+    await rm(staging, { recursive: true, force: true });
+  } catch (cleanupError) {
+    throw new Error(
+      `The capture failed and kept ${staging}. ${messageOf(error)} Cleanup failed: ${messageOf(cleanupError)}`,
+      { cause: cleanupError },
+    );
+  }
+
+  throw error;
+};
+
+const removeCaptureFolders = async (staging: string, backup: string): Promise<string[]> => {
+  const kept: string[] = [];
+
+  for (const path of [staging, backup]) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- both folders are tried even when one fails.
+      await rm(path, { recursive: true, force: true });
+    } catch (error) {
+      kept.push(`${path} (${messageOf(error)})`);
+    }
+  }
+
+  return kept;
+};
+
+const createSiblingFolder = async (folder: string, label: string): Promise<string> => {
+  const parent = dirname(folder);
+
+  await mkdir(parent, { recursive: true });
+
+  return mkdtemp(join(parent, `.${basename(folder)}-${label}-`));
+};
+
+const createStagingFolder = (folder: string): Promise<string> =>
+  createSiblingFolder(folder, 'staging');
+
+const removeNewCaptureFiles = async (
+  folder: string,
+  existing: string[],
+  installed: string[],
+): Promise<unknown[]> => {
+  const errors: unknown[] = [];
+
+  for (const file of installed) {
+    if (existing.includes(file)) {
+      continue;
+    }
+
+    try {
+      // eslint-disable-next-line no-await-in-loop -- one rollback removes each new file in turn.
+      await rm(join(folder, file), { force: true });
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+
+  return errors;
+};
+
+const restoreBackedUpFiles = async (
+  folder: string,
+  backup: string,
+  backedUp: string[],
+  move: Move,
+): Promise<unknown[]> => {
+  const errors: unknown[] = [];
+
+  for (const file of backedUp) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- one rollback restores each old file in turn.
+      await move(join(backup, file), join(folder, file));
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+
+  return errors;
+};
+
+export const publishCapture = async (
+  staging: string,
+  folder: string,
+  move: Move = rename,
+): Promise<void> => {
+  const existing: string[] = [];
+  let backup: string | null = null;
+  const backedUp: string[] = [];
+  const installed: string[] = [];
+
+  try {
+    existing.push(...(await existingCaptureFiles(folder)));
+    backup = await createSiblingFolder(folder, 'backup');
+    await mkdir(folder, { recursive: true });
+
+    for (const file of existing) {
+      // eslint-disable-next-line no-await-in-loop -- each old file is backed up before the next.
+      await move(join(folder, file), join(backup, file));
+      backedUp.push(file);
+    }
+
+    for (const file of outputFiles) {
+      // eslint-disable-next-line no-await-in-loop -- each new file is published in order.
+      await move(join(staging, file), join(folder, file));
+      installed.push(file);
+    }
+  } catch (error) {
+    if (backup === null) {
+      return removeStagingAfterFailure(staging, error);
+    }
+
+    const removalErrors = await removeNewCaptureFiles(folder, existing, installed);
+    const moveBackErrors = await restoreBackedUpFiles(folder, backup, backedUp, move);
+    const restoreErrors = [...removalErrors, ...moveBackErrors];
+
+    if (restoreErrors.length > 0) {
+      const details = restoreErrors.map(messageOf).join('; ');
+
+      throw new Error(`Could not restore the capture. Keep ${backup} and ${staging}. ${details}`, {
+        cause: error,
+      });
+    }
+
+    const kept = await removeCaptureFolders(staging, backup);
+
+    if (kept.length > 0) {
+      throw new Error(
+        `The capture was not published and kept ${kept.join('; ')}. ${messageOf(error)}`,
+        { cause: error },
+      );
+    }
+
+    throw error;
+  }
+
+  const kept = await removeCaptureFolders(staging, backup);
+
+  if (kept.length > 0) {
+    throw new Error(`The capture was published and kept ${kept.join('; ')}.`);
+  }
+};
+
+const printError = (error: unknown): void => {
+  process.stderr.write(`${messageOf(error)}\n`);
 };
 
 export const capture = async (
@@ -240,33 +449,68 @@ export const capture = async (
 
   const { scene } = lookup;
   const folder = resolve(folderArgument ?? join('.tau', 'judge', scene.name));
+
+  await refuseNonFileTargets(folder);
+
   const status = await context.sandbox.status();
 
   if (hasModOverlay(status)) {
     throw new Error(`A ${modName} overlay is already open. Close it in the sandbox window first.`);
   }
 
-  await mkdir(folder, { recursive: true });
-
-  // A failed run must not leave a new shot beside the crop and JSON of an earlier one.
-  await Promise.all(outputFiles.map(async (file) => rm(join(folder, file), { force: true })));
+  const baseline = await context.sandbox.run(['log']);
+  const staging = await createStagingFolder(folder);
 
   try {
-    await openScene(context, scene.name);
-    await context.sandbox.run(['shot', join(folder, 'shot.png')]);
-    await saveCrop(context, folder, scene);
+    await openScene(context, scene.name, baseline);
+    await context.sandbox.run(['shot', join(staging, 'shot.png')]);
+    await saveCrop(context, staging, scene);
+    await closeScene(context);
+    await context.sandbox.run(['guard']);
   } catch (error) {
     await closeScene(context).catch(printError);
-
-    throw error;
+    await removeStagingAfterFailure(staging, error);
   }
 
-  await closeScene(context);
+  await publishCapture(staging, folder);
+};
+
+const lockEnvironmentKey = 'KOJA_CAPTURE_LOCK_HELD';
+
+const captureScript = join(import.meta.dir, 'capture.ts');
+
+export const runUnderLock = async (argv: string[], sandbox = sandboxCommand): Promise<number> => {
+  const child = Bun.spawn({
+    cmd: [sandbox, 'lock', process.execPath, captureScript, ...argv],
+    env: { ...Bun.env, [lockEnvironmentKey]: '1' },
+    stdin: 'inherit',
+    stdout: 'inherit',
+    stderr: 'inherit',
+  });
+
+  return child.exited;
 };
 
 if (import.meta.main) {
-  await capture(process.argv.slice(2)).catch((error: unknown) => {
-    printError(error);
-    process.exitCode = 1;
-  });
+  const argv = process.argv.slice(2);
+
+  if (Bun.env[lockEnvironmentKey] === '1') {
+    await capture(argv).catch((error: unknown) => {
+      printError(error);
+      process.exitCode = 1;
+    });
+  } else {
+    const lookup = findScene(argv[0] ?? '');
+
+    if ('error' in lookup) {
+      printError(new Error(lookup.error));
+      process.exitCode = 1;
+    } else {
+      process.exitCode = await runUnderLock(argv).catch((error: unknown) => {
+        printError(error);
+
+        return 1;
+      });
+    }
+  }
 }

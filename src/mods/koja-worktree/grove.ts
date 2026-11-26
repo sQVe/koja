@@ -10,7 +10,16 @@ export interface Workspace {
   name: string;
 }
 
-export type RemoveRisk = 'changes' | 'agent' | null;
+export type RiskKind = 'changes' | 'agent';
+
+export type RemoveRisks = RiskKind[];
+
+// The close dialog only warns about an agent, because the worktree is already gone by then.
+export type AgentRisk = 'agent';
+
+export type GroveArguments =
+  | { kind: 'arguments'; args: string[] }
+  | { kind: 'refused'; name: string; role: 'branch' | 'worktree' };
 
 const bareFolder = '.bare';
 
@@ -32,26 +41,62 @@ export const isWorkspaceWorktree = (folder: string, root: string): boolean => {
   return parent === trimSlashes(root);
 };
 
-export const removeRisk = (dirty: boolean, status: Status | null | undefined): RemoveRisk => {
+export const removeRisks = (dirty: boolean, status: Status | null | undefined): RemoveRisks => {
+  const risks: RemoveRisks = [];
+
   if (dirty) {
-    return 'changes';
+    risks.push('changes');
   }
 
-  return status === null || status === undefined ? null : 'agent';
+  if (status !== null && status !== undefined) {
+    risks.push('agent');
+  }
+
+  return risks;
 };
 
-export const addArguments = (branch: string): string[] => ['add', branch];
+export const sameRisks = (left: RemoveRisks, right: RemoveRisks): boolean =>
+  left.length === right.length && left.every((risk, index) => risk === right[index]);
 
-export const removeArguments = (name: string, confirmed: boolean): string[] =>
-  confirmed ? ['remove', '--force', name] : ['remove', name];
+const refusedName = (name: string, role: 'branch' | 'worktree'): GroveArguments | null => {
+  if (!name.startsWith('-')) {
+    return null;
+  }
+
+  return { kind: 'refused', name, role };
+};
+
+export const addArguments = (branch: string): GroveArguments => {
+  const refused = refusedName(branch, 'branch');
+
+  return refused ?? { kind: 'arguments', args: ['add', branch] };
+};
+
+export const removeArguments = (name: string, force: boolean): GroveArguments => {
+  const refused = refusedName(name, 'worktree');
+
+  if (refused !== null) {
+    return refused;
+  }
+
+  return { kind: 'arguments', args: force ? ['remove', '--force', name] : ['remove', name] };
+};
 
 export const worktreeFolder = (porcelain: string, branch: string): string | null => {
-  const entries = porcelain.split(/\n\s*\n/).map((entry) => entry.split('\n'));
-  const branchLine = `branch refs/heads/${branch}`;
-  const entry = entries.find((lines) => lines.includes(branchLine));
-  const folderLine = entry?.find((line) => line.startsWith('worktree '));
+  const branchField = `branch refs/heads/${branch}`;
+  let folder: string | null = null;
 
-  return folderLine === undefined ? null : folderLine.slice('worktree '.length);
+  for (const field of porcelain.split('\0')) {
+    if (field === '') {
+      folder = null;
+    } else if (field.startsWith('worktree ')) {
+      folder = field.slice('worktree '.length);
+    } else if (field === branchField) {
+      return folder;
+    }
+  }
+
+  return null;
 };
 
 export const failureText = (result: ExecResult, fallback: string): string => {

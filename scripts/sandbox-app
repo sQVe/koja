@@ -24,7 +24,7 @@ install_binary() {
 
 # Two verification runs build into the same dist/mods, so the build and install run one at a time.
 install_checkout() {
-  (cd "$here/.." && HERDR_APP_HOME=$home HERDR_APP_BIN=$bin flock "$here/.." bun run herdr:install)
+  (cd "$here/.." && HERDR_APP_HOME=$home HERDR_APP_BIN=$bin KOJA_CHECKOUT_LOCK_HELD="$(pwd -P)" flock "$here/.." bun run herdr:install)
 }
 
 # A fresh home makes Herdr show its welcome and an Updated pill, which would sit in every shot.

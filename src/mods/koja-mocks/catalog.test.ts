@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
+import { seededRandom } from '../../../tests/seeded.ts';
 import { overlaySize } from '../../kit/size.ts';
-import { findScene } from './catalog.ts';
+import { findScene, sceneReadyLine, sceneReadyName } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
 
 describe('scene lookup', () => {
@@ -245,5 +246,38 @@ describe('scene lookup', () => {
 
   test('a name past the last smoke scene gives an error', () => {
     expect('error' in findScene('smoke-5')).toBe(true);
+  });
+});
+
+const nameCharacters = 'abcdefghijklmnopqrstuvwxyz-0123456789 \t';
+
+describe('scene ready line', () => {
+  test('the ready name of any generated name is that name', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const random = seededRandom(seed);
+      const length = 1 + Math.floor(random() * 24);
+      let name = '';
+
+      for (let index = 0; index < length; index += 1) {
+        name += nameCharacters[Math.floor(random() * nameCharacters.length)] ?? 'a';
+      }
+
+      const trimmed = name.trim();
+
+      if (trimmed === '') {
+        continue;
+      }
+
+      expect(sceneReadyName(sceneReadyLine(trimmed))).toBe(trimmed);
+    }
+  });
+
+  test('log text after the ready line stays out of the name', () => {
+    expect(sceneReadyName(`earlier\n${sceneReadyLine('sidebar')}\nnext log line`)).toBe('sidebar');
+  });
+
+  test('a line without the marker, or with nothing after it, has no ready name', () => {
+    expect(sceneReadyName('earlier\n')).toBeNull();
+    expect(sceneReadyName(sceneReadyLine('   '))).toBeNull();
   });
 });
