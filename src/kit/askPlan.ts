@@ -128,17 +128,18 @@ const joinNames = (names: string[]): string => {
 
 const tabCount = (count: number): string => `${count} ${count === 1 ? 'tab closes' : 'tabs close'}`;
 
-const stopsClause = (agents: AgentInfo[], sharedNames: Set<string>, midTask: boolean): string => {
-  if (agents.length === 0) {
-    return '';
-  }
-
+const clauseSubject = (agents: AgentInfo[], sharedNames: Set<string>): string => {
   const labels = agentGroups(agents).map((group) => groupLabel(group, sharedNames.has(group.name)));
   const verb = agents.length === 1 ? 'stops' : 'stop';
-  const warning = midTask ? ' mid-task' : '';
 
-  return `${joinNames(labels)} ${verb}${warning}`;
+  return `${joinNames(labels)} ${verb}`;
 };
+
+const midTaskClause = (agents: AgentInfo[], sharedNames: Set<string>): string =>
+  agents.length === 0 ? '' : `${clauseSubject(agents, sharedNames)} mid-task`;
+
+const otherClause = (agents: AgentInfo[], sharedNames: Set<string>): string =>
+  agents.length === 0 ? '' : clauseSubject(agents, sharedNames);
 
 const closeStops = (agents: AgentInfo[]): string => {
   const unique = uniqueAgents(agents);
@@ -146,10 +147,9 @@ const closeStops = (agents: AgentInfo[]): string => {
   const other = unique.filter((agent) => !isMidTask(agent));
   const sharedNames = namesInBothClauses(midTask, other);
 
-  const clauses = [
-    stopsClause(midTask, sharedNames, true),
-    stopsClause(other, sharedNames, false),
-  ].filter((clause) => clause !== '');
+  const clauses = [midTaskClause(midTask, sharedNames), otherClause(other, sharedNames)].filter(
+    (clause) => clause !== '',
+  );
 
   return clauses.length === 0 ? '' : `${clauses.join(', ')}, and `;
 };
