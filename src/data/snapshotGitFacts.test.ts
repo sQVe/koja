@@ -202,7 +202,7 @@ describe('parseSnapshot git facts', () => {
     const orphanKey = worktreeOf(null, '/orphan').key;
 
     worktreesAt(snapshot)[orphanKey] = {
-      repository: { ...repositoryOf(null, '/orphan/.git') },
+      repository: repositoryOf(null, '/orphan/.git'),
       root: '/orphan',
       branch: 'main',
       linked: false,
