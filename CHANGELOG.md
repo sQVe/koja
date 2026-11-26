@@ -1,5 +1,179 @@
 # koja
 
+## 0.2.0
+
+### Minor Changes
+
+- [#134](https://github.com/sQVe/koja/pull/134)
+  [`cba4dd8`](https://github.com/sQVe/koja/commit/cba4dd859c0d8370ec711fa70835bcdcc27cfafa) Thanks
+  [@sQVe](https://github.com/sQVe)! - Read each space's stack from the repository's gh-stack record.
+  A space on a stack branch now reads every PR and ticket in its stack, and a stack whose tickets
+  share a parent takes the parent's title unless the user named the space.
+
+- [#111](https://github.com/sQVe/koja/pull/111)
+  [`acab648`](https://github.com/sQVe/koja/commit/acab648dea6ca719804754a00ceb878c9e2252e8) Thanks
+  [@sQVe](https://github.com/sQVe)! - Round every corner Koja draws with one 6 px radius: pane and
+  side panel frames, tabs, inset row pills, buttons, icon toggles, and the mode pill. Badges keep 4
+  px, and a card's inner corner follows its frame. The kit's pane header, which the mock scenes
+  draw, no longer paints a focus fill: in insert mode the pane border and the brighter title mark
+  focus, and normal mode keeps its tint.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`59a48c0`](https://github.com/sQVe/koja/commit/59a48c02dad47a2c2f06ada0a6138591b7c59889) Thanks
+  [@sQVe](https://github.com/sQVe)! - Play the blocked sound once for each agent ask the user cannot
+  see. A redraw of the same ask, an ask in sight, and a finished turn play nothing.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`59a48c0`](https://github.com/sQVe/koja/commit/59a48c02dad47a2c2f06ada0a6138591b7c59889) Thanks
+  [@sQVe](https://github.com/sQVe)! - Draw the new menu as the kit's overlay card, 296 px wide under
+  the tab bar's `+`, which shows pressed while it is open. `New tab` holds Terminal and the
+  installed agents, and `New space` holds Empty space and the two worktree rows, named after the
+  repository they work from. With no agent installed the menu says so, and a failed agent lookup
+  shows an error line with Retry.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`59a48c0`](https://github.com/sQVe/koja/commit/59a48c02dad47a2c2f06ada0a6138591b7c59889) Thanks
+  [@sQVe](https://github.com/sQVe)! - Show an agent ask the user cannot see in one card at the
+  bottom of the main column. The card names the space and the agent, shows the question and, for a
+  permission ask, the command, and closes when the ask is answered, gone to, or dismissed. A click
+  on the card goes to the asking pane.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`59a48c0`](https://github.com/sQVe/koja/commit/59a48c02dad47a2c2f06ada0a6138591b7c59889) Thanks
+  [@sQVe](https://github.com/sQVe)! - Draw the command palette as one frameless overlay card: a 560
+  px card centered in the main column, grouped headings with part-letter keycaps, 26 px rows with an
+  icon and the mode's key hint, a scroll thumb, and a footer that counts every command or only the
+  matches. The kit gains the overlay row, the overlay heading, the search input line, the scroll
+  thumb, and the main-column insets.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`59a48c0`](https://github.com/sQVe/koja/commit/59a48c02dad47a2c2f06ada0a6138591b7c59889) Thanks
+  [@sQVe](https://github.com/sQVe)! - Draw the pane, tab, space, and theme menus as the kit's
+  overlay card, 248 px wide. A pane menu starts with the pane's mark and name, rows are 24 px, the
+  right-click row shows `on` or `off`, and key hints follow the mode the menu opened in. A space
+  menu whose checkout read fails shows an error line with Retry in place of the worktree rows.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`59a48c0`](https://github.com/sQVe/koja/commit/59a48c02dad47a2c2f06ada0a6138591b7c59889) Thanks
+  [@sQVe](https://github.com/sQVe)! - Show Go to as one overlay card: the search line, status chips
+  with their counts, a `Spaces` heading, 28 px space rows with the agent mark, the project, and one
+  work icon, a preview header naming the space, pane, branch, and pull request, and a footer with
+  its keys. A preview that cannot start keeps Go to open on an error line with Retry instead of
+  falling back to Herdr's picker.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`59a48c0`](https://github.com/sQVe/koja/commit/59a48c02dad47a2c2f06ada0a6138591b7c59889) Thanks
+  [@sQVe](https://github.com/sQVe)! - Open the list of every unseen ask from the card's more line.
+  The card grows upward into one row per ask, newest first, each with its space, project and age,
+  the agent and question, and a permission ask's command. A row fills on hover, and a click goes to
+  that ask's pane and closes the list.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`59a48c0`](https://github.com/sQVe/koja/commit/59a48c02dad47a2c2f06ada0a6138591b7c59889) Thanks
+  [@sQVe](https://github.com/sQVe)! - Show a key hint card while normal mode waits for the key after
+  a part letter. The card names the part and lists the keys that can follow, grouped by what they
+  do, drawn from the kit's normal-mode key table. The next key still runs its action; a press on the
+  card cancels the sequence.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`59a48c0`](https://github.com/sQVe/koja/commit/59a48c02dad47a2c2f06ada0a6138591b7c59889) Thanks
+  [@sQVe](https://github.com/sQVe)! - Draw the confirm dialog as the compact card: 360 px wide, the
+  overlay card surface and outline, one 13 px text size, 24 px buttons, and an Enter keycap on the
+  main button. A destructive ask puts a red triangle-alert before its title, and the body lines up
+  with the title text. The card grows with its content, so a long space name never pushes the
+  buttons out of the dialog.
+
+  The close-space confirm now reads `Close space “<name>”?` and names the agents that stop and the
+  tabs that close, then what stays. An agent still working stops mid-task; one that has finished
+  stops. A mixed space warns only about the agents that are mid-task. A space with no agent running
+  names only its tabs.
+
+- [#109](https://github.com/sQVe/koja/pull/109)
+  [`59a48c0`](https://github.com/sQVe/koja/commit/59a48c02dad47a2c2f06ada0a6138591b7c59889) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add the overlay card, the keycap, the mode-aware hint, the
+  search line, the footer line, and the segmented chip to the kit, with a gallery entry for each.
+  The card and the parts draw through the theme tokens, and a hint follows the mode the overlay
+  opened in.
+
+### Patch Changes
+
+- [#108](https://github.com/sQVe/koja/pull/108)
+  [`9dc751c`](https://github.com/sQVe/koja/commit/9dc751caedbe12ec9798341fec47d61a6cff7629) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add the content pane's item header, source links, and fact
+  rows to the kit. The header draws the item's identifier as a link naming its source, its title, a
+  state chip, and one age, and a loading item draws only the identifier and its source. Facts draw
+  as rows with one label column, or as pairs that wrap under the title, and a linked value can name
+  its source's state after it. The kit also gains an open pull request icon. The kit gallery's
+  Content section shows each part in every state, with a long ticket title and its wrapped facts.
+
+- [#133](https://github.com/sQVe/koja/pull/133)
+  [`1cc8075`](https://github.com/sQVe/koja/commit/1cc807567a0dd14e56b92a0ff06ea0d7428154f8) Thanks
+  [@sQVe](https://github.com/sQVe)! - Move the pinned Herdr declarations to Herdr 0.1.18, so mods
+  typecheck against the API of the release Koja targets.
+
+- [#131](https://github.com/sQVe/koja/pull/131)
+  [`161b8a2`](https://github.com/sQVe/koja/commit/161b8a24862c732e5d064089122a2f82552c9284) Thanks
+  [@sQVe](https://github.com/sQVe)! - Cut a long item state word in the header chip instead of
+  letting it push past the header. The chip's marks now come from one record, so a new state needs
+  its own mark, and the in-review mark reuses the shared blocked bubble. The document line and the
+  action block each build their layout once.
+
+- [#95](https://github.com/sQVe/koja/pull/95)
+  [`ac78879`](https://github.com/sQVe/koja/commit/ac78879dbda7785f4390c0b230be0758e0f3fb46) Thanks
+  [@sQVe](https://github.com/sQVe)! - Wait for the exact mock scene ready line before capturing, run
+  each capture under its sandbox lock, and publish capture files only after all three exist. A scene
+  writes its ready line only after the frame that draws it has run, so a capture no longer shoots
+  the picker or an empty frame. The worktree dialog asks about closing a space only when an agent it
+  has not warned about is running, and closes the space directly once that agent has stopped.
+
+- [#108](https://github.com/sQVe/koja/pull/108)
+  [`9dc751c`](https://github.com/sQVe/koja/commit/9dc751caedbe12ec9798341fec47d61a6cff7629) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add the content pane's action block and document gutter to the
+  kit. The action block draws one solid main button that names its effect. A failed save makes
+  `Retry save` the main button, with the error, the folder on its own line, a `Copy path` recovery
+  button, the unsaved count, and the dim line that says the send waits for a save. A sent review
+  draws the check and the next step instead of a control. A document line draws a right-aligned line
+  number, a warning bar on an edited line with `edited` once, and a neutral bar on commented lines.
+  The kit gains a monospace text role, which draws in the terminal font from settings. The kit
+  gallery's Content section shows each action state and a document with edited and commented lines.
+
+- [#125](https://github.com/sQVe/koja/pull/125)
+  [`33f2ac8`](https://github.com/sQVe/koja/commit/33f2ac89f25713a53ac769b31e41e9b6cdea34ca) Thanks
+  [@sQVe](https://github.com/sQVe)! - Show the normal-mode jump key on the ask card: `)` with "Go to
+  the next pane that needs you", under the question and any command.
+
+- [#127](https://github.com/sQVe/koja/pull/127)
+  [`7775dc8`](https://github.com/sQVe/koja/commit/7775dc8471a85000753f3364d61c79dbe65e946b) Thanks
+  [@sQVe](https://github.com/sQVe)! - No change to the mods. The data layer's large test suites and
+  the spaces mod's main test suite are split by behavior, and the PR Retry interleaving test drives
+  the production scheduler instead of a test-only owner.
+
+- [#95](https://github.com/sQVe/koja/pull/95)
+  [`ac78879`](https://github.com/sQVe/koja/commit/ac78879dbda7785f4390c0b230be0758e0f3fb46) Thanks
+  [@sQVe](https://github.com/sQVe)! - Ask for a worktree remove only once its risks are known.
+  Remove names uncommitted changes and a running agent together, re-reads the risk before Grove runs
+  and the live agent before it closes the space, and claims Herdr's close confirmation only for the
+  set it showed. `--force` needs a confirmed change loss, so an agent-only warning leaves Grove's
+  own guards on. Escape or a host close stops every command and check that would follow, including a
+  space open or close. A Grove process that already started is not stopped. A branch or worktree
+  name that starts with `-` is refused, and a new worktree whose folder Git does not list offers a
+  lookup-only retry.
+
+- [#114](https://github.com/sQVe/koja/pull/114)
+  [`c1317c2`](https://github.com/sQVe/koja/commit/c1317c2da17719b219ab2544c062d242f862e953) Thanks
+  [@sQVe](https://github.com/sQVe)! - Add the content pane's sections, status rows, and part notes
+  to the kit. A section draws a collapsible header with its name and a dim count, its header folds
+  it, and every part starts at the label's edge. A status row draws a mark in a fixed slot, the
+  name, a detail line under it at the same indent, and a state word; a row of a part that failed to
+  refresh keeps its mark still. A part note names the part, its age, and Retry, which reads the part
+  again. The kit gallery's Content section shows a pull request's checks, threads, and slices, live
+  and stale, and folds each section.
+
+- [#122](https://github.com/sQVe/koja/pull/122)
+  [`69db062`](https://github.com/sQVe/koja/commit/69db0620cf74157df25fe7e7f7e060958ac23243) Thanks
+  [@sQVe](https://github.com/sQVe)! - Cover the sidebar's space close watch with generated look
+  orders. A close now has a test that only selects a live space and follows one close at most once.
+
 ## 0.1.0
 
 ### Minor Changes
