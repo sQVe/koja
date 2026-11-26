@@ -24,6 +24,7 @@ export interface PendingCall {
   args: string[];
   cwd: string;
   on: string | null;
+  settled: boolean;
   respond: (result: ExecResult) => void;
 }
 
@@ -91,6 +92,7 @@ export class PullSchedulerHarness {
       args,
       cwd: options.cwd,
       on: options.on,
+      settled: false,
       respond: settled.resolve,
     };
 
@@ -206,6 +208,7 @@ export class PullSchedulerHarness {
   }
 
   async respondCall(call: PendingCall, result: ExecResult): Promise<void> {
+    call.settled = true;
     call.respond(result);
     await this.settle();
   }
