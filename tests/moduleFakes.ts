@@ -196,6 +196,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   taskOfPane: () => null,
   trafficLightsPadding: noop,
   takeNormalKeys: () => null,
+  terminalFont: () => '',
   textField: chainable,
   textRoleNames: [],
   textRoles: {},

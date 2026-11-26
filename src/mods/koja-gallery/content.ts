@@ -134,16 +134,21 @@ const rail = (): Element => {
 const railFrame = (content: Element): Element =>
   v_flex().w(contentSize.railWidth).p(spacing.xxlarge).child(content);
 
-const readyAction = (): Element => actionBlock({ kind: 'action', action: 'Send to Tau' });
+// The gallery shows the parts, so its actions have nothing to run.
+const noAction = (): void => undefined;
+
+const readyAction = (): Element =>
+  actionBlock({ kind: 'ready', action: 'Send to Tau', onAction: noAction });
 
 const failedSaveAction = (): Element =>
   actionBlock({
-    kind: 'action',
+    kind: 'failed',
     action: 'Retry save',
+    onAction: noAction,
     failure: {
       error: 'Could not save: the folder is read-only',
       folder: '~/code/koja/.tau/reviews',
-      recovery: ['Copy path'],
+      recovery: [{ label: 'Copy path', onSelect: noAction }],
       unsaved: '1 line and 2 comments are unsaved. They stay in this pane.',
       wait: 'Send to Tau waits for a save.',
     },

@@ -1,7 +1,8 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
 import {
+  click,
   drawn,
   drawnIcons,
   drawnTexts,
@@ -9,7 +10,7 @@ import {
   elementsWithBorder,
 } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
-import type { ActionBlockOptions, ActionFailure } from './actionBlock.ts';
+import type { ActionBlockOptions, ActionFailure, ActionRecovery } from './actionBlock.ts';
 
 const palette = {
   blocked: '#0b0b1b',
@@ -54,16 +55,34 @@ afterAll(() => {
   mock.restore();
 });
 
-const failedSave = (): ActionFailure => ({
+let actionCalls = 0;
+let recoveryCalls = 0;
+
+beforeEach(() => {
+  actionCalls = 0;
+  recoveryCalls = 0;
+});
+
+const onAction = (): void => {
+  actionCalls += 1;
+};
+
+const onRecovery = (): void => {
+  recoveryCalls += 1;
+};
+
+const failure = (
+  recovery: ActionRecovery[] = [{ label: 'Copy path', onSelect: onRecovery }],
+): ActionFailure => ({
   error: 'Could not save: the folder is read-only',
   folder,
-  recovery: ['Copy path'],
+  recovery,
   unsaved,
   wait,
 });
 
 const failedSaveBlock = (): DrawnElement =>
-  actionBlock({ kind: 'action', action: 'Retry save', failure: failedSave() });
+  actionBlock({ kind: 'failed', action: 'Retry save', onAction, failure: failure() });
 
 describe('actionBlock', () => {
   test('a failed save draws Retry save as the solid main action and no Send control', () => {
@@ -88,6 +107,24 @@ describe('actionBlock', () => {
 
     expect(drawnIcons(block)).toEqual(['circle-alert.svg']);
     expect(elementWithText(block, folder)?.tooltipText).toBe(folder);
+    expect(elementWithText(block, wait)?.textColors).toEqual([palette.dim]);
+  });
+
+  test('a failed save with no recovery draws no empty recovery row', () => {
+    const block = actionBlock({
+      kind: 'failed',
+      action: 'Retry save',
+      onAction,
+      failure: failure([]),
+    });
+
+    expect(drawnTexts(block)).toEqual([
+      'Retry save',
+      'Could not save: the folder is read-only',
+      folder,
+      unsaved,
+      wait,
+    ]);
   });
 
   test('a recovery button is a small outlined secondary button', () => {
@@ -97,12 +134,39 @@ describe('actionBlock', () => {
 
     expect(recovery?.textColors).toEqual([palette.muted]);
     expect(recovery?.backgroundColors).toEqual([]);
+    expect(recovery?.styles['cursor_pointer']).toBeDefined();
     expect(outlined).toHaveLength(1);
     expect(outlined[0]?.texts).toEqual(['Copy path']);
   });
 
+  test('the main action and each recovery button run their own handler', () => {
+    const block = failedSaveBlock();
+    const mainAction = elementWithText(block, 'Retry save');
+    const recovery = elementWithText(block, 'Copy path');
+    const errorLine = elementWithText(block, 'Could not save: the folder is read-only');
+
+    expect(mainAction).not.toBeNull();
+    expect(recovery).not.toBeNull();
+    expect(errorLine).not.toBeNull();
+
+    if (mainAction !== null && recovery !== null && errorLine !== null) {
+      click(errorLine);
+
+      expect(actionCalls).toBe(0);
+
+      click(recovery);
+
+      expect(recoveryCalls).toBe(1);
+      expect(actionCalls).toBe(0);
+
+      click(mainAction);
+
+      expect(actionCalls).toBe(1);
+    }
+  });
+
   test('a ready action draws its one button and no state block', () => {
-    const block = actionBlock({ kind: 'action', action: 'Send to Tau' });
+    const block = actionBlock({ kind: 'ready', action: 'Send to Tau', onAction });
 
     expect(drawnTexts(block)).toEqual(['Send to Tau']);
     expect(drawnIcons(block)).toEqual([]);

@@ -1,20 +1,27 @@
 import { h_flex, v_flex } from 'gpui-base';
-import type { Element } from 'gpui-kit';
+import type { Context, Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import { actionButton } from './button.ts';
 import { withHover } from './hover.ts';
 import { icon } from './icon.ts';
+import type { ThemeToken } from './palette.ts';
 import { controlSize, radius, spacing } from './size.ts';
+import type { TextRole } from './textRole.ts';
 import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
+
+export interface ActionRecovery {
+  label: string;
+  onSelect: (cx: Context) => void;
+}
 
 export interface ActionFailure {
   error: string;
   // The folder the save failed on, drawn whole on its own line.
   folder: string;
-  // The small secondary buttons' labels, such as Copy path.
-  recovery: string[];
+  // The small secondary buttons, such as Copy path.
+  recovery: ActionRecovery[];
   // What the pane still holds, such as the unsaved count.
   unsaved: string;
   // Why the main action waits, drawn dim after the unsaved count.
@@ -22,13 +29,14 @@ export interface ActionFailure {
 }
 
 export type ActionBlockOptions =
-  | { kind: 'action'; action: string; failure?: ActionFailure }
+  | { kind: 'ready'; action: string; onAction: (cx: Context) => void }
+  | { kind: 'failed'; action: string; onAction: (cx: Context) => void; failure: ActionFailure }
   | { kind: 'sent'; action: string; detail: string };
 
-const errorText = (error: string): Element => {
+const textLine = (role: TextRole, text: string, color?: ThemeToken): Element => {
   const box = div().min_w(0);
 
-  return withTextRole(box, 'detail', 'foreground').child(error);
+  return withTextRole(box, role, color).child(text);
 };
 
 const folderText = (folder: string): Element => {
@@ -47,13 +55,13 @@ const errorRow = (failure: ActionFailure): Element => {
     .min_w(0)
     .flex_1()
     .gap(spacing.xsmall)
-    .child(errorText(failure.error))
+    .child(textLine('detail', failure.error, 'foreground'))
     .child(folderText(failure.folder));
 
   return h_flex().min_w(0).gap(spacing.small).items_start().child(alert).child(messages);
 };
 
-const recoveryButton = (label: string): Element => {
+const recoveryButton = (recovery: ActionRecovery): Element => {
   const palette = colors();
 
   const chip = h_flex()
@@ -62,6 +70,7 @@ const recoveryButton = (label: string): Element => {
     .flex_none()
     .items_center()
     .rounded(radius.pill)
+    .cursor_pointer()
     .border(spacing.hairline)
     .border_color(palette.border);
 
@@ -71,19 +80,9 @@ const recoveryButton = (label: string): Element => {
     element.bg(palette.hover).text_color(palette.foreground),
   );
 
-  return outlined.child(label);
-};
-
-const noteText = (note: string): Element => {
-  const box = div().min_w(0);
-
-  return withTextRole(box, 'body').child(note);
-};
-
-const waitText = (wait: string): Element => {
-  const box = div().min_w(0);
-
-  return withTextRole(box, 'detail', 'dim').child(wait);
+  return outlined.child(recovery.label).on_click((_event, cx) => {
+    recovery.onSelect(cx);
+  });
 };
 
 const failureBlock = (failure: ActionFailure): Element => {
@@ -95,12 +94,19 @@ const failureBlock = (failure: ActionFailure): Element => {
     block.child(recovery);
   }
 
-  return block.child(noteText(failure.unsaved)).child(waitText(failure.wait));
+  return block
+    .child(textLine('body', failure.unsaved))
+    .child(textLine('detail', failure.wait, 'dim'));
 };
+
+const mainButton = (action: string, onAction: (cx: Context) => void): Element =>
+  actionButton({ label: action, enabled: true }).on_click((_event, cx) => {
+    onAction(cx);
+  });
 
 const sentRow = (action: string): Element => {
   const check = icon('check', 'small').text_color(colors().done);
-  const label = noteText(action);
+  const label = textLine('body', action);
 
   return h_flex().gap(spacing.small).items_center().child(check).child(label);
 };
@@ -111,15 +117,15 @@ export const actionBlock = (options: ActionBlockOptions): Element => {
       .min_w(0)
       .gap(spacing.medium)
       .child(sentRow(options.action))
-      .child(noteText(options.detail));
+      .child(textLine('body', options.detail));
   }
 
   const block = v_flex()
     .min_w(0)
     .gap(spacing.medium)
-    .child(actionButton({ label: options.action, enabled: true }));
+    .child(mainButton(options.action, options.onAction));
 
-  if (options.failure !== undefined) {
+  if (options.kind === 'failed') {
     block.child(failureBlock(options.failure));
   }
 

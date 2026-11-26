@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { drawn, drawnTexts, elementWithText, elementsWithStyle } from '../../tests/drawn.ts';
@@ -17,7 +17,7 @@ const monospaceFont = 'Iosevka';
 
 const defaultFont = 'JetBrains Mono';
 
-let settingsValues: Record<string, unknown> = { font_family: monospaceFont };
+let settingsValues: Record<string, unknown> = {};
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
@@ -44,24 +44,47 @@ afterAll(() => {
   mock.restore();
 });
 
+beforeEach(() => {
+  settingsValues = { font: monospaceFont };
+});
+
+const sidebarLine = (): DrawnElement => documentLine({ number: 1, text: '# Sidebar design' });
+
 const barFills = (line: DrawnElement): (string | undefined)[] =>
   elementsWithStyle(line, 'bg').map((element) => element.backgroundColors.at(-1));
+
+const firstBar = (line: DrawnElement): DrawnElement | undefined => elementsWithStyle(line, 'bg')[0];
 
 const drawnFont = (line: DrawnElement): unknown[] | undefined => line.styles['font_family'];
 
 describe('documentLine', () => {
   test('an edited line fills its gutter bar with the warning ink and says edited once', () => {
     const line = documentLine({ number: 6, text: 'Keep the space visible.', bar: 'edited' });
+    const bar = firstBar(line);
 
     expect(barFills(line)).toEqual([palette.working]);
+    expect(bar?.styles['w']).toEqual([documentSize.markWidth]);
+    expect(bar?.styles['h']).toEqual([documentSize.markHeight]);
     expect(drawnTexts(line)).toEqual(['6', 'Keep the space visible.', 'edited']);
   });
 
   test('a commented line draws a neutral bar and no edited word', () => {
     const line = documentLine({ number: 12, text: 'Keep marks visible.', bar: 'commented' });
+    const stripe = firstBar(line);
 
     expect(barFills(line)).toEqual([palette.muted]);
+    expect(stripe?.styles['w']).toEqual([documentSize.stripeWidth]);
+    expect(stripe?.styles['h_full']).toBeDefined();
     expect(drawnTexts(line)).toEqual(['12', 'Keep marks visible.']);
+  });
+
+  test('a bar stops short of its row, so adjacent commented lines stay apart', () => {
+    const line = documentLine({ number: 6, text: 'Keep it.', bar: 'edited' });
+    const bar = firstBar(line);
+    const rowHeight = Number(line.styles['h']?.[0]);
+    const markHeight = Number(bar?.styles['h']?.[0]);
+
+    expect(markHeight).toBeLessThan(rowHeight);
   });
 
   test('a plain line draws no bar', () => {
@@ -87,20 +110,20 @@ describe('documentLine', () => {
   });
 
   test('the line draws in the terminal font from settings', () => {
-    expect(drawnFont(documentLine({ number: 1, text: '# Sidebar design' }))).toEqual([
-      monospaceFont,
-    ]);
+    expect(drawnFont(sidebarLine())).toEqual([monospaceFont]);
   });
 
-  test('a missing or non-text font setting draws the default terminal font', () => {
+  test('a missing or non-text font setting draws the default terminal font', async () => {
+    expect(drawnFont(sidebarLine())).toEqual([monospaceFont]);
+
     settingsValues = {};
+    await Promise.resolve();
 
-    expect(drawnFont(documentLine({ number: 1, text: '# Sidebar design' }))).toEqual([defaultFont]);
+    expect(drawnFont(sidebarLine())).toEqual([defaultFont]);
 
-    settingsValues = { font_family: 42 };
+    settingsValues = { font: 42 };
+    await Promise.resolve();
 
-    expect(drawnFont(documentLine({ number: 1, text: '# Sidebar design' }))).toEqual([defaultFont]);
-
-    settingsValues = { font_family: monospaceFont };
+    expect(drawnFont(sidebarLine())).toEqual([defaultFont]);
   });
 });

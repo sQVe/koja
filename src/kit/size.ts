@@ -58,12 +58,15 @@ export const documentSize = {
   // The line's own padding, and the gap between the gutter and the text.
   inset: spacing.xxlarge,
   textGap: 12,
-  // The edited line's bar fills the mark slot; a commented line's bar sits inside it, so every
-  // line number stays in one column.
+  // The edited line's bar fills the mark slot, and a commented line's bar sits inside it, so every
+  // line number stays in one column. The slot stops short of the row's edges, so the bars of
+  // adjacent commented lines stay apart.
   markWidth: 4,
+  markHeight: 12,
   stripeWidth: 2,
   markGap: spacing.xsmall,
-  numberWidth: 18,
+  // Four digits, the width the diff's line numbers keep too.
+  numberWidth: diffSize.lineNumberWidth,
 } as const;
 
 export const controlSize = {

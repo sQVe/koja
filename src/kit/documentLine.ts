@@ -18,7 +18,7 @@ export interface DocumentLineOptions {
 
 const gutterBar = (bar: LineBar | undefined): Element => {
   const palette = colors();
-  const slot = div().w(documentSize.markWidth).h(documentSize.lineHeight).flex_none();
+  const slot = div().w(documentSize.markWidth).h(documentSize.markHeight).flex_none();
 
   if (bar === 'edited') {
     return slot.bg(palette.working);
