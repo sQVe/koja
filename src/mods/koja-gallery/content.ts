@@ -256,8 +256,9 @@ const checksSection = (stale: boolean, options: ContentPartsOptions): Element =>
     statusRow(runningCheck('style', styleAge, showsStale)),
   ];
 
-  const note = partNote({ ...staleChecksNote, onRetry: options.onRetryChecks });
-  const parts = showsStale ? [note, ...rows] : rows;
+  const parts = showsStale
+    ? [partNote({ ...staleChecksNote, onRetry: options.onRetryChecks }), ...rows]
+    : rows;
 
   return contentSection(sectionOptions(options, 'Checks', parts, checksCount));
 };

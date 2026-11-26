@@ -1,16 +1,8 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
-import type { Element } from 'gpui-kit';
-
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { clickablesWithText, drawn, drawnTexts, spinning } from '../../../tests/drawn.ts';
-import {
-  chainable,
-  gpuiBaseFake,
-  gpuiKitFake,
-  herdrFake,
-  realKitIndexFake,
-} from '../../../tests/moduleFakes.ts';
+import { click, clickablesWithText, drawnTexts, spinning } from '../../../tests/drawn.ts';
+import { mockGalleryModules } from '../../../tests/gallery.ts';
 
 interface SampleOptions {
   folded?: ReadonlySet<string>;
@@ -21,58 +13,11 @@ interface SampleOptions {
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
-await mock.module('gpui-base', () =>
-  gpuiBaseFake({
-    h_flex: () => drawn(),
-    v_flex: () => drawn(),
-    InputState: { new: () => chainable() },
-  }),
-);
-
-await mock.module('gpui-kit', () =>
-  gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
-);
-
-await mock.module('herdr', () => herdrFake({ shared: () => undefined, theme: () => ({}) }));
-
-const kitFake = await realKitIndexFake([
-  'age',
-  'button',
-  'contentSection',
-  'dialog',
-  'factRows',
-  'hoverCard',
-  'icon',
-  'iconNames',
-  'itemHeader',
-  'listRow',
-  'partNote',
-  'popupSurface',
-  'projectHeader',
-  'roleBadge',
-  'searchField',
-  'sectionHeader',
-  'size',
-  'sourceLink',
-  'spaceFooter',
-  'stackProgress',
-  'stateLine',
-  'statusMark',
-  'statusRow',
-  'tab',
-  'text',
-  'textField',
-  'textRole',
-  'theme',
-  'viewSwitch',
-  'workIcon',
-]);
+const kitFake = await mockGalleryModules({ shared: () => undefined });
 
 await mock.module('../../kit/index.ts', () => kitFake);
 
-const { contentParts } = (await import('./content.ts')) as unknown as {
-  contentParts: (options: Required<SampleOptions>) => Element[];
-};
+const { contentParts } = await import('./content.ts');
 
 afterAll(() => {
   mock.restore();
@@ -86,6 +31,7 @@ const samples = (options: SampleOptions = {}): DrawnElement[] => {
     onRetryChecks: options.onRetryChecks ?? (() => undefined),
   });
 
+  // The kit draws native elements; the fakes record them as drawn elements.
   return drawnParts as unknown as DrawnElement[];
 };
 
@@ -118,7 +64,9 @@ describe('gallery content samples', () => {
     const liveTexts = drawnTexts(live);
 
     expect(staleTexts).toContain('Could not sync checks · showing checks from 6m ago');
+    expect(staleTexts).toContain('typecheck');
     expect(staleTexts).toContain('started 8m ago');
+    expect(staleTexts).toContain('started 7m ago');
     expect(staleTexts).not.toContain('started 2m ago');
     expect(spinning(stale)).toBe(false);
 
@@ -153,7 +101,7 @@ describe('gallery content samples', () => {
       },
     });
 
-    headerOf(sample, 'Checks').clickHandlers[0]?.({}, { stop_propagation: () => undefined });
+    click(headerOf(sample, 'Checks'));
 
     expect(toggled).toEqual(['Checks']);
   });
@@ -173,7 +121,7 @@ describe('gallery content samples', () => {
       throw new Error('The stale Checks sample has no Retry.');
     }
 
-    retry.clickHandlers[0]?.({}, { stop_propagation: () => undefined });
+    click(retry);
 
     expect(retries).toBe(1);
   });
