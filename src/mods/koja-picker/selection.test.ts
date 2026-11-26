@@ -25,9 +25,10 @@ await mock.module('../../kit/index.ts', () => kitIndexFake({ modName: 'koja-pick
 
 const modulePath = './selection.ts';
 
-const { readSelection, writeSelection } = (await import(modulePath)) as {
-  readSelection: (overlay: string | null) => string | null;
-  writeSelection: (overlay: string | null, pane: string | null) => void;
+const { clearSelection, readSelection, writeSelection } = (await import(modulePath)) as {
+  readSelection: (overlay: string) => string | null;
+  writeSelection: (overlay: string, pane: string | null) => void;
+  clearSelection: (overlay: string) => void;
 };
 
 const overlay = 'overlay-1';
@@ -73,6 +74,16 @@ describe('selection', () => {
 
     expect(readSelection('overlay-a')).toBe('first-pane');
     expect(readSelection('overlay-b')).toBeNull();
+  });
+
+  test('a closed popup clears its own selection and leaves the other popup alone', () => {
+    writeSelection('overlay-a', 'first-pane');
+    writeSelection('overlay-b', 'second-pane');
+
+    clearSelection('overlay-b');
+
+    expect(readSelection('overlay-b')).toBeNull();
+    expect(readSelection('overlay-a')).toBe('first-pane');
   });
 
   test('publishes one write per change of the pane it is given', () => {

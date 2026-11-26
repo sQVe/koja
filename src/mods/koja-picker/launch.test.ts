@@ -17,6 +17,8 @@ let opened: OpenedOverlay[] = [];
 let spawned: Promise<unknown>[] = [];
 let closed: (string | null)[] = [];
 let ran: string[] = [];
+let killed: string[] = [];
+let removed: string[] = [];
 let settled = 0;
 
 Object.assign(globalThis, { kojaModName: 'koja-picker' });
@@ -74,6 +76,8 @@ beforeEach(() => {
   spawned = [];
   closed = [];
   ran = [];
+  killed = [];
+  removed = [];
   settled = 0;
 });
 
@@ -83,11 +87,16 @@ const hostWith = (answer: { code: number; stdout: string }, watching = true): Pr
   read: async (path: string) => (watching && path.endsWith('/ready') ? '' : null),
   write: async () => undefined,
   newFolder: async () => '/tmp/koja-picker.test',
-  removeFolder: () => undefined,
-  kill: () => undefined,
+  removeFolder: (path: string) => {
+    removed.push(path);
+  },
+  kill: (terminal: string) => {
+    killed.push(terminal);
+  },
 });
 
 const taskContext = {
+  sleep: async () => undefined,
   timer: {
     after: (_milliseconds: number, handler: () => void) => {
       handler();
@@ -165,6 +174,8 @@ describe('launch', () => {
     expect(partsOf(spec)).toEqual(['list', 'preview-error', 'footer']);
     expect(terminalsOf(spec)).toEqual([]);
     expect(closed).toEqual(['overlay-3']);
+    expect(killed).toEqual(['w1:p1']);
+    expect(removed).toEqual(['/tmp/koja-picker.test']);
     expect(settled).toBe(1);
   });
 

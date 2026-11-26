@@ -161,7 +161,7 @@ const stored = (
       | undefined;
 
     repositories[repository.key] = {
-      failed: pull.failed === true,
+      failed: pull.failed === true || existing?.failed === true,
       pulls: [...(existing?.pulls ?? []), parsed],
     };
   }
@@ -435,6 +435,41 @@ describe('spaceFacts', () => {
     const pane = { ...paneAt('/code/koja'), branch: 'side' };
 
     expect(paneFactsOf(null, pane, pane.branch)?.pull).toBe(9);
+  });
+
+  test('answers no facts for a pane under a folder that is no repository', () => {
+    stored([], [], ['/code/plain']);
+
+    const pane = { ...paneAt('/code/plain/src'), branch: null };
+
+    expect(paneFactsOf(null, pane, null)).toBeNull();
+  });
+
+  test('answers the pull of a pane in a sibling folder of a recorded subfolder', () => {
+    stored(
+      [
+        {
+          root: '/code/widget',
+          commonDirectory: '/code/widget/.git',
+          branch: 'feature',
+          linked: false,
+        },
+      ],
+      [{ number: 42, headRefName: 'feature', commonDirectory: '/code/widget/.git' }],
+    );
+
+    // The data layer can record a space by one of its subfolders, leaving the checkout root with no
+    // place of its own.
+    const facts = (sharedValues[snapshotKey] as { facts: Facts }).facts;
+    const rootKey = placeOf(null, '/code/widget').key;
+    const entry = facts.git.places[rootKey] as { worktree: string };
+    const subfolder = placeOf(null, '/code/widget/src').key;
+
+    facts.git.places = { [subfolder]: { kind: 'repository', worktree: entry.worktree } };
+
+    const pane = { ...paneAt('/code/widget/lib'), branch: 'feature' };
+
+    expect(paneFactsOf(null, pane, pane.branch)?.pull).toBe(42);
   });
 
   test('answers no facts for a folder the data layer has not read', () => {

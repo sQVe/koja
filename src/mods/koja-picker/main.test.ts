@@ -242,6 +242,7 @@ const asyncContext = {
     return bindings.length;
   },
   focus_handle: () => ({ focus: () => undefined, is_focused: () => false }),
+  sleep: async () => undefined,
   spawn: () => undefined,
   timer: {
     after: (_milliseconds: number, handler: (cx: unknown) => void) => {
@@ -349,6 +350,8 @@ const spaceWithOnePane = (id: string): { space: SpaceInfo; pane: PaneInfo } => {
 
   return { space, pane: paneInfo };
 };
+
+const selectionKey = 'koja-picker.selection.overlay-3';
 
 const resumedPreview = {
   part: 'list',
@@ -604,13 +607,14 @@ describe('picker overlay state', () => {
 
     spaceValues = [space];
     paneValues = [pane];
+    overlayNow = 'overlay-3';
 
     const view = await loadView();
 
     view.init(undefined, asyncContext);
 
-    expect(sharedValues['koja-picker.selection']).toBe('s1-pane');
-    expect(sharedWrites).toEqual(['koja-picker.selection']);
+    expect(sharedValues[selectionKey]).toBe('s1-pane');
+    expect(sharedWrites).toEqual([selectionKey]);
     expect(overlayCloseCount()).toBe(0);
   });
 
@@ -620,13 +624,14 @@ describe('picker overlay state', () => {
 
     spaceValues = [space];
     paneValues = [pane, other];
+    overlayNow = 'overlay-3';
 
     const view = await loadView();
 
     view.init(undefined, asyncContext);
     view.render();
 
-    expect(sharedValues['koja-picker.selection']).toBe('s1-pane');
+    expect(sharedValues[selectionKey]).toBe('s1-pane');
 
     paneValues = [
       { ...pane, focused: false },
@@ -635,7 +640,7 @@ describe('picker overlay state', () => {
 
     view.render();
 
-    expect(sharedValues['koja-picker.selection']).toBe('s1-pane-2');
+    expect(sharedValues[selectionKey]).toBe('s1-pane-2');
   });
 
   test('escape records one close and closes the picker', async () => {

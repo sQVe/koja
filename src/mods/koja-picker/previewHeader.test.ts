@@ -194,6 +194,12 @@ describe('previewHeader', () => {
     expect(drawnIcons(header)).not.toContain('git-branch.svg');
   });
 
+  test('draws a mod pane over stored facts without a folder', () => {
+    const header = headerOf([modPane()], 'm1', factsWithPull());
+
+    expect(drawnTexts(header)).toEqual(['koja', 'Gallery', '#41']);
+  });
+
   test('draws an empty band for a pane whose tab belongs to no space', () => {
     const header = headerOf([{ ...terminalPane(), tab: 'k9' }], 'p1');
 
