@@ -68,6 +68,7 @@ interface HostControls {
   heartbeat: () => Heartbeat | null;
   storedSnapshot: (pulls?: Record<string, RepositoryPulls>) => Snapshot;
   readPull: (number: number) => Pull;
+  sweepMilliseconds: number;
 }
 
 export type DataHostHarness = HostState & HostControls;
@@ -297,6 +298,7 @@ const controlsOf = (
   heartbeat: () => parseHeartbeat(state.sharedValues.get(heartbeatKey)),
   storedSnapshot: (pulls) => storedSnapshotOf(pulls),
   readPull: (number) => readPullOf(number),
+  sweepMilliseconds,
 });
 
 // Bun keeps one module registry per worker, so every test file shares this state and the cached host.
