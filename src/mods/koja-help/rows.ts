@@ -1,10 +1,10 @@
+import type { PartLetter } from '../../kit/keyHints.ts';
+import { partLetters, partTitles } from '../../kit/keyHints.ts';
 import { actionName } from '../../kit/keyNames.ts';
 import type { NormalKey } from '../../kit/normalKeys.ts';
 import { listKeys, normalKeys } from '../../kit/normalKeys.ts';
 
-type Part = 'w' | 't' | 's' | 'g' | 'z';
-
-export type HelpGroupId = Part | 'single' | 'list';
+export type HelpGroupId = PartLetter | 'single' | 'list';
 
 export interface HelpRow {
   name: string;
@@ -18,28 +18,18 @@ export interface HelpGroup {
   rows: HelpRow[];
 }
 
-const parts: Part[] = ['w', 't', 's', 'g', 'z'];
-
-const partTitles: Record<Part, string> = {
-  w: 'Panes',
-  t: 'Tabs',
-  s: 'Spaces',
-  g: 'Go to',
-  z: 'View',
-};
-
 const controlWindowNote = 'Every key here also works after ctrl-w.';
 
 const listNote = 'While a section with a list is marked.';
 
 const isControlWindowKey = (key: NormalKey): boolean => key.keys[0] === 'ctrl-w';
 
-const partOf = (key: NormalKey): Part | undefined => {
+const partOf = (key: NormalKey): PartLetter | undefined => {
   if (key.keys.length < 2) {
     return undefined;
   }
 
-  return parts.find((part) => part === key.keys[0]);
+  return partLetters.find((part) => part === key.keys[0]);
 };
 
 const rowsOf = (keys: readonly NormalKey[]): HelpRow[] => {
@@ -64,7 +54,7 @@ const rowsOf = (keys: readonly NormalKey[]): HelpRow[] => {
 const allGroups = (): HelpGroup[] => {
   const listed = normalKeys.filter((key) => !isControlWindowKey(key));
 
-  const partGroup = (part: Part): HelpGroup => ({
+  const partGroup = (part: PartLetter): HelpGroup => ({
     id: part,
     title: partTitles[part],
     ...(part === 'w' ? { note: controlWindowNote } : {}),
@@ -74,7 +64,7 @@ const allGroups = (): HelpGroup[] => {
   const singleKeys = listed.filter((key) => partOf(key) === undefined);
 
   return [
-    ...parts.map(partGroup),
+    ...partLetters.map(partGroup),
     { id: 'single', title: 'Single keys', rows: rowsOf(singleKeys) },
     { id: 'list', title: 'Lists', note: listNote, rows: rowsOf(listKeys) },
   ];

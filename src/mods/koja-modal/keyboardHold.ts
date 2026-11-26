@@ -21,7 +21,7 @@ export interface KeyboardHold {
   close: () => void;
 }
 
-const ownOverlays = new Set(['koja-asks', 'koja-modal', 'toast']);
+const ownOverlays = new Set(['koja-asks', 'koja-hints', 'koja-modal', 'toast']);
 
 const baseBackoffMilliseconds = 50;
 
