@@ -145,7 +145,11 @@ const branchOf = (pull: StackPull): StackBranch => ({
 
 // Recorded facts for one space, so a row search reads its stack through the same place and worktree
 // branch the data layer stores.
-export const factsWithStack = (folder: string, stack: SpaceStack): Facts => {
+export const factsWithStack = (
+  folder: string,
+  stack: SpaceStack,
+  livePulls: Pull[] = stack.pulls.flatMap(pullOfStack),
+): Facts => {
   const place = placeOf(null, folder);
   const worktree = worktreeOf(null, folder);
   const repository = repositoryOf(null, `${folder}/.git`);
@@ -163,7 +167,7 @@ export const factsWithStack = (folder: string, stack: SpaceStack): Facts => {
         },
       },
     },
-    pulls: { [repository.key]: { pulls: stack.pulls.flatMap(pullOfStack), failed: false } },
+    pulls: { [repository.key]: { pulls: livePulls, failed: false } },
     trackers: {},
     stacks: {
       [repository.key]: {

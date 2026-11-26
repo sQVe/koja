@@ -70,12 +70,17 @@ const stackPullOf = (
   entry: StackBranch,
   branch: string | null,
 ): StackPull => {
-  const pull = pullOfBranch(facts.pulls[repositoryKey] ?? null, entry.branch);
+  const live = pullOfBranch(facts.pulls[repositoryKey] ?? null, entry.branch);
+  const recorded = entry.pullNumber;
+
+  // A live pull is found by head branch alone, and a fork can reuse the name. The recorded number
+  // wins when the live pull reports another one.
+  const pull = recorded === null || live?.number === recorded ? live : null;
 
   return {
     branch: entry.branch,
     ticket: ticketIdOf(entry.branch, ''),
-    number: pull?.number ?? entry.pullNumber,
+    number: pull?.number ?? recorded,
     title: pull?.title ?? null,
     state: stateOf(pull),
     checkedOut: entry.branch === branch,

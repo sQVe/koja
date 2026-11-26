@@ -8,6 +8,7 @@ import {
   stackPullOf,
   tabOf,
 } from '../../../tests/pickerFixtures.ts';
+import { pullFacts } from '../../../tests/pullFacts.ts';
 import type { Facts } from '../../data/snapshot.ts';
 import type { SpaceStack } from '../../data/spaceStack.ts';
 import type { PickerData } from './rows.ts';
@@ -94,6 +95,28 @@ describe('buildRows with stacks', () => {
 
     expect(rows[0]?.space.id).toBe('a');
     expect(reasonOf(rows, 0)?.value).toBe('#504');
+  });
+
+  test('a recorded stack PR keeps its number when a live pull shares its branch', () => {
+    const stack = stackOf([stackPullOf({ branch: 'add-search', number: 501, state: 'merged' })]);
+
+    const live = pullFacts({
+      number: 900,
+      headRefName: 'add-search',
+      title: 'Other pull',
+      state: 'OPEN',
+    });
+
+    const rows = buildRows('501', null, twoSpaces(factsWithStack(folder, stack, [live])));
+
+    expect(rows[0]?.space.id).toBe('a');
+
+    expect(reasonOf(rows, 0)).toEqual({
+      value: '#501',
+      position: 1,
+      total: 1,
+      state: null,
+    });
   });
 
   test('a PR number matches only exactly', () => {
