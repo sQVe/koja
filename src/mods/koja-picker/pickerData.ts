@@ -8,7 +8,9 @@ import { resumePreviewSession } from './previewSession.ts';
 import type { PickerData } from './rows.ts';
 import { spaceFacts } from './spaceFacts.ts';
 
-type PickerPart = 'list' | 'preview-header' | 'preview-error' | 'footer';
+const parts = ['list', 'preview-header', 'preview-error', 'footer'] as const;
+
+type PickerPart = (typeof parts)[number];
 
 export const history: PickerHistory = createHistory(
   {
@@ -24,8 +26,6 @@ export const history: PickerHistory = createHistory(
   },
   { recent: `${modName}.recent`, focus: `${modName}.focus` },
 );
-
-const parts: PickerPart[] = ['list', 'preview-header', 'preview-error', 'footer'];
 
 const isPart = (value: string | null): value is PickerPart => parts.some((part) => part === value);
 

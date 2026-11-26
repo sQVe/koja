@@ -140,7 +140,7 @@ const tabSearchFields = (
 
 const spaceSearchFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
   space.name,
-  space.branch,
+  data.facts[space.id]?.project ?? null,
   folderNameOf(space.folder),
   space.machine,
   statusWord(data.statuses.spaces[space.id] ?? null),
@@ -228,7 +228,7 @@ const matchedPanes = (
 
 const spaceOwnFields = (space: SpaceInfo, data: PickerData): (string | null)[] => [
   space.name,
-  space.branch,
+  data.facts[space.id]?.project ?? null,
   folderNameOf(space.folder),
   space.machine,
   statusWord(data.statuses.spaces[space.id] ?? null),

@@ -5,8 +5,8 @@ import type { PaneInfo, Program, SpaceInfo, Status } from 'herdr';
 import type { TextRole } from '../../kit/index.ts';
 import {
   colors,
-  icon,
   modName,
+  paneBranchElement,
   programIcon,
   roleText,
   spacing,
@@ -89,17 +89,7 @@ export const previewHeader = (target: PreviewTarget | null): Element => {
   header.child(paneName);
 
   if (target.branch !== null) {
-    const branchIcon = icon('git-branch', 'small').text_color(colors().dim);
-    const branchName = fullLabel('detail', target.branch, 'dim');
-
-    const branch = h_flex()
-      .flex_none()
-      .gap(spacing.xsmall)
-      .items_center()
-      .child(branchIcon)
-      .child(branchName);
-
-    header.child(branch);
+    header.child(paneBranchElement(target.branch, 'full', false));
   }
 
   const mark = statusMark(target.status);

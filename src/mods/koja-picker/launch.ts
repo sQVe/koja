@@ -4,11 +4,11 @@ import { focused } from 'herdr';
 import {
   closeOverlay,
   controlSize,
+  footerLineHeight,
   modName,
   openAtTop,
   overlayId,
   overlaySize,
-  rowHeight,
   spacing,
 } from '../../kit/index.ts';
 import type { PreviewSession, PreviewStart } from './previewLifecycle.ts';
@@ -17,9 +17,6 @@ import type { PreviewSession, PreviewStart } from './previewLifecycle.ts';
 // one rule, as the scene draws them.
 const headerHeight =
   controlSize.searchField + controlSize.button + spacing.xsmall + spacing.hairline;
-
-// As tall as the kit's footer line, so the line fills its block.
-const footerHeight = rowHeight.large + spacing.xxsmall;
 
 const listBlock = (start: PreviewStart | null): Record<string, unknown> => {
   const preview =
@@ -36,7 +33,7 @@ const listBlock = (start: PreviewStart | null): Record<string, unknown> => {
 
 const footerBlock = {
   type: 'block',
-  size: { px: footerHeight },
+  size: { px: footerLineHeight },
   content: { mod: modName, props: { part: 'footer' } },
 };
 
@@ -93,6 +90,7 @@ export const launch = (
   cx: Context,
   session: PreviewSession,
   rememberPane: (tab: string, pane: string) => void,
+  onSettled: () => void = () => undefined,
 ): void => {
   const overlay = overlayId();
   const here = focused();
@@ -102,19 +100,23 @@ export const launch = (
   }
 
   cx.spawn(async () => {
-    const started = await session.open(null).catch(() => null);
+    try {
+      const started = await session.open(null).catch(() => null);
 
-    if (started === null) {
-      session.close();
-      openPicker(null);
+      if (started === null) {
+        session.close();
+        openPicker(null);
+        closeOverlay(overlay);
+
+        return;
+      }
+
+      // The list that opens next takes ownership; the launcher's close must not kill it.
+      session.handOff();
+      openPicker(started);
       closeOverlay(overlay);
-
-      return;
+    } finally {
+      onSettled();
     }
-
-    // The list that opens next takes ownership; the launcher's close must not kill it.
-    session.handOff();
-    openPicker(started);
-    closeOverlay(overlay);
   });
 };

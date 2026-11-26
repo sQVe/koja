@@ -21,7 +21,7 @@ export const previewError = (options: PreviewErrorOptions): Element => {
   return v_flex()
     .id(`${modName}-preview-error`)
     .size_full()
-    .p(spacing.large)
+    .py(spacing.large)
     .child(
       stateLine({ kind: 'error', text: 'The preview could not start.', action: retry, wrap: true }),
     );

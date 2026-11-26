@@ -8,18 +8,20 @@ import { placeOfSpace } from '../../data/places.ts';
 import type { PullNeed } from '../../data/pullNeeds.ts';
 import { pullNeeds } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
-import type { Facts, GitFacts, RepositoryPulls, WorktreeGit } from '../../data/snapshot.ts';
+import type { Facts, GitFacts, WorktreeGit } from '../../data/snapshot.ts';
+import { pullOfBranch } from '../../data/snapshot.ts';
 
 export interface SpaceFacts {
-  project: string | null;
+  project: string;
   pull: number | null;
   need: PullNeed | null;
 }
 
 // A row shows one work icon, so the most urgent need wins.
-const needOrder: PullNeed[] = ['conflict', 'failing', 'review', 'ready'];
+const needRanks: Record<PullNeed, number> = { conflict: 0, failing: 1, review: 2, ready: 3 };
 
-const folderName = (path: string): string => path.split('/').findLast((part) => part !== '') ?? '';
+const folderName = (path: string): string =>
+  (path.split('/').findLast((part) => part !== '') ?? '').replace(/\.git$/, '');
 
 const repoPathName = (path: string): string => {
   const parts = path.split('/');
@@ -41,20 +43,10 @@ const projectAt = (worktree: WorktreeGit | null, folder: string): string => {
     : folderName(worktree.root);
 };
 
-const pullOfBranch = (repository: RepositoryPulls | null, branch: string | null): Pull | null => {
-  if (branch === null || repository === null) {
-    return null;
-  }
-
-  const mine = repository.pulls.filter((pull) => pull.headRefName === branch);
-
-  return mine.find((pull) => pull.state === 'OPEN') ?? mine[0] ?? null;
-};
-
 const needOf = (pull: Pull): PullNeed | null => {
-  const needs = pullNeeds(pull);
+  const needs = pullNeeds(pull).toSorted((first, second) => needRanks[first] - needRanks[second]);
 
-  return needOrder.find((need) => needs.includes(need)) ?? null;
+  return needs[0] ?? null;
 };
 
 const factsOf = (): Facts | null => {

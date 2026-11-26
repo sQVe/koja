@@ -194,11 +194,26 @@ export default class Picker extends View {
     return previewError({
       enabled: !this.retrying,
       onRetry: (cx) => {
-        this.retrying = true;
-        cx.notify();
-        launch(cx, createPreviewSession(), history.rememberPane);
+        this.retry(cx);
       },
     });
+  }
+
+  private retry(cx: Context): void {
+    if (this.retrying) {
+      return;
+    }
+
+    this.retrying = true;
+    this.preview = createPreviewSession();
+
+    const session = this.preview;
+
+    launch(cx, session, history.rememberPane, () => {
+      this.retrying = false;
+    });
+
+    cx.notify();
   }
 
   private picker(): Element {

@@ -3,7 +3,7 @@ import type { Context, Element } from 'gpui-kit';
 
 import { colors, modName, segmentedChip, spaceMark, spacing } from '../../kit/index.ts';
 import type { StatusFilter } from './filters.ts';
-import { statusFilters } from './filters.ts';
+import { filterMark, statusFilters } from './filters.ts';
 import type { PickerData } from './rows.ts';
 import { statusCount } from './rows.ts';
 
@@ -21,11 +21,13 @@ export const chips = (
   onChange: (index: number, cx: Context) => void,
 ): Element => {
   const draw = (filter: StatusFilter, index: number): Element => {
+    const mark = filterMark(filter);
+
     const chip = segmentedChip({
       label: filter.label,
       count: countOf(filter, data),
       active: index === activeIndex,
-      ...(filter.mark === null ? {} : { start: spaceMark(filter.mark) }),
+      ...(mark === null ? {} : { start: spaceMark(mark) }),
     });
 
     return chip.id(`${modName}-filter-${index}`).on_click((_event, cx) => {
