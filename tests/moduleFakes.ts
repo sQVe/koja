@@ -1,4 +1,4 @@
-type ModuleFake = Record<string, unknown>;
+export type ModuleFake = Record<string, unknown>;
 
 type KeyHandler = (
   event: { key: string },

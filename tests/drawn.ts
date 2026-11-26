@@ -124,9 +124,13 @@ export const drawnTree = (elements: DrawnElement[]): DrawnElement => {
   return root;
 };
 
+// A mocked field draws no element, so the walk stops at a child that has no drawn children.
+const isDrawn = (value: unknown): value is DrawnElement =>
+  typeof value === 'object' && value !== null && Array.isArray((value as DrawnElement).kids);
+
 const descendants = (element: DrawnElement): DrawnElement[] => [
   element,
-  ...element.kids.flatMap(descendants),
+  ...element.kids.filter(isDrawn).flatMap(descendants),
 ];
 
 export const drawnTexts = (element: DrawnElement): string[] =>
@@ -151,6 +155,9 @@ export const drawnIcons = (element: DrawnElement): string[] =>
 
 export const spinning = (element: DrawnElement): boolean =>
   descendants(element).some((part) => part.spins);
+
+export const elementWithTooltip = (element: DrawnElement): DrawnElement | null =>
+  descendants(element).find((part) => part.tooltipText !== null) ?? null;
 
 export const drawnTooltips = (element: DrawnElement): string[] =>
   descendants(element)
@@ -179,8 +186,10 @@ export const elementWithIcon = (element: DrawnElement, name: string): DrawnEleme
 export const clickablesWithIcon = (element: DrawnElement, name: string): DrawnElement[] =>
   clickables(element).filter((part) => elementWithIcon(part, name) !== null);
 
-export const click = (element: DrawnElement): void => {
-  element.clickHandlers[0]?.({}, { stop_propagation: () => undefined });
+const quietContext = { stop_propagation: () => undefined };
+
+export const click = (element: DrawnElement, context: unknown = quietContext): void => {
+  element.clickHandlers[0]?.({}, context);
 };
 
 // A left press and release on the element alone; the fake does not pass events to parents.
