@@ -91,6 +91,10 @@ const isLayoutRead = (args: string[]): boolean =>
 
 const checkoutLayout = ['false', 'false', '/work/.git', '/work/.git'].join('\n');
 
+test('encodes a key as the machine and path JSON pair', () => {
+  expect(keyOf('box', '/work')).toBe('["box","/work"]');
+});
+
 describe('readGitIdentity', () => {
   test('maps a subfolder of a linked worktree to that worktree and its repository', async () => {
     await withTemp(async (root) => {

@@ -25,6 +25,10 @@ interface InterleavingState {
   clientB: PullRetryClient;
   scheduler: PullScheduler;
   now: number;
+  tick: number;
+  reads: Set<string>;
+  duplicates: Set<string>;
+  sawOutcome: boolean;
   seenByClient: Set<string>;
   issued: Map<string, number>;
   random: () => number;
@@ -56,10 +60,20 @@ const observeSeen = (outcomes: PullRetryOutcome[], consumer: string, seen: Set<s
   }
 };
 
-const observeAnswered = (outcomes: PullRetryOutcome[], answeredKeys: Set<string>): void => {
-  for (const outcome of outcomes) {
-    answeredKeys.add(requestKey(outcome));
+const recordRead = (state: InterleavingState, call: PendingCall): void => {
+  const namesCall = call.command === 'git' && call.args.length === 1 && call.args[0] === 'remote';
+
+  if (!namesCall) {
+    return;
   }
+
+  const readId = `${state.tick}:${call.cwd}`;
+
+  if (state.reads.has(readId)) {
+    state.duplicates.add(readId);
+  }
+
+  state.reads.add(readId);
 };
 
 const answerCall = (call: PendingCall, random: () => number): ExecResult => {
@@ -85,19 +99,18 @@ const answerCall = (call: PendingCall, random: () => number): ExecResult => {
   return { code: 1, stdout: '', stderr: 'offline' };
 };
 
-const answerPending = async (
-  harness: PullSchedulerHarness,
-  random: () => number,
-): Promise<void> => {
-  for (const call of harness.calls) {
+const answerPending = async (state: InterleavingState): Promise<void> => {
+  for (const call of state.harness.calls) {
     if (call.settled) {
       continue;
     }
 
-    await harness.respondCall(call, answerCall(call, random));
+    recordRead(state, call);
+
+    await state.harness.respondCall(call, answerCall(call, state.random));
   }
 
-  await Promise.all(harness.spawned.splice(0));
+  await Promise.all(state.harness.spawned.splice(0));
 };
 
 const settleClient = (
@@ -109,7 +122,7 @@ const settleClient = (
   observeSeen(state.harness.outcomes(), consumer, state.seenByClient);
 };
 
-const applyStep = async (state: InterleavingState, answeredKeys: Set<string>): Promise<void> => {
+const applyStep = async (state: InterleavingState): Promise<void> => {
   const jump =
     state.random() < 0.2
       ? Math.floor(state.random() * 3 * pullRetryLifetimeMilliseconds)
@@ -138,9 +151,13 @@ const applyStep = async (state: InterleavingState, answeredKeys: Set<string>): P
       state.scheduler = state.harness.start({ pulls: seedPulls, readTimes: {} });
     }
 
+    state.tick += 1;
     state.scheduler.tick(gitFacts, new Map(), state.harness.spawn);
-    await answerPending(state.harness, state.random);
-    observeAnswered(state.harness.outcomes(), answeredKeys);
+    await answerPending(state);
+
+    if (state.harness.outcomes().length > 0) {
+      state.sawOutcome = true;
+    }
   }
 
   observeRequests(state.harness.requests(), state.issued);
@@ -165,12 +182,10 @@ const expectFinalState = (state: InterleavingState, seed: number): void => {
     ).toBe(true);
   }
 
-  const outcomeKeys = outcomes.map(requestKey);
-
   expect(
-    new Set(outcomeKeys).size,
-    `seed ${seed}: the owner recorded two outcomes for one request`,
-  ).toBe(outcomeKeys.length);
+    [...state.duplicates],
+    `seed ${seed}: the owner started two reads for one repository in one tick`,
+  ).toEqual([]);
 
   for (const [key, expiresAt] of state.issued) {
     if (expiresAt <= state.now || state.seenByClient.has(key)) {
@@ -184,7 +199,7 @@ const expectFinalState = (state: InterleavingState, seed: number): void => {
   }
 };
 
-const checkInterleaving = async (seed: number, answeredKeys: Set<string>): Promise<void> => {
+const checkInterleaving = async (seed: number): Promise<boolean> => {
   const random = seededRandom(seed);
   const harness = new PullSchedulerHarness();
 
@@ -194,6 +209,10 @@ const checkInterleaving = async (seed: number, answeredKeys: Set<string>): Promi
     clientB: createPullRetryClient(harness.store, 'window-b', ids(`b${seed}`)),
     scheduler: harness.start({ pulls: seedPulls, readTimes: {} }),
     now: start,
+    tick: 0,
+    reads: new Set(),
+    duplicates: new Set(),
+    sawOutcome: false,
     seenByClient: new Set(),
     issued: new Map(),
     random,
@@ -204,22 +223,24 @@ const checkInterleaving = async (seed: number, answeredKeys: Set<string>): Promi
   harness.windowActive = false;
 
   for (let step = 0; step < steps; step += 1) {
-    await applyStep(state, answeredKeys);
+    await applyStep(state);
   }
 
   settleClient(state, state.clientA, 'window-a');
   settleClient(state, state.clientB, 'window-b');
   expectFinalState(state, seed);
+
+  return state.sawOutcome;
 };
 
 describe('client interleavings', () => {
   test('a final settle keeps every live pending request and drops answered ones', async () => {
-    const answeredKeys = new Set<string>();
+    let sawOutcome = false;
 
     for (let seed = 1; seed <= 100; seed += 1) {
-      await checkInterleaving(seed, answeredKeys);
+      sawOutcome = (await checkInterleaving(seed)) || sawOutcome;
     }
 
-    expect(answeredKeys.size).toBeGreaterThan(0);
+    expect(sawOutcome).toBe(true);
   });
 });

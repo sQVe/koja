@@ -2,7 +2,7 @@ import type { ExecResult, FolderWatch, PaneInfo, Program, SpaceInfo, Status, Tab
 
 import type { GitWorld } from '../src/data/gitDue.ts';
 import type { RunCommand } from '../src/data/gitIdentity.ts';
-import { placeOf } from '../src/data/gitIdentity.ts';
+import { keyOf } from '../src/data/gitIdentity.ts';
 import type { Lease } from '../src/data/lease.ts';
 import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
 import { createSnapshotPublisher } from '../src/data/publisher.ts';
@@ -50,9 +50,6 @@ const modulePath = '../src/data/gitScheduler.ts';
 const loaded = (await import(modulePath)) as {
   createGitScheduler: (dependencies: Dependencies, lease: Lease, seed: GitFacts) => SchedulerLike;
 };
-
-export const placeKeyOf = (machine: string | null, folder: string): string =>
-  placeOf(machine, folder).key;
 
 const ok: ExecResult = { code: 0, stdout: '', stderr: '' };
 
@@ -213,11 +210,11 @@ export class GitSchedulerHarness {
   }
 
   setFolder(machine: string | null, folder: string, git: FolderGit): void {
-    this.folders[placeKeyOf(machine, folder)] = git;
+    this.folders[keyOf(machine, folder)] = git;
   }
 
   clearFolder(machine: string | null, folder: string): void {
-    Reflect.deleteProperty(this.folders, placeKeyOf(machine, folder));
+    Reflect.deleteProperty(this.folders, keyOf(machine, folder));
   }
 
   setNow(at: number): void {
@@ -282,7 +279,7 @@ export class GitSchedulerHarness {
       return { code: 128, stdout: '', stderr: this.failure };
     }
 
-    const git = this.folders[placeKeyOf(machine, folder)];
+    const git = this.folders[keyOf(machine, folder)];
 
     if (git === undefined) {
       return { code: 128, stdout: '', stderr: 'fatal: not a git repository' };
@@ -304,7 +301,7 @@ export class GitSchedulerHarness {
   }
 
   private async beginRead(machine: string | null, folder: string): Promise<void> {
-    const key = placeKeyOf(machine, folder);
+    const key = keyOf(machine, folder);
     const gate = this.gateOf(key);
 
     if (this.open.size >= readLimit) {
