@@ -366,6 +366,19 @@ describe('mod entries', () => {
     );
   });
 
+  test('lets only a rename leave its required name out', () => {
+    commandList = [
+      { name: 'tab.new', args: [{ name: 'name', required: true }], about: '' },
+      { name: 'pane.rename', args: [{ name: 'name', required: true }], about: '' },
+    ];
+
+    expect(added({ title: 'Do the thing', command: 'tab.new', args: { name: null } })).toBe(false);
+
+    expect(added({ title: 'Do the thing', command: 'pane.rename', args: { name: null } })).toBe(
+      true,
+    );
+  });
+
   test('rejects a target argument that is not a string', () => {
     commandList = [{ name: 'pane.split', args: [{ name: 'pane', required: false }], about: '' }];
 
