@@ -21,15 +21,19 @@ import {
   recordOverlayClose,
   repeat,
   searchField,
+  sectionHeader,
   stateLine,
   withTextRole,
 } from '../../kit/index.ts';
 import { recordSpaceSelection, runSpaceCommand } from '../../kit/space/spaceSelection.ts';
+import { chips } from './chips.ts';
 import type { StatusFilter } from './filters.ts';
 import { allFilter, statusFilters } from './filters.ts';
-import { footer as statusFooter } from './footer.ts';
+import { footer } from './footer.ts';
 import { launch } from './launch.ts';
-import { history, isList, pickerData, previewFromProps } from './pickerData.ts';
+import { history, pickerData, pickerPart, previewFromProps } from './pickerData.ts';
+import { previewError } from './previewError.ts';
+import { previewHeader, previewTargetOf } from './previewHeader.ts';
 import type { PreviewSession } from './previewLifecycle.ts';
 import { heartbeatIntervalMilliseconds } from './previewLifecycle.ts';
 import { createPreviewSession } from './previewSession.ts';
@@ -37,6 +41,7 @@ import { list as virtualList } from './rowElements.ts';
 import type { PickerData, PickerRow } from './rows.ts';
 import { buildRows, rowPane } from './rows.ts';
 import { keepSearchFocused } from './searchFocus.ts';
+import { readSelection, writeSelection } from './selection.ts';
 
 const filterKeys = createContextKeys('KojaPicker', [
   { keystroke: 'tab', action: 'koja-picker-filter-next' },
@@ -66,23 +71,24 @@ export default class Picker extends View {
   private readonly scroll = VirtualListScrollHandle.new();
 
   private readonly input: InputState = InputStates.new({
-    placeholder: 'Go to a space, tab or pane…',
+    placeholder: 'Go to a space, tab or pane',
   });
 
   override init(_props: unknown, cx: AsyncContext): void {
-    const startsPreview = !checking();
+    const part = pickerPart();
 
-    if (!isList()) {
-      if (startsPreview && overlayId() !== null) {
-        this.preview = createPreviewSession();
-        launch(cx, this.preview, history.rememberPane);
-      }
+    if (part !== null && part !== 'list') {
+      return;
+    }
+
+    if (part === null) {
+      this.startPreview(cx);
 
       return;
     }
 
     filterKeys.bind(cx);
-    this.preview = startsPreview ? previewFromProps() : null;
+    this.preview = checking() ? null : previewFromProps();
     this.watchPreview(cx);
 
     const current = focused()?.space ?? null;
@@ -128,8 +134,22 @@ export default class Picker extends View {
   }
 
   override close(): void {
-    recordOverlayClose();
+    const part = pickerPart();
+
+    if (part === null || part === 'list') {
+      recordOverlayClose();
+    }
+
     this.preview?.close();
+  }
+
+  private startPreview(cx: AsyncContext): void {
+    if (checking() || overlayId() === null) {
+      return;
+    }
+
+    this.preview = createPreviewSession();
+    launch(cx, this.preview, history.rememberPane);
   }
 
   private watchPreview(cx: AsyncContext): void {
@@ -147,16 +167,42 @@ export default class Picker extends View {
   }
 
   override render(): Element {
-    if (!isList()) {
-      return div();
+    const part = pickerPart();
+
+    if (part === 'preview-header') {
+      return this.header();
     }
 
+    if (part === 'preview-error') {
+      return this.error();
+    }
+
+    if (part === 'footer') {
+      return footer();
+    }
+
+    return part === 'list' ? this.picker() : div();
+  }
+
+  private header(): Element {
+    const data = pickerData();
+
+    return previewHeader(previewTargetOf(data, readSelection()), data.facts);
+  }
+
+  private error(): Element {
+    return previewError((cx) => {
+      launch(cx, createPreviewSession(), history.rememberPane);
+    });
+  }
+
+  private picker(): Element {
     const palette = colors();
     const data = pickerData();
     const rows = this.rowsFrom(data);
     const empty = stateLine({ kind: 'empty', text: this.emptyText(), wrap: true });
 
-    const body = rows.length > 0 ? this.list(rows, data) : div().flex_1().child(empty);
+    const body = rows.length > 0 ? this.rows(rows, data) : div().flex_1().child(empty);
 
     const picker = withTextRole(v_flex(), 'body')
       .id(modName)
@@ -171,8 +217,13 @@ export default class Picker extends View {
         this.onModifiersChanged(event);
       })
       .child(searchField(this.input, 'search'))
-      .child(body)
-      .child(this.footer(data));
+      .child(
+        chips(this.filterIndex, data, (index, cx) => {
+          this.changeStatusFilter(index, cx);
+        }),
+      )
+      .child(sectionHeader({ label: 'Spaces', size: 'default' }))
+      .child(body);
 
     const root = filterKeys.withKeys(picker, (key, cx) => {
       const step = key === 'tab' ? 1 : -1;
@@ -278,7 +329,10 @@ export default class Picker extends View {
   }
 
   private updatePreview(row: PickerRow | undefined, data: PickerData): void {
-    this.preview?.show(rowPane(row, data)?.terminal ?? null);
+    const pane = rowPane(row, data);
+
+    this.preview?.show(pane?.terminal ?? null);
+    writeSelection(pane?.pane ?? null);
   }
 
   private closePicker(): void {
@@ -348,7 +402,7 @@ export default class Picker extends View {
     }
   }
 
-  private list(rows: PickerRow[], data: PickerData): Element {
+  private rows(rows: PickerRow[], data: PickerData): Element {
     return virtualList(rows, this.query, this.selectedKey, data, this.scroll, (key) => {
       const fresh = pickerData();
       const freshRows = this.rowsFrom(fresh);
@@ -357,12 +411,6 @@ export default class Picker extends View {
         freshRows.find((row) => row.key === key),
         fresh,
       );
-    });
-  }
-
-  private footer(data: PickerData): Element {
-    return statusFooter(this.filterIndex, data, (index, cx) => {
-      this.changeStatusFilter(index, cx);
     });
   }
 }

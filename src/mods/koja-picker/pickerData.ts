@@ -6,6 +6,9 @@ import { createHistory } from './history.ts';
 import type { PreviewSession } from './previewLifecycle.ts';
 import { resumePreviewSession } from './previewSession.ts';
 import type { PickerData } from './rows.ts';
+import { spaceFacts } from './spaceFacts.ts';
+
+type PickerPart = 'list' | 'preview-header' | 'preview-error' | 'footer';
 
 export const history: PickerHistory = createHistory(
   {
@@ -22,7 +25,16 @@ export const history: PickerHistory = createHistory(
   { recent: `${modName}.recent`, focus: `${modName}.focus` },
 );
 
-export const isList = (): boolean => recordOf(props())['part'] === 'list';
+const parts: PickerPart[] = ['list', 'preview-header', 'preview-error', 'footer'];
+
+const isPart = (value: string | null): value is PickerPart => parts.some((part) => part === value);
+
+// null is the copy that `mod.open` starts, which runs the preview and opens the picker itself.
+export const pickerPart = (): PickerPart | null => {
+  const part = stringOf(recordOf(props())['part']);
+
+  return isPart(part) ? part : null;
+};
 
 export const pickerData = (): PickerData => {
   const spaceList = spaces();
@@ -34,6 +46,7 @@ export const pickerData = (): PickerData => {
     panes: paneList,
     terminals: terminalList,
     statuses: rollupStatuses(spaceList, paneList, terminalList),
+    facts: spaceFacts(spaceList, paneList),
     recent: history.recent(),
     focus: history.focus(),
   };

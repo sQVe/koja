@@ -1,7 +1,5 @@
 import type { Status } from 'herdr';
 
-import { needsYouStatuses } from '../../kit/needsYou.ts';
-
 export interface StatusFilter {
   label: string;
   statuses: Status[] | null;
@@ -11,13 +9,7 @@ export interface StatusFilter {
 
 export const statusFilters: StatusFilter[] = [
   { label: 'All', statuses: null, mark: null, empty: 'No space matches.' },
-  {
-    label: 'Needs you',
-    statuses: needsYouStatuses,
-    mark: 'blocked',
-    empty: 'Nothing needs you.',
-  },
-  { label: 'Blocked', statuses: ['blocked'], mark: 'blocked', empty: 'Nothing is blocked.' },
+  { label: 'Waiting', statuses: ['blocked'], mark: 'blocked', empty: 'Nothing is waiting.' },
   { label: 'Done', statuses: ['done'], mark: 'done', empty: 'Nothing is done.' },
   { label: 'Working', statuses: ['working'], mark: 'working', empty: 'Nothing is working.' },
   { label: 'Idle', statuses: ['idle'], mark: 'idle', empty: 'Nothing is idle.' },

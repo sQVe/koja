@@ -6,12 +6,14 @@ import { statusRank } from '../../kit/statusRollup.ts';
 import { tabLabel, tabName, tabProgram, taskOfPane } from '../../kit/tabLabel.ts';
 import type { Match } from './match.ts';
 import { bestFieldMatch, fuzzyMatch } from './match.ts';
+import type { SpaceFacts } from './spaceFacts.ts';
 
 export interface PickerData {
   spaces: SpaceInfo[];
   panes: PaneInfo[];
   terminals: unknown[];
   statuses: StatusRollup;
+  facts: Record<string, SpaceFacts>;
   recent: string[];
   focus: Record<string, string>;
 }
