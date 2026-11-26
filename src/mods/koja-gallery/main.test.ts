@@ -159,10 +159,10 @@ describe('gallery data layer section', () => {
 });
 
 describe('gallery sidebar section', () => {
-  test('draws the fact line specimen from its parts list', () => {
+  test('draws the Sidebar parts section title', () => {
     const view = openGallery();
 
-    expect(drawnTexts(view.render(context))).toContain('add-search');
+    expect(drawnTexts(view.render(context))).toContain('Sidebar parts');
   });
 });
 

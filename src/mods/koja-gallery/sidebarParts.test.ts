@@ -1,9 +1,9 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { descendants, drawnTexts } from '../../../tests/drawn.ts';
+import { descendants, drawnTexts, elementWithText, numberStyle } from '../../../tests/drawn.ts';
 import { mockGalleryModules } from '../../../tests/gallery.ts';
-import { controlSize, paneHeaderWidth } from '../../kit/size.ts';
+import { controlSize } from '../../kit/size.ts';
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
@@ -33,15 +33,15 @@ const specimen = (): DrawnElement => {
 };
 
 describe('gallery fact line specimen', () => {
-  test('passes three values, the long one long enough to be cut', () => {
+  test('draws the three values with the long one capped', () => {
     const part = specimen();
     const texts = drawnTexts(part);
-    const shownCharacters = Math.floor(controlSize.factValueMaxWidth / paneHeaderWidth.glyph);
+    const long = elementWithText(part, longValue);
 
     expect(texts).toContain('add-search');
     expect(texts).toContain(longValue);
     expect(texts).toContain('fix-crash');
-    expect(longValue.length).toBeGreaterThan(shownCharacters);
+    expect(numberStyle(long ?? undefined, 'max_w')).toBe(controlSize.factValueMaxWidth);
   });
 
   test('draws the value without facts after the values that have them', () => {
