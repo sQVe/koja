@@ -10,6 +10,7 @@ import {
 } from '../../../tests/moduleFakes.ts';
 import {
   factsWithStack,
+  mergedStack,
   pickerData,
   spaceOf,
   stackOf,
@@ -90,18 +91,8 @@ afterAll(() => {
   mock.restore();
 });
 
-const pullNumbers = [501, 502, 503, 504, 505, 506, 507, 508];
-
-const pullAt = (number: number, index: number) => {
-  const state = index === 3 ? 'merged' : 'open';
-
-  return stackPullOf({ branch: `branch-${index}`, number, state });
-};
-
-const stack = () => stackOf(pullNumbers.map(pullAt));
-
 const dataWith = (): PickerData => {
-  const stored = factsWithStack('/home/me/koja', stack());
+  const stored = factsWithStack('/home/me/koja', mergedStack());
 
   return pickerData({
     spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
@@ -143,14 +134,14 @@ describe('list with a stack reason', () => {
     const data = pickerData({
       spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
       panes: [],
-      stored: factsWithStack('/home/me/koja', stack()),
+      stored: factsWithStack('/home/me/koja', mergedStack()),
       facts: { a: { project: 'koja', pull: 504, need: 'review' } },
     });
 
     const found = listOf('504', data);
 
     expect(elementWithText(found, '#504')).not.toBeNull();
-    expect(elementWithText(found, 'PR 4 of 8')).not.toBeNull();
+    expect(elementWithText(found, 'PR 2 of 8')).not.toBeNull();
     expect(drawnIcons(found)).toContain('message-square.svg');
   });
 

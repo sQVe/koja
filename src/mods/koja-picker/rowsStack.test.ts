@@ -151,16 +151,10 @@ describe('buildRows with stacks', () => {
   });
 
   test('a recorded place without a stack gives no stack match', () => {
-    const stored = factsWithStack(folder, stackOf([]));
-
-    for (const worktree of Object.values(stored.git.worktrees)) {
-      worktree.branch = 'elsewhere';
-    }
-
     const fixture = pickerData({
       spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
       panes: [],
-      stored,
+      stored: factsWithStack(folder, stackOf([])),
     });
 
     expect(buildRows('504', null, fixture)).toEqual([]);
@@ -188,6 +182,16 @@ describe('buildRows with stacks', () => {
       spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
       panes: [],
       stored: factsWithStack(folder, stackOf([stackPullOf({ branch: 'xkoja', number: 602 })])),
+    });
+
+    expect(reasonOf(buildRows('koja', null, fixture), 0)).toBeNull();
+  });
+
+  test('a field match tied with the stack match gives no reason', () => {
+    const fixture = pickerData({
+      spaces: [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])],
+      panes: [],
+      stored: factsWithStack(folder, stackOf([stackPullOf({ branch: 'koja-old', number: 601 })])),
     });
 
     expect(reasonOf(buildRows('koja', null, fixture), 0)).toBeNull();
