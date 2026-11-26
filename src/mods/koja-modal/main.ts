@@ -1,6 +1,17 @@
 import type { AsyncContext, Context, Element, FocusHandle, KeyEvent } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { checking, exec, focused, nextCommand, panes, run, setShared, shared, spaces } from 'herdr';
+import {
+  checking,
+  exec,
+  focused,
+  nextCommand,
+  openOverlay,
+  panes,
+  run,
+  setShared,
+  shared,
+  spaces,
+} from 'herdr';
 
 import { createContextKeys } from '../../kit/contextKeys.ts';
 import {
@@ -14,11 +25,13 @@ import {
   shownSections,
   takeNormalKeys,
 } from '../../kit/index.ts';
+import type { PartLetter } from '../../kit/keyHints.ts';
+import { isPartLetter } from '../../kit/keyHints.ts';
 import type { NormalAction } from '../../kit/normalKeys.ts';
 import { createExecutor } from './execute.ts';
 import { createKeyboardHold, createStatusLookup } from './keyboardHold.ts';
 import { normalizeKey } from './keyEvent.ts';
-import type { ParserState } from './parser.ts';
+import type { ParseResult, ParserState } from './parser.ts';
 import { initialParserState, parseKey } from './parser.ts';
 import { createSections, isSectionKeyAction } from './sections.ts';
 
@@ -52,12 +65,38 @@ const opensOverlay = (action: NormalAction): boolean =>
 const opensInlineInput = (action: NormalAction): boolean =>
   action.kind === 'command' && inlineInputCommands.has(action.command);
 
+const pendingPart = (result: ParseResult): PartLetter | null => {
+  if (result.status !== 'pending' || result.state.pending.length !== 1) {
+    return null;
+  }
+
+  const [key] = result.state.pending;
+
+  return key !== undefined && isPartLetter(key) ? key : null;
+};
+
+const openKeyHints = (part: PartLetter): string =>
+  openOverlay({
+    mod: 'koja-hints',
+    kind: 'window',
+    frame: 'none',
+    width: 1,
+    height: 1,
+    props: { part },
+  });
+
 export default class KojaModal extends View {
   private handle: FocusHandle | null = null;
 
   private state: ParserState = initialParserState;
 
   private dialogOpened = false;
+
+  private hintPart: PartLetter | null = null;
+
+  private hintOverlay: string | null = null;
+
+  private batching = false;
 
   private readonly hold = createKeyboardHold({
     isFocused: () => this.handle?.is_focused() ?? false,
@@ -105,6 +144,7 @@ export default class KojaModal extends View {
     this.executor.observe();
     setShared(modeKey, null);
     this.sections.reset();
+    this.closeHints();
     this.hold.close();
 
     const pane = focused()?.pane;
@@ -140,6 +180,7 @@ export default class KojaModal extends View {
     const result = parseKey(this.state, key, this.sections.layer());
 
     this.state = result.state;
+    this.showHints(result);
 
     if (result.status !== 'action') {
       return;
@@ -184,15 +225,55 @@ export default class KojaModal extends View {
     }
 
     this.state = initialParserState;
+    this.closeHints();
+    this.batching = true;
 
     for (const key of keys) {
       this.handleKeyName(key, cx);
     }
+
+    this.batching = false;
+  }
+
+  // A press on the key hint card cancels the sequence it shows, so the press is never lost.
+  private cancelKeys(): void {
+    this.state = initialParserState;
+    this.closeHints();
   }
 
   private leave(): void {
     this.sections.reset();
+    this.closeHints();
     closeOverlay(overlayId());
+  }
+
+  private showHints(result: ParseResult): void {
+    // A batch of keys runs at once, so a card for the part it starts with would never be seen.
+    if (this.batching) {
+      return;
+    }
+
+    const part = pendingPart(result);
+
+    if (part === this.hintPart) {
+      return;
+    }
+
+    this.closeHints();
+    this.hintPart = part;
+
+    if (part !== null) {
+      this.hintOverlay = openKeyHints(part);
+    }
+  }
+
+  private closeHints(): void {
+    this.hintPart = null;
+
+    if (this.hintOverlay !== null) {
+      closeOverlay(this.hintOverlay);
+      this.hintOverlay = null;
+    }
   }
 
   private openedDialog(): boolean {
@@ -228,6 +309,10 @@ export default class KojaModal extends View {
 
         if (command === 'run-keys') {
           this.runPendingKeys(cx);
+        }
+
+        if (command === 'cancel') {
+          this.cancelKeys();
         }
       }
     });

@@ -69,6 +69,8 @@ With the sidebar marked:
 
 Overlays:
 
+- A part letter, such as `w`, shows the key hint card with the keys that part can take. The next key
+  runs its action and closes the card. `Escape` or a click closes the card and drops the sequence.
 - Normal mode stays on after a dialog, the palette, or the picker closes.
 - `/` opens terminal search and leaves normal mode.
 - `?` opens Koja's key help. A query filters its rows.
