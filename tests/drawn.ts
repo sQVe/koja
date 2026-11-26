@@ -158,7 +158,16 @@ export const drawnTooltips = (element: DrawnElement): string[] =>
     .filter((tooltip): tooltip is string => tooltip !== null);
 
 export const elementWithText = (element: DrawnElement, text: string): DrawnElement | null =>
-  descendants(element).find((part) => part.texts.includes(text)) ?? null;
+  descendants(element).find((part) => Array.isArray(part.texts) && part.texts.includes(text)) ??
+  null;
+
+// The element that holds the text as a direct child, such as a heading around its label.
+export const elementAroundText = (element: DrawnElement, text: string): DrawnElement | null =>
+  descendants(element).find(
+    (part) =>
+      Array.isArray(part.kids) &&
+      part.kids.some((kid) => Array.isArray(kid.texts) && kid.texts.includes(text)),
+  ) ?? null;
 
 export const elementsWithStyle = (element: DrawnElement, style: string): DrawnElement[] =>
   descendants(element).filter((part) => part.styles[style] !== undefined);

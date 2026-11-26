@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import { drawn, drawnTexts, elementsWithStyle } from '../../../tests/drawn.ts';
+import { drawn, drawnTexts, elementAroundText, elementsWithStyle } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
@@ -9,6 +9,7 @@ import {
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import { spacing } from '../../kit/size.ts';
+import { groupSpace, headSize, listHeight, rowSize } from './viewport.ts';
 
 type KeyHandler = (
   event: { key: string },
@@ -200,6 +201,12 @@ const thumbsOf = (tree: DrawnElement): DrawnElement[] =>
     (element) => element.styles['right']?.[0] === -spacing.xsmall,
   );
 
+const headingKeycaps = (tree: DrawnElement, label: string): string[] => {
+  const heading = elementAroundText(tree, label);
+
+  return heading === null ? [] : keycapLabelsOf(heading);
+};
+
 afterAll(() => {
   mock.restore();
 });
@@ -316,6 +323,14 @@ describe('palette headings', () => {
     expect(texts).not.toContain('Tabs');
     expect(texts).not.toContain('Filler');
   });
+
+  test('draws the part keycap only in the heading that has one', async () => {
+    const view = await openPalette();
+    const tree = renderTree(view);
+
+    expect(headingKeycaps(tree, 'Tabs')).toEqual(['t']);
+    expect(headingKeycaps(tree, 'Filler')).toEqual([]);
+  });
 });
 
 describe('palette hints', () => {
@@ -348,6 +363,17 @@ describe('palette scroll thumb', () => {
     const view = await openPalette();
 
     expect(thumbsOf(renderTree(view))).toHaveLength(1);
+  });
+
+  test('draws the thumb at the height of the rows, headings, and group spaces', async () => {
+    const view = await openPalette();
+    const [thumb] = thumbsOf(renderTree(view));
+
+    const headings = 2;
+    const total = catalogCommands.length * rowSize + headings * headSize + groupSpace;
+    const expected = Math.max(spacing.xxlarge, (listHeight * listHeight) / total);
+
+    expect(thumb?.styles['h']?.[0]).toBeCloseTo(expected);
   });
 
   test('draws no thumb when the list fits', async () => {
