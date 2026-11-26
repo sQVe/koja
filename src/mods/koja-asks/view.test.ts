@@ -19,6 +19,8 @@ import type { Ask } from './askFacts.ts';
 import type { AskRow } from './card.ts';
 import type { CardActions } from './view.ts';
 
+type HoverLook = (box: DrawnElement) => DrawnElement;
+
 const palette = {
   blocked: '#a81e26',
   border: '#b6bbc4',
@@ -106,9 +108,21 @@ const secondAsk: Ask = {
 };
 
 const rows: AskRow[] = [
-  { ask, project: 'koja', age: '2m' },
-  { ask: secondAsk, project: 'tau', age: '5m' },
+  { ask, age: '2m' },
+  { ask: secondAsk, age: '5m' },
 ];
+
+// The drawn fake records the hover callback without running it, so run it on a fresh element.
+const hoverFill = (part: DrawnElement): string[] => {
+  const look = part.styles['hover']?.[0] as HoverLook | undefined;
+  const box = drawn();
+
+  if (look !== undefined) {
+    look(box);
+  }
+
+  return box.backgroundColors;
+};
 
 let calls: string[] = [];
 
@@ -189,11 +203,15 @@ describe('listElement', () => {
     const clickable = new Set(elementsWithStyle(list, 'cursor_pointer'));
 
     const rowsWithHover = elementsWithStyle(list, 'hover').filter((part) => clickable.has(part));
+    const fills = rowsWithHover.map((part) => hoverFill(part));
 
     expect(rowsWithHover.map((part) => drawnTexts(part)[0])).toEqual([
       'Build window shell',
       'Hill-climb mode for judges',
     ]);
+
+    expect(fills[0]).not.toEqual([]);
+    expect(fills[1]).toEqual(fills[0]);
   });
 
   test('the list dismiss control dismisses every ask without a jump', () => {

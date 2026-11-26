@@ -219,6 +219,12 @@ export const askCardSize = {
   bodyLineHeight: 18,
   terminalLineHeight: 17,
   detailLineHeight: 16,
+  // The list under the more line: a row's title line, the gap above each row, and its padding.
+  listLineHeight: controlSize.button,
+  listGap: spacing.medium,
+  rowPaddingX: spacing.medium,
+  rowPaddingY: spacing.small,
+  rowGap: spacing.xxsmall,
 } as const;
 
 export const trafficLightsWidth = 64;

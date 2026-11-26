@@ -27,28 +27,37 @@ export interface CardActions {
   dismissList: () => void;
 }
 
-const { textInset, bodyLineHeight, terminalLineHeight, detailLineHeight } = askCardSize;
-
-const listLineHeight = controlSize.button;
-
-const listGap = spacing.medium;
+const {
+  textInset,
+  bodyLineHeight,
+  terminalLineHeight,
+  detailLineHeight,
+  listLineHeight,
+  listGap,
+  rowPaddingX,
+  rowPaddingY,
+  rowGap,
+} = askCardSize;
 
 const stopPress = (_event: unknown, cx: { stop_propagation: () => void }): void => {
   cx.stop_propagation();
 };
 
-const closeButton = (id: string, label: string, actions: () => void): Element =>
+const closeButton = (id: string, label: string, onPress: () => void): Element =>
   iconButton({ name: 'x' })
     .id(id)
     .accessibility_label(label)
     .on_mouse_down('left', stopPress)
     .on_click((_event, cx) => {
       cx.stop_propagation();
-      actions();
+      onPress();
     });
 
+const askMark = (): Element =>
+  icon('message-circle-question', 'small').text_color(colors().blocked);
+
 const titleRow = (ask: Ask, actions: CardActions): Element => {
-  const mark = icon('message-circle-question', 'small').text_color(colors().blocked);
+  const mark = askMark();
   const spaceLabel = roleText('title', ask.spaceName).flex_none();
   const agentLabel = roleText('detail', ask.agent, 'dim').flex_1();
 
@@ -136,6 +145,10 @@ const cardChildren = (ask: Ask, more: CardMore | null, actions: CardActions): El
   return children;
 };
 
+// Both overlay states share one root id, so the window swaps the card for the list in place.
+const cardWindow = (card: Element): Element =>
+  v_flex().id('koja-asks').size_full().justify_end().child(card);
+
 export const cardElement = (ask: Ask, more: CardMore | null, actions: CardActions): Element => {
   const card = overlayCard('koja-ask-card')
     .gap(spacing.small)
@@ -146,7 +159,7 @@ export const cardElement = (ask: Ask, more: CardMore | null, actions: CardAction
     })
     .children(cardChildren(ask, more, actions));
 
-  return v_flex().id('koja-asks').size_full().justify_end().child(card);
+  return cardWindow(card);
 };
 
 const listTitleRow = (rows: readonly AskRow[], actions: CardActions): Element => {
@@ -168,8 +181,7 @@ const listTitleRow = (rows: readonly AskRow[], actions: CardActions): Element =>
 };
 
 const rowTitleLine = (row: AskRow): Element => {
-  const mark = icon('message-circle-question', 'small').text_color(colors().blocked);
-
+  const mark = askMark();
   const box = div().min_w(0).flex_1().truncate().line_height(`${listLineHeight}px`);
   const spaceLabel = withTextRole(box, 'title').child(row.ask.spaceName);
 
@@ -199,9 +211,9 @@ const rowDetailLine = (row: AskRow): Element => {
 const rowElement = (row: AskRow, actions: CardActions): Element => {
   const element = v_flex()
     .flex_none()
-    .px(spacing.medium)
-    .py(spacing.small)
-    .gap(spacing.xxsmall)
+    .px(rowPaddingX)
+    .py(rowPaddingY)
+    .gap(rowGap)
     .rounded(radius.pill)
     .cursor_pointer()
     .hover((box) => box.bg(colors().hover))
@@ -242,5 +254,5 @@ export const listElement = (rows: readonly AskRow[], actions: CardActions): Elem
     .on_mouse_down('left', stopPress)
     .child(column);
 
-  return v_flex().id('koja-asks').size_full().justify_end().child(card);
+  return cardWindow(card);
 };

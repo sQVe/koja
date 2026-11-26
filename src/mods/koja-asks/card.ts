@@ -9,7 +9,6 @@ export interface CardMore {
 
 export interface AskRow {
   ask: Ask;
-  project: string;
   age: string;
 }
 
@@ -19,7 +18,7 @@ export interface CardText {
   more: string | null;
 }
 
-export interface CardContent {
+export interface SignatureContent {
   text: CardText;
   rows: readonly AskRow[] | null;
 }
@@ -58,21 +57,12 @@ const {
   bodyLineHeight,
   terminalLineHeight,
   detailLineHeight,
+  listLineHeight,
+  listGap,
+  rowPaddingX,
+  rowPaddingY,
+  rowGap,
 } = askCardSize;
-
-const rowPaddingX = spacing.medium;
-
-const rowPaddingY = spacing.small;
-
-const rowGap = spacing.xxsmall;
-
-const listGap = spacing.medium;
-
-const cardBorder = spacing.hairline;
-
-const cardPadding = spacing.small;
-
-const listLineHeight = controlSize.button;
 
 // A conservative advance per character, so the estimate never falls below the height GPUI draws.
 const bodyGlyph = 7.5;
@@ -92,7 +82,7 @@ export const listTitle = (count: number): string => `${count} asks in other spac
 
 export const rowDetail = (row: AskRow): string => `${row.ask.agent} · ${row.ask.question}`;
 
-export const rowMeta = (row: AskRow): string => `${row.project} · ${row.age}`;
+export const rowMeta = (row: AskRow): string => `${row.ask.project} · ${row.age}`;
 
 export const cardTextOf = (ask: Ask, more: CardMore | null): CardText => ({
   question: ask.question,
@@ -165,9 +155,9 @@ const rowHeight = (row: AskRow, width: number): number => {
 };
 
 export const listHeight = (rows: readonly AskRow[], width: number): number => {
-  const contentWidth = width - 2 * cardPadding - 2 * cardBorder;
+  const contentWidth = width - 2 * spacing.small - 2 * spacing.hairline;
 
-  let height = 2 * cardPadding + 2 * cardBorder + listLineHeight;
+  let height = 2 * spacing.small + 2 * spacing.hairline + listLineHeight;
 
   for (const row of rows) {
     height += listGap;
@@ -221,11 +211,14 @@ const rowSignature = (row: AskRow): Record<string, unknown> => ({
   identity: row.ask.identity,
   question: row.ask.question,
   command: row.ask.command,
-  project: row.project,
-  age: row.age,
+  project: row.ask.project,
 });
 
-export const cardSignature = (ask: Ask, content: CardContent, geometry: CardGeometry): string =>
+export const cardSignature = (
+  ask: Ask,
+  content: SignatureContent,
+  geometry: CardGeometry,
+): string =>
   JSON.stringify({
     ...askSignature(ask),
     text: content.text,

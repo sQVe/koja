@@ -150,14 +150,13 @@ const readMore = (value: unknown): CardMore | null => {
 const readRow = (value: unknown): AskRow | null => {
   const record = recordOf(value);
   const ask = readAsk(record['ask']);
-  const project = stringOf(record['project']);
   const age = stringOf(record['age']);
 
-  if (ask === null || project === null || age === null) {
+  if (ask === null || age === null) {
     return null;
   }
 
-  return { ask, project, age };
+  return { ask, age };
 };
 
 const readRows = (value: unknown): AskRow[] | null => {
@@ -519,7 +518,6 @@ export default class KojaAsks extends View {
 
     return asks.map((ask) => ({
       ask,
-      project: ask.project,
       age: askAgeOf(ages, ask.identity, now),
     }));
   }

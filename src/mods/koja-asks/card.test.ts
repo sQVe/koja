@@ -27,9 +27,8 @@ const ask: Ask = {
   seq: 1,
 };
 
-const row = (overrides: Partial<Ask> = {}, project = 'koja', age = '2m'): AskRow => ({
+const row = (overrides: Partial<Ask> = {}, age = '2m'): AskRow => ({
   ask: { ...ask, ...overrides },
-  project,
   age,
 });
 
@@ -89,7 +88,7 @@ describe('listHeight', () => {
     const one = listHeight([row()], askCardSize.maximumWidth);
 
     const two = listHeight(
-      [row(), row({ identity: 't2:question:x' }, 'tau', '5m')],
+      [row(), row({ identity: 't2:question:x', project: 'tau' }, '5m')],
       askCardSize.maximumWidth,
     );
 
@@ -181,15 +180,25 @@ describe('cardSignature', () => {
     expect(moved).not.toBe(signature);
   });
 
-  test('changes when a listed ask shows another age', () => {
-    const rows = [row(), row({ identity: 't2:question:x' }, 'tau', '5m')];
+  test('stays the same when only the ages of a listed queue change', () => {
+    const rows = [row(), row({ identity: 't2:question:x' }, '5m')];
     const geometry = cardGeometry(sources(1280, 820), listHeightAt(rows));
     const signature = cardSignature(ask, { text, rows }, geometry);
 
-    const aged = [row({}, 'koja', '3m'), row({ identity: 't2:question:x' }, 'tau', '5m')];
-    const agedGeometry = cardGeometry(sources(1280, 820), listHeightAt(aged));
+    const aged = [row({}, '3m'), row({ identity: 't2:question:x' }, '6m')];
 
-    expect(cardSignature(ask, { text, rows: aged }, agedGeometry)).not.toBe(signature);
+    expect(cardSignature(ask, { text, rows: aged }, geometry)).toBe(signature);
+  });
+
+  test('changes when a listed ask is replaced', () => {
+    const rows = [row(), row({ identity: 't2:question:x' }, '5m')];
+    const geometry = cardGeometry(sources(1280, 820), listHeightAt(rows));
+    const signature = cardSignature(ask, { text, rows }, geometry);
+
+    const replaced = [row(), row({ identity: 't3:question:y' }, '5m')];
+    const replacedGeometry = cardGeometry(sources(1280, 820), listHeightAt(replaced));
+
+    expect(cardSignature(ask, { text, rows: replaced }, replacedGeometry)).not.toBe(signature);
   });
 });
 

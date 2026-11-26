@@ -16,8 +16,6 @@ const repoName = (path: string): string => {
   return folder.replace(/\.(git|bare)$/u, '');
 };
 
-const lastPart = (path: string): string => path.split('/').findLast((part) => part !== '') ?? '';
-
 const repositoryName = (state: DataState, placeKey: string): string | null => {
   if (state.kind === 'unavailable') {
     return null;
@@ -48,9 +46,11 @@ const projectOf = (state: DataState, space: SpaceInfo, panes: PaneInfo[]): strin
     return repository;
   }
 
-  const folder = lastPart(spaceFolder(space, panes));
+  const folder = spaceFolder(space, panes)
+    .split('/')
+    .findLast((part) => part !== '');
 
-  return folder === '' ? space.name : folder;
+  return folder === undefined || folder === '' ? space.name : folder;
 };
 
 export const askProjects = (

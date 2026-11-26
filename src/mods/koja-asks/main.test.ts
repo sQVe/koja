@@ -51,8 +51,8 @@ const secondAsk: Ask = {
 };
 
 const rows = [
-  { ask: secondAsk, project: 'tau', age: '2m' },
-  { ask, project: 'koja', age: '5m' },
+  { ask: secondAsk, age: '2m' },
+  { ask, age: '5m' },
 ];
 
 const blockedTerminal = {
@@ -403,8 +403,8 @@ describe('the ask host', () => {
             spaceName: 'Hill-climb',
             question: 'Allow this command?',
             command: 'bun run check',
+            project: 'tau',
           },
-          project: 'tau',
           age: 'now',
         },
         {
@@ -413,8 +413,8 @@ describe('the ask host', () => {
             spaceName: 'Build window shell',
             question: 'Allow this command?',
             command: 'bun run sandbox up',
+            project: 'koja',
           },
-          project: 'koja',
           age: 'now',
         },
       ],
