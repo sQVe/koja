@@ -243,7 +243,12 @@ const asyncContext = {
   },
   focus_handle: () => ({ focus: () => undefined, is_focused: () => false }),
   spawn: () => undefined,
-  timer: { after: () => undefined, every: () => undefined },
+  timer: {
+    after: (_milliseconds: number, handler: (cx: unknown) => void) => {
+      handler(asyncContext);
+    },
+    every: () => undefined,
+  },
 };
 
 const renderedContext = {

@@ -77,19 +77,27 @@ beforeEach(() => {
   settled = 0;
 });
 
-const hostWith = (answer: { code: number; stdout: string }): PreviewHost => ({
+const hostWith = (answer: { code: number; stdout: string }, watching = true): PreviewHost => ({
   script: '/tmp/preview.sh',
   hc: async () => ({ code: answer.code, stdout: answer.stdout, stderr: '' }),
-  read: async () => null,
+  read: async (path: string) => (watching && path.endsWith('/ready') ? '' : null),
   write: async () => undefined,
   newFolder: async () => '/tmp/koja-picker.test',
   removeFolder: () => undefined,
   kill: () => undefined,
 });
 
+const taskContext = {
+  timer: {
+    after: (_milliseconds: number, handler: () => void) => {
+      handler();
+    },
+  },
+};
+
 const spawnNow = {
   spawn: (body: (cx: unknown) => unknown) => {
-    spawned.push(Promise.resolve(body(undefined)));
+    spawned.push(Promise.resolve(body(taskContext)));
   },
 };
 
@@ -118,8 +126,8 @@ const terminalsOf = (spec: Record<string, unknown>): string[] =>
     return terminal === undefined ? [] : [terminal];
   });
 
-const start = (answer: { code: number; stdout: string }): void => {
-  const session = new sessionClass(hostWith(answer));
+const start = (answer: { code: number; stdout: string }, watching = true): void => {
+  const session = new sessionClass(hostWith(answer, watching));
 
   launch(
     spawnNow,
@@ -145,6 +153,18 @@ describe('launch', () => {
     expect(listPropsOf(spec)['preview']).toBeUndefined();
     expect(closed).toEqual(['overlay-3']);
     expect(ran).toEqual([]);
+    expect(settled).toBe(1);
+  });
+
+  test('a viewer that never watches shows the error line and keeps Go to open', async () => {
+    start({ code: 0, stdout: '{"address":"w1:p1"}\n' }, false);
+    await settle();
+
+    const spec = opened[0]?.spec ?? {};
+
+    expect(partsOf(spec)).toEqual(['list', 'preview-error', 'footer']);
+    expect(terminalsOf(spec)).toEqual([]);
+    expect(closed).toEqual(['overlay-3']);
     expect(settled).toBe(1);
   });
 

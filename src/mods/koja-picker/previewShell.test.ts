@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -92,6 +93,38 @@ const waitFor = async (ready: () => Promise<boolean>, milliseconds: number): Pro
 };
 
 describe.concurrent('preview.sh serve', () => {
+  test('writes the ready file once it is watching', async () => {
+    await withTemp(async (root) => {
+      const state = join(root, 'state');
+
+      await writeFile(state, 'term-1');
+
+      const { bin } = await makeFakeHc(root);
+      const child = startServe(state, bin);
+
+      try {
+        const watching = await waitFor(async () => existsSync(join(root, 'ready')), 2_000);
+
+        expect(watching).toBe(true);
+      } finally {
+        child.kill();
+        await child.exited;
+      }
+    });
+  });
+
+  test('writes no ready file when the state file is gone', async () => {
+    await withTemp(async (root) => {
+      const state = join(root, 'state');
+      const { bin } = await makeFakeHc(root);
+      const child = startServe(state, bin);
+      const code = await child.exited;
+
+      expect(code).toBe(0);
+      expect(existsSync(join(root, 'ready'))).toBe(false);
+    });
+  });
+
   test('attaches on a change and not on an unchanged file', async () => {
     await withTemp(async (root) => {
       const state = join(root, 'state');
