@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test';
 
 import type { ExecResult } from 'herdr';
 
-import { seededRandom } from '../../../tests/gitSchedulerHarness.ts';
 import { answerFrom, branchCountOf } from '../../../tests/pullAnswers.ts';
 import { ids, start } from '../../../tests/pullRetryStore.ts';
 import {
@@ -13,6 +12,7 @@ import {
 } from '../../../tests/pullSchedulerFixtures.ts';
 import { PullSchedulerHarness } from '../../../tests/pullSchedulerHarness.ts';
 import type { PendingCall } from '../../../tests/pullSchedulerHarness.ts';
+import { seededRandom } from '../../../tests/seeded.ts';
 import { repositoryOf } from '../gitIdentity.ts';
 import type { PullScheduler } from '../pullScheduler.ts';
 import { createPullRetryClient, pullRetryLifetimeMilliseconds, requestKey } from './pullRetry.ts';
