@@ -45,7 +45,6 @@ export interface WindowFake {
 
 export const pullPeriodMilliseconds = 60_000;
 
-// A push read is due one push gap after the repository's last read start.
 export const pushGapMilliseconds = 15_000;
 
 export const sweepMilliseconds = 250;

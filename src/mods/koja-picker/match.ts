@@ -15,8 +15,6 @@ const spreadPerLetter = 2;
 
 const spreadSlack = 4;
 
-// The highest score a fuzzy match can reach for a query, so a caller can rank an exact match above
-// every field match.
 export const scoreCeiling = (query: string): number =>
   Array.from(query).length * (runScore + wordStartScore);
 

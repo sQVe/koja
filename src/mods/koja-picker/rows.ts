@@ -281,8 +281,6 @@ const betterScore = (first: number | null, second: number | null): number | null
   return second === null ? first : Math.max(first, second);
 };
 
-// A stack match names the row only when it beats every field of the space, so a space found by its
-// own name keeps no reason.
 const beatsFields = (
   fieldScore: number | null,
   stackMatch: { score: number; reason: StackReason } | null,

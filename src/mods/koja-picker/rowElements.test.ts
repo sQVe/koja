@@ -33,7 +33,6 @@ const palette = {
 
 Object.assign(globalThis, { kojaModName: 'koja-picker' });
 
-// The real list asks for the visible range; the fake draws all of it so a test can read the tree.
 const virtualList = (
   _id: string,
   count: number,

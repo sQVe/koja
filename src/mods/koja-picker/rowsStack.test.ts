@@ -26,7 +26,6 @@ const pullAt = (number: number, index: number) => {
   return stackPullOf({ branch, number, state });
 };
 
-// Eight PRs, of which the second is merged, so a match on it proves every PR is searched.
 const mergedStack = (): SpaceStack => stackOf(pullNumbers.map(pullAt));
 
 const ticketStack = (): SpaceStack =>
@@ -57,7 +56,6 @@ const reasonOf = (rows: ReturnType<typeof buildRows>, index: number) => {
   return row.reason;
 };
 
-// The matching space sits second by recency, so only its stack can lift it.
 const twoSpaces = (stack: SpaceStack | null): PickerData =>
   pickerData({
     spaces: [

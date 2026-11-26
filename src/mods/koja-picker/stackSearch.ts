@@ -13,7 +13,6 @@ interface PullMatch {
   value: string;
 }
 
-// A PR number matches only exactly, with or without its `#`.
 const numberOf = (query: string): string | null => {
   const digits = query.startsWith('#') ? query.slice(1) : query;
 
@@ -45,8 +44,6 @@ const matchOfPull = (query: string, digits: string | null, pull: StackPull): Pul
   return fieldMatchOf(query, pull);
 };
 
-// Every PR of the stack is searched, merged ones included, so a space can be found by a PR it
-// already landed.
 export const stackMatchOf = (
   query: string,
   stack: SpaceStack | null,
@@ -62,7 +59,6 @@ export const stackMatchOf = (
     const match = matchOfPull(query, digits, pull);
     const beaten = best !== null && match !== null && match.score <= best.score;
 
-    // Equal scores keep the lower PR, so only a strictly better match replaces the reason.
     if (match === null || beaten) {
       continue;
     }
