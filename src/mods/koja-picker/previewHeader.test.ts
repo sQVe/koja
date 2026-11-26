@@ -203,9 +203,11 @@ describe('previewHeader', () => {
     const elsewhere = {
       ...terminalPane(),
       pane: 'p2',
+      terminal: 't2',
       tab: 'k2',
       cwd: '/code/elsewhere',
       branch: 'side',
+      focused: false,
     };
 
     const header = headerOf([first, elsewhere], 'p2', factsWithPull());

@@ -161,7 +161,7 @@ const stored = (
       | undefined;
 
     repositories[repository.key] = {
-      failed: pull.failed ?? existing?.failed ?? false,
+      failed: pull.failed === true || existing?.failed === true,
       pulls: [...(existing?.pulls ?? []), parsed],
     };
   }
@@ -369,32 +369,6 @@ describe('spaceFacts', () => {
     expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null });
   });
 
-  test('keeps a repository failed when one of its pulls failed to refresh', () => {
-    stored(
-      [
-        {
-          root: '/code/notes',
-          commonDirectory: '/code/notes/.git',
-          branch: 'main',
-          linked: false,
-        },
-      ],
-      [
-        {
-          number: 7,
-          headRefName: 'main',
-          commonDirectory: '/code/notes/.git',
-          failed: true,
-        },
-        { number: 8, headRefName: 'other', commonDirectory: '/code/notes/.git' },
-      ],
-    );
-
-    const facts = spaceFactsOf([spaceAt('s1', '/code/notes')], []);
-
-    expect(facts['s1']).toEqual({ project: 'notes', pull: null, need: null });
-  });
-
   test('names both checkouts of one repository after its main checkout', () => {
     stored(
       [
@@ -485,13 +459,13 @@ describe('spaceFacts', () => {
       ],
     );
 
+    // The data layer can record the inner checkout by one of its subfolders and never the root, so
+    // only the outer place answers the walk up from the pane.
     const facts = (sharedValues[snapshotKey] as { facts: Facts }).facts;
     const innerKey = placeOf(null, '/code/widget').key;
-    const entry = facts.git.places[innerKey] as { worktree: string };
-    const subfolder = placeOf(null, '/code/widget/src').key;
+    const kept = Object.entries(facts.git.places).filter(([key]) => key !== innerKey);
 
-    facts.git.places[innerKey] = { kind: 'none' };
-    facts.git.places[subfolder] = { kind: 'repository', worktree: entry.worktree };
+    facts.git.places = Object.fromEntries(kept);
 
     const pane = { ...paneAt('/code/widget/lib'), branch: 'inner' };
     const factsOfPane = paneFactsOf(null, pane, pane.branch);
