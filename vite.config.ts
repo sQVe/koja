@@ -16,7 +16,8 @@ export default defineConfig({
     ignorePatterns: ['bun.lock', '.tau/**', 'herdr/*.d.ts', 'docs/stomme/**'],
   },
   staged: {
-    '*.{ts,tsx,js,jsx,mjs,cjs}': [
+    // Declaration files are kept as Herdr wrote them, so lint never gets them.
+    '!(*.d).{ts,tsx,js,jsx,mjs,cjs}': [
       'bunx --bun stomme-ts-style',
       'bunx --bun vp fmt --check --no-error-on-unmatched-pattern',
     ],
