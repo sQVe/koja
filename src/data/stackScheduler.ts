@@ -2,7 +2,7 @@ import type { Context } from 'gpui-kit';
 
 import { keepEarliest } from './fields.ts';
 import type { WatchFolder } from './folderWatch.ts';
-import { fallbackMilliseconds } from './gitDue.ts';
+import { staleReadMilliseconds } from './gitDue.ts';
 import type { RepositoryIdentity, RunCommand } from './gitIdentity.ts';
 import type { WatchRegistry } from './gitWatches.ts';
 import { checkoutWorktrees, createWatchRegistry, usedRepositories } from './gitWatches.ts';
@@ -182,7 +182,7 @@ class Scheduler implements StackScheduler {
 
       const finished = this.readFinishedAt.get(key);
 
-      if (finished === undefined || now - finished >= fallbackMilliseconds) {
+      if (finished === undefined || now - finished >= staleReadMilliseconds) {
         keepEarliest(this.due, key, now);
       }
     }
@@ -221,7 +221,7 @@ class Scheduler implements StackScheduler {
 
         this.apply(key, read);
       } catch {
-        this.finishRead(key);
+        this.apply(key, { kind: 'failed' });
       }
     });
   }

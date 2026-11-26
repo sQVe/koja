@@ -47,7 +47,8 @@ interface DueContext {
   now: number;
 }
 
-export const fallbackMilliseconds = 60_000;
+// A read with no watch behind it is refreshed after this long, so a change it missed still lands.
+export const staleReadMilliseconds = 60_000;
 
 export const emptyDueState = (): DueState => ({ places: {}, busy: {}, ready: {} });
 
@@ -259,7 +260,7 @@ const addFallbacks = (context: DueContext): void => {
 
   for (const key of Object.keys(context.live)) {
     const memory = reads[key];
-    const stale = memory !== undefined && context.now - memory.lastReadAt > fallbackMilliseconds;
+    const stale = memory !== undefined && context.now - memory.lastReadAt > staleReadMilliseconds;
 
     if (memory === undefined || !stale || context.due.has(key)) {
       continue;
