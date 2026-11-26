@@ -36,6 +36,8 @@ its own key context, so they work in a window that was just started. They are al
 key table, which covers the raw keys after a reload of `keys.json`. `keys.json` has no entry for
 them. Both ways apply only while normal mode has focus and take no key from programs in panes.
 
+`Escape` drops the mark back to the panes and keeps normal mode on.
+
 The mark never rests on a hidden section. The step skips a hidden section, and `koja-modal` moves
 the mark back to the panes when the marked section hides, before it sends any key.
 

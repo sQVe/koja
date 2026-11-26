@@ -423,15 +423,19 @@ describe('normal mode palette', () => {
     });
   });
 
-  test('resolves s f and the aumlaut to the picker', () => {
+  test('resolves g p and the aumlaut to the picker', () => {
     const aumlaut = event({ key: 'quote', keystroke: 'ä', key_char: 'ä' });
 
-    for (const keys of [[plain('s'), plain('f')], [aumlaut]]) {
+    for (const keys of [[plain('g'), plain('p')], [aumlaut]]) {
       expect(feed(keys)).toMatchObject({
         status: 'action',
         action: { kind: 'command', command: 'mod.open', args: { name: 'koja-picker' } },
       });
     }
+  });
+
+  test('does not open the picker with s f', () => {
+    expect(feed([plain('s'), plain('f')])).toMatchObject({ status: 'cleared' });
   });
 
   test.each<[string, NormalIntent]>([

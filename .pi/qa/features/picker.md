@@ -9,7 +9,7 @@ Drive the picker mod, `koja-picker`, in the sandbox the brief names. Follow
 
 | Entry point       | Command                                               |
 | ----------------- | ----------------------------------------------------- |
-| Normal mode `s f` | `bun run sandbox key s`, then `bun run sandbox key f` |
+| Normal mode `g p` | `bun run sandbox key g`, then `bun run sandbox key p` |
 
 Press `key b Control_L` first to enter normal mode.
 
@@ -23,7 +23,7 @@ Press `key b Control_L` first to enter normal mode.
 
 ## Observable results
 
-- `s f` opens the picker.
+- `g p` opens the picker.
 - A query filters, and `Tab` and shift-tab change the filter.
 - `Return` goes to the row.
 - `Escape` returns focus to the pane that had it.

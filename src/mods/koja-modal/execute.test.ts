@@ -378,7 +378,7 @@ describe('tabs and overlays', () => {
     ]);
   });
 
-  test('Backspace opens the palette and s f opens the picker', () => {
+  test('opens the palette and the picker', () => {
     const session = createSession(twoPanes, 'p1', 'tab-1');
 
     session.act(command('mod.open', { name: 'koja-palette' }));
