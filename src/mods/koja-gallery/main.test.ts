@@ -1,6 +1,12 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
-import { click, clickablesWithText, descendants, drawnTexts, textColorOf } from '../../../tests/drawn.ts';
+import {
+  click,
+  clickablesWithText,
+  descendants,
+  drawnTexts,
+  textColorOf,
+} from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { mockGalleryModules } from '../../../tests/gallery.ts';
 import { heartbeatKey, leaseExpiryMilliseconds } from '../../data/lease.ts';

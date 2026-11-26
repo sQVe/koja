@@ -51,7 +51,6 @@
     "!src/kit/statusRow.ts",
     "!src/kit/tab.ts",
     "!src/kit/text.ts",
-    "!src/kit/terminalFont.ts",
     "!src/kit/textField.ts",
     "!src/kit/textRole.ts",
     "!src/kit/viewSwitch.ts",

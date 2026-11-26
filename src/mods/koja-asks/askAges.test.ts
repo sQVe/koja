@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { seededRandom } from '../../../tests/gitSchedulerHarness.ts';
+import { seededRandom } from '../../../tests/seeded.ts';
 import { askAgeOf, trackAskAges } from './askAges.ts';
 
 const now = 1_700_000_000_000;

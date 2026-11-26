@@ -214,7 +214,7 @@ const rowElement = (row: AskRow, actions: CardActions): Element => {
     .px(rowPaddingX)
     .py(rowPaddingY)
     .gap(rowGap)
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .cursor_pointer()
     .hover((box) => box.bg(colors().hover))
     .on_mouse_down('left', stopPress)

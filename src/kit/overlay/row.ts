@@ -10,4 +10,4 @@ export type OverlayRowOptions = Omit<ListRowOptions, 'inset'>;
 export const overlayRow = (options: OverlayRowOptions): Element =>
   listRow({ ...options, inset: false })
     .px(spacing.medium)
-    .rounded(radius.pill);
+    .rounded(radius.default);

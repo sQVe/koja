@@ -22,7 +22,7 @@ await mock.module('gpui-base', () =>
 await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn() }));
 
 await mock.module('herdr', () =>
-  herdrFake({ settings: () => ({ font_family: 'Maple Mono' }), theme: () => palette }),
+  herdrFake({ settings: () => ({ font: 'Maple Mono' }), theme: () => palette }),
 );
 
 const modulePath = './keyHintCard.ts';

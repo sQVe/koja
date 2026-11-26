@@ -188,7 +188,7 @@ const kitParts = [
   'text',
   'textRole',
   'theme',
-  'terminalFont',
+  'font',
   'timer',
   'window',
 ];

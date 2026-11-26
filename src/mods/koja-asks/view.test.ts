@@ -52,7 +52,7 @@ const kitParts = [
   'text',
   'textRole',
   'theme',
-  'terminalFont',
+  'font',
 ];
 
 const kitFake = await realKitIndexFake(kitParts);

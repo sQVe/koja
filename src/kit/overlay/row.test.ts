@@ -38,6 +38,6 @@ describe('overlayRow', () => {
 
     expect(row.styles['h']).toEqual([rowHeight.medium]);
     expect(row.styles['px']).toEqual([spacing.medium]);
-    expect(row.styles['rounded']).toEqual([radius.pill]);
+    expect(row.styles['rounded']).toEqual([radius.default]);
   });
 });

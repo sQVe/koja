@@ -51,7 +51,7 @@ const mark = (name: IconName): Element => icon(name, 'small').text_color(colors(
 const menuRow = (options: RowOptions): Element =>
   listRow({ ...options, inset: false })
     .px(spacing.medium - spacing.hairline)
-    .rounded(radius.pill);
+    .rounded(radius.default);
 
 const heading = (text: string): Element =>
   h_flex()

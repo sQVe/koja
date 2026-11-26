@@ -27,7 +27,7 @@ export const segmentedChip = (options: SegmentedChipOptions): Element => {
     .gap(spacing.xsmall)
     .flex_none()
     .items_center()
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .border(spacing.hairline)
     .border_color(outline);
 

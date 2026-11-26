@@ -1,4 +1,4 @@
-# ADR 0018: Koja draws agent asks in its own floating window
+# ADR 0019: Koja draws agent asks in its own floating window
 
 **Date**: 2026-11-26\
 **Status**: Accepted\

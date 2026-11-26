@@ -2,12 +2,12 @@ import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
+import { terminalFont } from './font.ts';
 import { isUpperCaseLetter } from './keys.ts';
 import type { Color } from './palette.ts';
 import { keycapOutlineAlpha, withAlpha } from './palette.ts';
 import type { OverlayHint } from './shortcutBinding.ts';
 import { badgeSize, keycapSize, spacing } from './size.ts';
-import { terminalFont } from './terminalFont.ts';
 import { withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 
