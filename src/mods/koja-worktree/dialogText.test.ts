@@ -22,7 +22,9 @@ describe('risk text', () => {
     const worktree = refusedText({ kind: 'refused', name: '-x', role: 'worktree' });
 
     expect(branch).toContain('-x');
+    expect(branch).toContain('branch');
     expect(worktree).toContain('-x');
+    expect(worktree).toContain('worktree');
     expect(branch).not.toBe(worktree);
   });
 });

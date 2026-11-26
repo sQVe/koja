@@ -508,6 +508,44 @@ describe('remove worktree', () => {
     expect(buttons.get('Close')?.kind).toBe('danger');
   });
 
+  test('an agent that stops during the removal closes the space without a second prompt', async () => {
+    execResults[statusCommand] = ok(' M src/file.ts\n');
+    spaceStatuses = { 'space-1': 'working' };
+    const gate = gateExec('grove remove --force feat-a', 1);
+    const view = await openDialog();
+
+    deliverKey('enter');
+    await gate.started;
+
+    spaceStatuses = {};
+    gate.release();
+    await settle();
+    redraw(view);
+
+    expect(calls).toEqual([
+      'close',
+      { name: 'space.close', args: { id: 'space-1', confirmed: true } },
+    ]);
+
+    expect(detailTexts).toEqual([]);
+  });
+
+  test('an agent that stops while the closing question is open closes the space', async () => {
+    const { view } = await reachClosing();
+
+    spaceStatuses = {};
+    buttons.get('Close')?.click({}, context);
+    await settle();
+    redraw(view);
+
+    expect(calls).toEqual([
+      'close',
+      { name: 'space.close', args: { id: 'space-1', confirmed: true } },
+    ]);
+
+    expect(detailTexts).toEqual([]);
+  });
+
   test('the closing question closes the space after the user confirms the new agent', async () => {
     const { view } = await reachClosing();
 

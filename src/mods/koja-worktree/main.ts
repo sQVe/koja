@@ -29,6 +29,10 @@ import {
   runGrove,
 } from './workspace.ts';
 
+type FindingPhase = Extract<Phase, { kind: 'finding' }>;
+
+type ClosingPhase = Extract<Phase, { kind: 'closing' }>;
+
 type Phase =
   | { kind: 'checking' }
   | { kind: 'asking'; workspace: Workspace; risks: RemoveRisks }
@@ -179,25 +183,13 @@ export default class Worktree extends View {
     }
 
     if (this.phase.kind === 'finding') {
-      const { workspace, branch } = this.phase;
-
-      this.begin(workspace, cx);
-
-      cx.spawn(async (taskCx) => {
-        await this.running(workspace, taskCx, () => this.openFolder(workspace, branch));
-      });
+      this.startFinding(this.phase, cx);
 
       return;
     }
 
     if (this.phase.kind === 'closing') {
-      const { workspace, risks } = this.phase;
-
-      this.begin(workspace, cx);
-
-      cx.spawn(async (taskCx) => {
-        await this.running(workspace, taskCx, () => this.closeWhenUnchanged(workspace, risks));
-      });
+      this.startClosing(this.phase, cx);
 
       return;
     }
@@ -209,27 +201,51 @@ export default class Worktree extends View {
     }
 
     if (this.action === 'new') {
-      const branch = this.input.value().trim();
-
-      if (branch === '') {
-        return;
-      }
-
-      this.begin(workspace, cx);
-
-      cx.spawn(async (taskCx) => {
-        await this.add(workspace, branch, taskCx);
-      });
+      this.startAdd(workspace, cx);
 
       return;
     }
 
-    if (this.phase.kind !== 'asking') {
+    if (this.phase.kind === 'asking') {
+      this.startRemove(workspace, this.phase.risks, cx);
+    }
+  }
+
+  private startFinding(phase: FindingPhase, cx: Context): void {
+    const { workspace, branch } = phase;
+
+    this.begin(workspace, cx);
+
+    cx.spawn(async (taskCx) => {
+      await this.running(workspace, taskCx, () => this.openFolder(workspace, branch));
+    });
+  }
+
+  private startClosing(phase: ClosingPhase, cx: Context): void {
+    const { workspace, risks } = phase;
+
+    this.begin(workspace, cx);
+
+    cx.spawn(async (taskCx) => {
+      await this.running(workspace, taskCx, () => this.closeWhenUnchanged(workspace, risks));
+    });
+  }
+
+  private startAdd(workspace: Workspace, cx: Context): void {
+    const branch = this.input.value().trim();
+
+    if (branch === '') {
       return;
     }
 
-    const shown = this.phase.risks;
+    this.begin(workspace, cx);
 
+    cx.spawn(async (taskCx) => {
+      await this.add(workspace, branch, taskCx);
+    });
+  }
+
+  private startRemove(workspace: Workspace, shown: RemoveRisks, cx: Context): void {
     this.begin(workspace, cx);
 
     cx.spawn(async (taskCx) => {
@@ -279,8 +295,9 @@ export default class Worktree extends View {
       }
 
       const agentRisks = readAgentRisks(workspace);
+      const agentAppeared = agentRisks.includes('agent') && !shown.includes('agent');
 
-      if (shown.includes('agent') !== agentRisks.includes('agent')) {
+      if (agentAppeared) {
         return { kind: 'closing', workspace, risks: agentRisks };
       }
 
@@ -298,7 +315,9 @@ export default class Worktree extends View {
       return null;
     }
 
-    if (!sameRisks(shown, risks)) {
+    const agentAppeared = risks.includes('agent') && !shown.includes('agent');
+
+    if (agentAppeared) {
       return { kind: 'closing', workspace, risks };
     }
 
