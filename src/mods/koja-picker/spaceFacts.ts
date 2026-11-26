@@ -130,6 +130,9 @@ const recordedPlace = (facts: Facts, machine: string | null, folder: string): Pl
   }
 };
 
+const underFolder = (path: string, folder: string): boolean =>
+  path === folder || path.startsWith(`${folder}/`);
+
 // A checkout can be known by its worktree without a place for the folder the pane sits in, which is
 // what a space recorded through one of its subfolders leaves behind.
 const worktreeAtFolder = (
@@ -138,7 +141,7 @@ const worktreeAtFolder = (
   folder: string,
 ): WorktreeGit | null => {
   const insideCheckout = (entry: WorktreeGit): boolean => {
-    const atOrUnderRoot = folder === entry.root || folder.startsWith(`${entry.root}/`);
+    const atOrUnderRoot = underFolder(folder, entry.root);
 
     return entry.repository.machine === machine && atOrUnderRoot;
   };
@@ -148,8 +151,15 @@ const worktreeAtFolder = (
   return inside.toSorted((first, second) => second.root.length - first.root.length)[0] ?? null;
 };
 
-const belowPlace = (place: Place | null, worktree: WorktreeGit): boolean =>
-  place === null || worktree.root.startsWith(`${place.folder}/`);
+const belowPlace = (place: Place | null, worktree: WorktreeGit): boolean => {
+  if (place === null) {
+    return true;
+  }
+
+  const ownCheckout = worktree.root === place.folder;
+
+  return !ownCheckout && underFolder(worktree.root, place.folder);
+};
 
 export const spaceFacts = (
   facts: Facts | null,

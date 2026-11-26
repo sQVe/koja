@@ -459,8 +459,7 @@ describe('spaceFacts', () => {
       ],
     );
 
-    // The data layer can record the inner checkout by one of its subfolders and never the root, so
-    // only the outer place answers the walk up from the pane.
+    // Only the outer checkout has a place, so the walk up from the pane never reaches the inner one.
     const facts = (sharedValues[snapshotKey] as { facts: Facts }).facts;
     const innerKey = placeOf(null, '/code/widget').key;
     const kept = Object.entries(facts.git.places).filter(([key]) => key !== innerKey);
