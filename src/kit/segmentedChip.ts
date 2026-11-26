@@ -33,6 +33,8 @@ export const segmentedChip = (options: SegmentedChipOptions): Element => {
 
   if (options.active) {
     chip.bg(palette.hover);
+  } else {
+    chip.hover((element) => element.border_color(palette.selected));
   }
 
   if (options.start !== undefined) {
@@ -46,8 +48,12 @@ export const segmentedChip = (options: SegmentedChipOptions): Element => {
   const countBox = div().flex_none();
   const count = withTextRole(countBox, 'detail', 'dim');
 
-  const labelText = label.child(options.label);
-  const countText = count.child(String(options.count));
+  // A hovered toggle brightens its text; an active one is already at full ink.
+  const inkOnHover = (element: Element): Element =>
+    options.active ? element : element.hover((hovered) => hovered.text_color(palette.foreground));
+
+  const labelText = inkOnHover(label.child(options.label));
+  const countText = inkOnHover(count.child(String(options.count)));
 
   return chip.child(labelText).child(countText);
 };
