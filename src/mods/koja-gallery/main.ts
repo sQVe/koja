@@ -9,7 +9,7 @@ import { readDataState } from '../../data/consumer.ts';
 import { colors, sectionHeader, spacing, withTextRole } from '../../kit/index.ts';
 import { actions } from './actions.ts';
 import { buttons } from './buttons.ts';
-import { contentParts } from './content.ts';
+import { contentParts, foldedSectionNames } from './content.ts';
 import { dataLayer } from './data.ts';
 import { dialogs } from './dialogs.ts';
 import { headers } from './headers.ts';
@@ -48,7 +48,9 @@ export default class Gallery extends View {
   private readonly filledField: InputState = InputStates.new({ placeholder: 'Commit message' });
   private readonly renameField: InputState = InputStates.new({ placeholder: 'Tab name' });
 
-  private readonly foldedSections = new Set(['Files']);
+  private readonly foldedSections = new Set<string>(foldedSectionNames);
+
+  private checksRetried = false;
 
   private staleDeadline: StaleDeadline | null = null;
 
@@ -56,6 +58,11 @@ export default class Gallery extends View {
     this.search.set_value('');
     this.filledField.set_value('Fix the login redirect');
     this.renameField.set_value('Build and test');
+  }
+
+  private retryChecks(cx: Context): void {
+    this.checksRetried = true;
+    cx.notify();
   }
 
   private toggleSection(name: string, cx: Context): void {
@@ -129,6 +136,10 @@ export default class Gallery extends View {
             folded: this.foldedSections,
             onToggle: (name, clickContext) => {
               this.toggleSection(name, clickContext);
+            },
+            checksRetried: this.checksRetried,
+            onRetryChecks: (clickContext) => {
+              this.retryChecks(clickContext);
             },
           }),
         ),

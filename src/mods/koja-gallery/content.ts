@@ -29,7 +29,13 @@ type HeaderState = ItemStateOptions | null;
 export interface ContentPartsOptions {
   folded: ReadonlySet<string>;
   onToggle: (name: string, cx: Context) => void;
+  // Shows the stale Checks sample with fresh rows, as a part that read again would.
+  checksRetried: boolean;
+  onRetryChecks: (cx: Context) => void;
 }
+
+// The gallery starts with this section folded, to show a folded header.
+export const foldedSectionNames = ['Files'] as const;
 
 const ticketFacts: Fact[] = [
   { label: 'Project', value: 'Koja' },
@@ -210,6 +216,11 @@ const runningCheck = (name: string, started: string, stale: boolean): StatusRowO
 
 const staleChecksNote: PartNoteOptions = { part: 'checks', age: '6m ago' };
 
+const checksCount = 3;
+const threadsCount = 2;
+const slicesCount = 3;
+const filesCount = 9;
+
 const isOpen = (options: ContentPartsOptions, name: string): boolean => !options.folded.has(name);
 
 const toggle =
@@ -218,27 +229,37 @@ const toggle =
     options.onToggle(name, cx);
   };
 
-const checksSection = (stale: boolean, options: ContentPartsOptions): Element => {
-  const testsAge = stale ? '8m ago' : '2m ago';
-  const styleAge = stale ? '7m ago' : '1m ago';
-
-  const rows = [
-    statusRow(failingCheck(stale)),
-    statusRow(runningCheck('tests', testsAge, stale)),
-    statusRow(runningCheck('style', styleAge, stale)),
-  ];
-
-  const parts = stale ? [partNote(staleChecksNote), ...rows] : rows;
-
-  const section: ContentSectionOptions = {
-    name: 'Checks',
-    count: 3,
-    open: isOpen(options, 'Checks'),
+const sectionOptions = (
+  options: ContentPartsOptions,
+  name: string,
+  parts: Element[],
+  count?: number,
+): ContentSectionOptions => {
+  const look: ContentSectionOptions = {
+    name,
+    open: isOpen(options, name),
     parts,
-    onToggle: toggle(options, 'Checks'),
+    onToggle: toggle(options, name),
   };
 
-  return contentSection(section);
+  return count === undefined ? look : { ...look, count };
+};
+
+const checksSection = (stale: boolean, options: ContentPartsOptions): Element => {
+  const showsStale = stale && !options.checksRetried;
+  const testsAge = showsStale ? '8m ago' : '2m ago';
+  const styleAge = showsStale ? '7m ago' : '1m ago';
+
+  const rows = [
+    statusRow(failingCheck(showsStale)),
+    statusRow(runningCheck('tests', testsAge, showsStale)),
+    statusRow(runningCheck('style', styleAge, showsStale)),
+  ];
+
+  const note = partNote({ ...staleChecksNote, onRetry: options.onRetryChecks });
+  const parts = showsStale ? [note, ...rows] : rows;
+
+  return contentSection(sectionOptions(options, 'Checks', parts, checksCount));
 };
 
 const threadRow = (reference: string, detail: string): StatusRowOptions => ({
@@ -246,58 +267,80 @@ const threadRow = (reference: string, detail: string): StatusRowOptions => ({
   name: reference,
   detail,
   state: 'unresolved',
+  stateTone: 'dim',
 });
 
 const threadsSection = (options: ContentPartsOptions): Element =>
-  contentSection({
-    name: 'Threads',
-    count: 2,
-    open: isOpen(options, 'Threads'),
-    onToggle: toggle(options, 'Threads'),
-    parts: [
-      statusRow(threadRow('rows.ts:48', 'sqve · 2h ago')),
-      statusRow(threadRow('repoLabel.ts:27–31', 'sqve · 1h ago')),
-    ],
-  });
+  contentSection(
+    sectionOptions(
+      options,
+      'Threads',
+      [
+        statusRow(threadRow('rows.ts:48', 'sqve · 2h ago')),
+        statusRow(threadRow('repoLabel.ts:27–31', 'sqve · 1h ago')),
+      ],
+      threadsCount,
+    ),
+  );
 
 const slicesSection = (options: ContentPartsOptions): Element =>
-  contentSection({
-    name: 'Slices',
-    count: 3,
-    open: isOpen(options, 'Slices'),
-    onToggle: toggle(options, 'Slices'),
-    parts: [
-      statusRow({ mark: 'done', name: 'Read the ticket snapshot', state: 'done' }),
-      statusRow({ mark: 'working', name: 'Draw the shared content frame', state: 'in progress' }),
-      statusRow({ mark: 'idle', name: 'Check links and empty states', state: 'backlog' }),
-    ],
-  });
+  contentSection(
+    sectionOptions(
+      options,
+      'Slices',
+      [
+        statusRow({
+          mark: 'done',
+          name: 'Read the ticket snapshot',
+          state: 'done',
+          stateTone: 'dim',
+        }),
+        statusRow({
+          mark: 'working',
+          name: 'Draw the shared content frame',
+          state: 'in progress',
+          stateTone: 'dim',
+        }),
+        statusRow({
+          mark: 'idle',
+          name: 'Check links and empty states',
+          state: 'backlog',
+          stateTone: 'dim',
+        }),
+      ],
+      slicesCount,
+    ),
+  );
 
-const uncountedSection = (options: ContentPartsOptions): Element =>
-  contentSection({
-    name: 'Slices',
-    open: isOpen(options, 'Slices without a count'),
-    onToggle: toggle(options, 'Slices without a count'),
-    parts: [statusRow({ mark: 'done', name: 'Read the ticket snapshot', state: 'done' })],
-  });
+const descriptionSection = (options: ContentPartsOptions): Element =>
+  contentSection(
+    sectionOptions(options, 'Description', [
+      statusRow({
+        mark: null,
+        name: 'Adds project groups, work-need marks, and a quieter selected row.',
+      }),
+    ]),
+  );
 
 const fileRow = (path: string, counts: string): StatusRowOptions => ({
   mark: null,
   name: path,
   state: counts,
+  stateTone: 'dim',
 });
 
 const filesSection = (options: ContentPartsOptions): Element =>
-  contentSection({
-    name: 'Files',
-    count: 9,
-    open: isOpen(options, 'Files'),
-    onToggle: toggle(options, 'Files'),
-    parts: [
-      statusRow(fileRow('src/kit/sectionHeader.ts', '+18 −2')),
-      statusRow(fileRow('src/kit/statusRow.ts', '+59 −0')),
-    ],
-  });
+  contentSection(
+    sectionOptions(
+      options,
+      'Files',
+      [
+        statusRow(fileRow('src/kit/sectionHeader.ts', '+18 −2')),
+        statusRow(fileRow('src/kit/statusRow.ts', '+59 −0')),
+      ],
+      filesCount,
+    ),
+  );
 
 export const contentParts = (options: ContentPartsOptions): Element[] => [
   sample('Source links', sourceLinks()),
@@ -320,6 +363,6 @@ export const contentParts = (options: ContentPartsOptions): Element[] => [
   sample('Checks section with stale rows', narrowFrame(checksSection(true, options))),
   sample('Threads section', narrowFrame(threadsSection(options))),
   sample('Slices section', narrowFrame(slicesSection(options))),
-  sample('Section without a count', narrowFrame(uncountedSection(options))),
+  sample('Section without a count', narrowFrame(descriptionSection(options))),
   sample('Folded section', narrowFrame(filesSection(options))),
 ];
