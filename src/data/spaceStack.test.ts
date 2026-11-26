@@ -175,10 +175,12 @@ describe('spaceStackOf', () => {
   });
 
   test('a fork pull beside the recorded pull keeps the recorded title and merged state', () => {
+    // The entry's branch was renamed after pull 11 opened, so the live read lists that pull under
+    // another head branch while the fork's pull 99 takes the entry's branch.
     const facts = factsOf({
       stack: ['me-1-one'],
       branch: 'me-1-one',
-      pulls: [pullOf('me-1-one', 99, 'OPEN'), pullOf('me-1-one', 11, 'MERGED')],
+      pulls: [pullOf('me-1-old', 11, 'MERGED'), pullOf('me-1-one', 99, 'OPEN')],
       pullNumbers: { 'me-1-one': 11 },
     });
 

@@ -64,6 +64,9 @@ const worktreeStackOf = (facts: Facts, worktreeKey: string): WorktreeStack | nul
   return { stack, branch: worktree.branch, repositoryKey: worktree.repository.key };
 };
 
+const pullOfNumber = (facts: Facts, repositoryKey: string, number: number): Pull | null =>
+  facts.pulls[repositoryKey]?.pulls.find((candidate) => candidate.number === number) ?? null;
+
 const stackPullOf = (
   facts: Facts,
   repositoryKey: string,
@@ -75,11 +78,11 @@ const stackPullOf = (
 
   // A live pull is found by head branch alone, and a fork can reuse the name. The recorded number
   // wins when the live pull reports another one, so read that pull by number.
-  const pull =
-    recorded === null || live?.number === recorded
-      ? live
-      : (facts.pulls[repositoryKey]?.pulls.find((candidate) => candidate.number === recorded) ??
-        null);
+  let pull = live;
+
+  if (recorded !== null && live?.number !== recorded) {
+    pull = pullOfNumber(facts, repositoryKey, recorded);
+  }
 
   return {
     branch: entry.branch,
