@@ -1,6 +1,6 @@
+import { repoName, repoPathName } from '../../data/repositoryName.ts';
 import { needsYou } from '../../kit/needsYou.ts';
 import type { FoldedKeys, GitInfo, ListedSpace } from './tree.ts';
-import { repoName } from './tree.ts';
 
 export interface Project {
   key: string;
@@ -19,15 +19,6 @@ const projectKey = (row: ListedSpace): string => row.git?.repo.key ?? row.place.
 
 const lastPart = (path: string): string | null =>
   path.split('/').findLast((part) => part !== '') ?? null;
-
-const repoPathName = (path: string): string => {
-  const parts = path.split('/');
-  const last = parts.at(-1);
-  const isGitFolder = last === '.git' || last === '.bare';
-  const checkout = isGitFolder ? parts.slice(0, -1).join('/') : path;
-
-  return repoName(checkout);
-};
 
 const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
   row.git !== null && !row.git.linked;
