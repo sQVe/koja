@@ -11,7 +11,7 @@ export interface StackReason {
   value: string;
   position: number;
   total: number;
-  state: 'open' | 'draft' | 'merged' | 'closed' | null;
+  state: Exclude<StackPull['state'], 'unknown'> | null;
 }
 
 type StackTier = 'exact' | 'field';
