@@ -1,8 +1,8 @@
 import { h_flex } from 'gpui-base';
-import type { Context, Element } from 'gpui-kit';
+import type { AsyncContext, Context, Element, MouseButtonEvent } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { SpaceInfo, Status, TabInfo } from 'herdr';
-import { openOverlay, panes, run, settings, shared, spaces, terminals } from 'herdr';
+import { openOverlay, panes, run, setShared, settings, shared, spaces, terminals } from 'herdr';
 
 import type { DragState } from '../../kit/drag.ts';
 import { noDrag, startDrag } from '../../kit/drag.ts';
@@ -15,9 +15,11 @@ import {
   hoveredAfter,
   icon,
   iconButton,
+  iconToggle,
   indicator,
   layoutRoot,
   listOf,
+  newMenuOpenKey,
   numberOf,
   overlaySize,
   programIcon,
@@ -42,6 +44,13 @@ interface Panel {
   icon: IconName;
 }
 
+interface WindowBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 const panelStorageKey = 'panels';
 
 const panels: Panel[] = [
@@ -52,6 +61,33 @@ const panels: Panel[] = [
 const stopPress = (_event: unknown, cx: Context): void => {
   cx.stop_propagation();
 };
+
+// The press carries where it landed in the window and in the button, which is the button's box.
+const pressedBox = (event: MouseButtonEvent): WindowBox | null => {
+  const bounds = event.bounds;
+  const local = event.local_position;
+
+  if (bounds === undefined || local === undefined) {
+    return null;
+  }
+
+  return {
+    x: event.position.x - local.x,
+    y: event.position.y - local.y,
+    width: bounds.width,
+    height: bounds.height,
+  };
+};
+
+// Herdr places a popup at the point in window pixels, and scales its width by the app's zoom, so
+// the anchor scales what the menu adds to the button's own box.
+const newMenuPoint = (box: WindowBox | null, zoom: number): { x: number; y: number } | null =>
+  box === null
+    ? null
+    : {
+        x: box.x + box.width - overlaySize.newMenuWidth * zoom,
+        y: box.y + box.height + spacing.xsmall * zoom,
+      };
 
 const readStoredPanels = (): Record<string, string | null> => {
   const stored: unknown = parsedJson(localStorage.getItem(panelStorageKey));
@@ -96,18 +132,19 @@ const showPanel = (panel: string | null): void => {
   run('layout.show', { id: 'panel' });
 };
 
+const appZoom = (): number => numberOf(settings()['zoom']) ?? 1;
+
 const windowButtonsPadding = (): number => {
   const shown = currentWindow();
   const sidebar = findLayoutNode('sidebar');
   const sidebarWidth = sidebar?.hidden === true ? 0 : (sidebar?.sizePx ?? 0);
-  const zoom = numberOf(settings()['zoom']) ?? 1;
 
   return trafficLightsPadding({
     platform: shown?.platform ?? 'linux',
     titlebar: shown?.titlebar ?? 'system',
     fullscreen: shown?.fullscreen ?? false,
     lights: layoutRoot().trafficLights,
-    zoom,
+    zoom: appZoom(),
     offset: sidebarWidth,
     base: spacing.none,
   });
@@ -119,6 +156,16 @@ export default class Tabs extends View {
   private hoveredTab: string | null = null;
 
   private memory: PanelMemory = initialPanelMemory(readStoredPanels());
+
+  private plusBox: WindowBox | null = null;
+
+  override init(_props: unknown, _cx: AsyncContext): void {
+    // A session that ended with the new menu open leaves its flag set, and the `+` would draw
+    // pressed with no menu over it. No popup survives a start, so a flag read here is always stale.
+    if (shared(newMenuOpenKey) === true) {
+      setShared(newMenuOpenKey, false);
+    }
+  }
 
   override render(): Element {
     const palette = colors();
@@ -265,15 +312,26 @@ export default class Tabs extends View {
   }
 
   private controls(enabled: string[]): Element {
-    const newButton = iconButton({ name: 'plus' })
+    const newButton = iconToggle({
+      name: 'plus',
+      label: 'New tab',
+      active: shared(newMenuOpenKey) === true,
+    })
       .id('tab-new')
-      .on_mouse_down('left', stopPress)
+      .on_mouse_down('left', (event, cx) => {
+        cx.stop_propagation();
+        this.plusBox = pressedBox(event);
+      })
       .on_click(() => {
+        const at = newMenuPoint(this.plusBox, appZoom());
+
         openOverlay({
           mod: 'koja-new-menu',
           kind: 'popup',
-          width: overlaySize.wideMenuWidth,
+          frame: 'none',
+          width: overlaySize.newMenuWidth,
           height: overlaySize.wideMenuHeight,
+          ...(at === null ? {} : { at }),
         });
       });
 
