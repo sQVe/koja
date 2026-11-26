@@ -96,8 +96,10 @@ describe('itemHeader', () => {
     });
 
     const label = elementWithText(header, 'waiting on review');
-    const [chip] = elementsWithBorder(header, palette.border);
+    const chips = elementsWithBorder(header, palette.border);
+    const [chip] = chips;
 
+    expect(chips).toHaveLength(1);
     expect(chip?.styles['min_w']).toEqual([0]);
     expect(label?.styles['min_w']).toEqual([0]);
     expect(label?.styles['truncate']).toBeDefined();
