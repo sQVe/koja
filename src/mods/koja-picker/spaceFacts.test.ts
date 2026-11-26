@@ -169,7 +169,7 @@ const stored = (
   sharedValues[snapshotKey] = {
     version: snapshotVersion,
     revision: 1,
-    facts: { git: { places, worktrees: gitWorktrees }, pulls: repositories },
+    facts: { git: { places, worktrees: gitWorktrees }, pulls: repositories, trackers: {} },
   };
 
   const heartbeat = { version: 1, owner: 'test', generation: 1, at: Date.now() };

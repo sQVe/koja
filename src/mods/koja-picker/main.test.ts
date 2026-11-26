@@ -645,8 +645,8 @@ describe('picker overlay state', () => {
   test('closing the list clears the pane it published', async () => {
     const { space, pane } = spaceWithOnePane('s1');
 
-    spaceList = [space];
-    paneList = [pane];
+    spaceValues = [space];
+    paneValues = [pane];
     overlayNow = 'overlay-3';
 
     const view = await loadView();

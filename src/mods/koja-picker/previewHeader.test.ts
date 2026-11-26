@@ -156,6 +156,7 @@ const factsWithPull = (): Facts => {
         ],
       },
     },
+    trackers: {},
   };
 };
 
