@@ -6,16 +6,6 @@ import { parsedJson } from '../kit/parsedJson.ts';
 import type { Stack, StackBranch } from './stacks.ts';
 import { parseStacks, stackOfBranch } from './stacks.ts';
 
-const parsedStacks = (name: string, heads: ReadonlyMap<string, string>): Stack[] => {
-  const parsed = parseStacks(ghStackRecord(name), heads);
-
-  if (parsed.kind === 'failed') {
-    throw new Error(`${name}.json did not parse`);
-  }
-
-  return parsed.stacks;
-};
-
 const branchesOf = (stacks: readonly Stack[]): StackBranch[] =>
   stacks.flatMap((stack) => stack.branches);
 
@@ -52,6 +42,9 @@ const parsedOrThrow = (text: string, heads: ReadonlyMap<string, string>): Stack[
 
   return parsed.stacks;
 };
+
+const parsedStacks = (name: string, heads: ReadonlyMap<string, string>): Stack[] =>
+  parsedOrThrow(ghStackRecord(name), heads);
 
 const restackOfBranch = (
   stacks: readonly Stack[],

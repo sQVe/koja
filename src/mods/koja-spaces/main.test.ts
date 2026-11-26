@@ -86,7 +86,6 @@ const checkouts = [
     folder: '/code/me-666-login',
     commonDirectory: '/code/koja/.git',
     linked: true,
-    bare: false,
     branch: 'me-666-login',
   },
 ];
