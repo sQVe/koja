@@ -219,13 +219,20 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 - The key hint card opens while normal mode's parser holds a part letter, and closes when the
   sequence ends, is cancelled, or a press lands on it. It draws as a frameless window overlay, which
   takes no keyboard from the mode that owns the keys.
-- The card lists one row per action of the part, with the shortest key sequence the key table gives
-  that action, so it never shows an alias beside the key it stands for. Its groups, rows, and keys
-  come from the normal-mode key table; a new key joins the card with no second list to edit.
+- The card lists one row per action of the part, with the first key sequence the key table gives
+  that action, so it never shows an alias beside the key it stands for. It follows the marked
+  section and a typed count the way the parser does: with a list marked, `g g` names the list
+  action, and `3 g t` names the tab it selects.
+- Its groups, rows, and keys come from the normal-mode key table. A new key of a known action joins
+  the card with no second list to edit. An action that no group claims shows under Other until it is
+  grouped, so a key never disappears from the card.
 - It sits at the bottom center of the main column, 24 px above the pane bottoms, and sizes to its
   columns. The pressed part letter draws as a pressed keycap before the part's name, a rule runs
   from text edge to text edge, and the groups stand 32 px apart. Its rows are 4 px shorter than
   panel rows.
+- Its window spans the whole window, because Herdr reports a window's size only to a mod that fills
+  one, and a card-sized window would need that size to be placed. A press anywhere on it cancels the
+  sequence, so no press during the pending state reaches the tab bar or a pane under it.
 
 ### Motion
 
@@ -273,8 +280,8 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 - One fixed density and two row heights leave no room for a compact or roomy setting.
 - Popups and rows appear without a fade, because Herdr cannot animate a first appearance.
 - Hover is a faint outline, so selection and hover rely on fill alone until a second cue is needed.
-- A press on the key hint card cancels the sequence instead of reaching the pane under it, because
-  the card's window covers the main column while it shows.
+- A press on the key hint card cancels the sequence instead of reaching what is under it, because
+  the card's window covers the window while it shows. A tab or pane press waits for the next one.
 - The focus fill is a second kind of fill, so a focused header may at first read as selected.
 - Each mod must track its reads per resource to show error and stale lines, which adds state to
   every mod that reads.

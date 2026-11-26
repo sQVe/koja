@@ -35,6 +35,12 @@ import type { ParseResult, ParserState } from './parser.ts';
 import { initialParserState, parseKey } from './parser.ts';
 import { createSections, isSectionKeyAction } from './sections.ts';
 
+interface ShownHints {
+  part: PartLetter;
+  count: number | null;
+  list: boolean;
+}
+
 const sectionKeys = createContextKeys('KojaModal', [
   { keystroke: 'tab', action: 'koja-modal-section-next' },
   { keystroke: 'shift-tab', action: 'koja-modal-section-previous' },
@@ -75,14 +81,31 @@ const pendingPart = (result: ParseResult): PartLetter | null => {
   return key !== undefined && isPartLetter(key) ? key : null;
 };
 
-const openKeyHints = (part: PartLetter): string =>
+const pendingHints = (result: ParseResult, list: boolean): ShownHints | null => {
+  const part = pendingPart(result);
+
+  return part === null ? null : { part, count: result.state.count, list };
+};
+
+const sameFields = (first: ShownHints, second: ShownHints): boolean =>
+  first.part === second.part && first.count === second.count && first.list === second.list;
+
+const sameHints = (first: ShownHints | null, second: ShownHints | null): boolean => {
+  if (first === null || second === null) {
+    return first === second;
+  }
+
+  return sameFields(first, second);
+};
+
+const openKeyHints = (hints: ShownHints): string =>
   openOverlay({
     mod: 'koja-hints',
     kind: 'window',
     frame: 'none',
     width: 1,
     height: 1,
-    props: { part },
+    props: { part: hints.part, count: hints.count, list: hints.list },
   });
 
 export default class KojaModal extends View {
@@ -92,7 +115,7 @@ export default class KojaModal extends View {
 
   private dialogOpened = false;
 
-  private hintPart: PartLetter | null = null;
+  private shownHints: ShownHints | null = null;
 
   private hintOverlay: string | null = null;
 
@@ -253,22 +276,22 @@ export default class KojaModal extends View {
       return;
     }
 
-    const part = pendingPart(result);
+    const hints = pendingHints(result, this.sections.layer().length > 0);
 
-    if (part === this.hintPart) {
+    if (sameHints(hints, this.shownHints)) {
       return;
     }
 
     this.closeHints();
-    this.hintPart = part;
+    this.shownHints = hints;
 
-    if (part !== null) {
-      this.hintOverlay = openKeyHints(part);
+    if (hints !== null) {
+      this.hintOverlay = openKeyHints(hints);
     }
   }
 
   private closeHints(): void {
-    this.hintPart = null;
+    this.shownHints = null;
 
     if (this.hintOverlay !== null) {
       closeOverlay(this.hintOverlay);

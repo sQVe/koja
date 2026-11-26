@@ -412,9 +412,31 @@ describe('koja modal view', () => {
         frame: 'none',
         width: 1,
         height: 1,
-        props: { part: 'w' },
+        props: { part: 'w', count: null, list: false },
       },
     ]);
+  });
+
+  test('a count before a part letter reaches the card', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    keyDownHandler?.(plain('3'));
+    keyDownHandler?.(plain('g'));
+
+    expect(openOverlayCalls.at(-1)?.props).toEqual({ part: 'g', count: 3, list: false });
+  });
+
+  test('a marked list reaches the card', async () => {
+    const view = await loadView();
+
+    view.render();
+
+    markSidebar();
+    keyDownHandler?.(plain('g'));
+
+    expect(openOverlayCalls.at(-1)?.props).toEqual({ part: 'g', count: null, list: true });
   });
 
   test('the key after a part letter runs its action and closes the card', async () => {

@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import type { KeyHintGroup, PartLetter } from './keyHints.ts';
 import { isPartLetter, partKeyHints, partLetters } from './keyHints.ts';
 import { actionName } from './keyNames.ts';
-import { normalKeys } from './normalKeys.ts';
+import { listKeys, normalKeys } from './normalKeys.ts';
 
 const partSequences = (part: PartLetter): string[] => {
   const kept = new Map<string, string[]>();
@@ -19,9 +19,7 @@ const partSequences = (part: PartLetter): string[] => {
       continue;
     }
 
-    const shown = kept.get(name);
-
-    if (shown === undefined || entry.keys.length < shown.length) {
+    if (!kept.has(name)) {
       kept.set(name, entry.keys);
     }
   }
@@ -71,6 +69,41 @@ describe('partKeyHints', () => {
 
   test('the panes card groups focus, move, split, and zoom and close', () => {
     expect(keysOfGroups('w')).toEqual(['h j k l w W p', 'H J K L', 'v s', 'm q o']);
+  });
+
+  test('a count names the tab the next key selects', () => {
+    const rows = partKeyHints('g', { count: 3 }).groups.flatMap((group) => group.rows);
+    const tab = rows.find((row) => row.keys.join('') === 't');
+
+    expect(tab?.label).toBe(actionName({ kind: 'nthTab', index: 3 }));
+  });
+
+  test('no count leaves a counted key with its base action', () => {
+    const base = actionName({ kind: 'command', command: 'tab.next' });
+
+    for (const options of [{}, { count: null }]) {
+      const rows = partKeyHints('g', options).groups.flatMap((group) => group.rows);
+      const labels = rows.filter((row) => row.keys.join('') === 't').map((row) => row.label);
+
+      expect(labels).toEqual([base]);
+    }
+  });
+
+  test.each(partLetters)('the %s card groups every row of its part', (part) => {
+    const titles = partKeyHints(part).groups.map((group) => group.title);
+
+    expect(titles).not.toContain('Other');
+  });
+
+  test('a marked list names the list action of g g', () => {
+    const rows = partKeyHints('g', { layer: listKeys }).groups.flatMap((group) => group.rows);
+    const listLabel = actionName({ kind: 'list', action: 'first' });
+
+    const shown = rows
+      .filter((row) => row.keys.join('') === 'g')
+      .filter((row) => row.label === listLabel);
+
+    expect(shown).toHaveLength(1);
   });
 
   test('a row shows a key sequence of its own part, never a ctrl-w alias', () => {

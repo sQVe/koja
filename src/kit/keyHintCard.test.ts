@@ -1,10 +1,10 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { drawn, drawnTexts } from '../../tests/drawn.ts';
+import { drawn, drawnTexts, elementsWithStyle } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
-import { partKeyHints } from './keyHints.ts';
-import type { PartKeyHints } from './keyHints.ts';
+import { partKeyHints, partLetters } from './keyHints.ts';
+import type { PartKeyHints, PartLetter } from './keyHints.ts';
 import { isUpperCaseLetter } from './keys.ts';
 
 const palette = {
@@ -37,31 +37,26 @@ afterAll(() => {
 
 const keyLabel = (key: string): string => (isUpperCaseLetter(key) ? `⇧${key}` : key);
 
+// Only the keycap glyphs draw with the terminal font, so this reads the card's keys and no other text.
+const drawnKeys = (part: PartLetter): string[] =>
+  elementsWithStyle(keyHintCard(partKeyHints(part)), 'font_family')
+    .flatMap((element) => drawnTexts(element))
+    .toSorted();
+
+const expectedKeys = (part: PartLetter): string[] => {
+  const rows = partKeyHints(part).groups.flatMap((group) => group.rows);
+
+  return [part, ...rows.flatMap((row) => row.keys)].map(keyLabel).toSorted();
+};
+
 describe('keyHintCard', () => {
-  test('the card names the part and draws every key of its rows', () => {
-    const hints = partKeyHints('w');
-    const texts = drawnTexts(keyHintCard(hints));
-
-    const missing = hints.groups
-      .flatMap((group) => group.rows.flatMap((row) => row.keys))
-      .map(keyLabel)
-      .filter((label) => !texts.includes(label));
-
-    expect(texts).toContain('w');
-    expect(texts).toContain('Panes');
-    expect(missing).toEqual([]);
+  test.each(partLetters)('the %s card draws exactly the keys of its part', (part) => {
+    expect(drawnKeys(part)).toEqual(expectedKeys(part));
   });
 
-  test('a part with one group still draws the keys of that group', () => {
-    const hints = partKeyHints('z');
-    const texts = drawnTexts(keyHintCard(hints));
+  test('the card names the part beside its pressed key', () => {
+    const texts = drawnTexts(keyHintCard(partKeyHints('w')));
 
-    const missing = hints.groups
-      .flatMap((group) => group.rows.flatMap((row) => row.keys))
-      .map(keyLabel)
-      .filter((label) => !texts.includes(label));
-
-    expect(texts).toContain('View');
-    expect(missing).toEqual([]);
+    expect(texts).toContain('Panes');
   });
 });

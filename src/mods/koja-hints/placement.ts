@@ -1,12 +1,11 @@
 import { listOf, numberOf, recordOf } from '../../kit/fields.ts';
+import { overlaySize } from '../../kit/size.ts';
 
 export interface CardPlacement {
   left: number;
   right: number;
   bottom: number;
 }
-
-const cardGapAbovePanes = 24;
 
 const findNode = (value: unknown, id: string): Record<string, unknown> | null => {
   const node = recordOf(value);
@@ -48,6 +47,6 @@ export const cardPlacement = (root: unknown): CardPlacement => {
   return {
     left: widthOf(findNode(root, 'sidebar')) + padding,
     right: padding + panelGap + panel,
-    bottom: padding + cardGapAbovePanes,
+    bottom: padding + overlaySize.cardGapAbovePanes,
   };
 };

@@ -20,6 +20,13 @@ export interface PartKeyHints {
   groups: KeyHintGroup[];
 }
 
+export interface KeyHintOptions {
+  // The keys of the marked section, which the parser tries before the table's own rows.
+  layer?: readonly NormalKey[];
+  // The count typed before the part letter, which a counted key acts on.
+  count?: number | null;
+}
+
 interface GroupSpec {
   title: string;
   holds: (action: NormalAction) => boolean;
@@ -175,29 +182,33 @@ const groupSpecs: Record<PartLetter, GroupSpec[]> = {
   z: viewGroupSpecs,
 };
 
-const partEntries = (part: PartLetter): NormalKey[] =>
-  normalKeys.filter((entry) => entry.keys.length === 2 && entry.keys[0] === part);
+const partEntries = (part: PartLetter, layer: readonly NormalKey[]): NormalKey[] =>
+  [...layer, ...normalKeys].filter((entry) => entry.keys.length === 2 && entry.keys[0] === part);
 
-// The table repeats an action once per alias. The card shows one row per action, with the shortest
-// sequence the table gives it, so a row never lists an alias beside the key it stands for.
+// The table repeats an action once per alias, and the parser runs the first row that matches. The
+// card shows that same row, one per action, so it never lists an alias beside the key it stands for.
 const shownEntries = (entries: NormalKey[]): NormalKey[] => {
   const shown = new Map<string, NormalKey>();
 
   for (const entry of entries) {
     const name = actionName(entry.action);
 
-    if (name === undefined) {
+    if (name === undefined || shown.has(name)) {
       continue;
     }
 
-    const kept = shown.get(name);
-
-    if (kept === undefined || entry.keys.length < kept.keys.length) {
-      shown.set(name, entry);
-    }
+    shown.set(name, entry);
   }
 
   return [...shown.values()];
+};
+
+const countedName = (entry: NormalKey, count: number | null | undefined): string | undefined => {
+  if (entry.counted !== 'nthTab' || count === null || count === undefined) {
+    return undefined;
+  }
+
+  return actionName({ kind: 'nthTab', index: count });
 };
 
 const orderIndex = (order: readonly string[], name: string): number => {
@@ -206,13 +217,17 @@ const orderIndex = (order: readonly string[], name: string): number => {
   return index === -1 ? order.length : index;
 };
 
-const orderedRows = (spec: GroupSpec, entries: NormalKey[]): KeyHintRow[] => {
+const specRows = (
+  spec: GroupSpec,
+  entries: NormalKey[],
+  count: number | null | undefined,
+): KeyHintRow[] => {
   const rows = entries.flatMap((entry) => {
     if (!spec.holds(entry.action)) {
       return [];
     }
 
-    const name = actionName(entry.action) ?? '';
+    const name = countedName(entry, count) ?? actionName(entry.action) ?? '';
 
     return [{ keys: entry.keys.slice(1), label: spec.label(name), name }];
   });
@@ -228,14 +243,37 @@ const orderedRows = (spec: GroupSpec, entries: NormalKey[]): KeyHintRow[] => {
   );
 };
 
-export const partKeyHints = (part: PartLetter): PartKeyHints => {
-  const entries = shownEntries(partEntries(part));
+// An action no group claims still has a key, so it joins the card rather than disappearing from it.
+const otherRows = (
+  specs: readonly GroupSpec[],
+  entries: NormalKey[],
+  count: number | null | undefined,
+): KeyHintRow[] =>
+  entries.flatMap((entry) => {
+    if (specs.some((spec) => spec.holds(entry.action))) {
+      return [];
+    }
 
-  const groups = groupSpecs[part].flatMap((spec) => {
-    const rows = orderedRows(spec, entries).map(({ keys, label }) => ({ keys, label }));
+    const name = countedName(entry, count) ?? actionName(entry.action) ?? '';
+
+    return name === '' ? [] : [{ keys: entry.keys.slice(1), label: name }];
+  });
+
+export const partKeyHints = (part: PartLetter, options: KeyHintOptions = {}): PartKeyHints => {
+  const entries = shownEntries(partEntries(part, options.layer ?? []));
+  const specs = groupSpecs[part];
+
+  const groups = specs.flatMap((spec) => {
+    const rows = specRows(spec, entries, options.count);
 
     return rows.length === 0 ? [] : [{ title: spec.title, rows }];
   });
+
+  const other = otherRows(specs, entries, options.count);
+
+  if (other.length > 0) {
+    groups.push({ title: 'Other', rows: other });
+  }
 
   return { letter: part, title: partTitles[part], groups };
 };

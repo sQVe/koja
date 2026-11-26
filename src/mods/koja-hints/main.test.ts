@@ -4,6 +4,7 @@ import type { DrawnElement } from '../../../tests/drawn.ts';
 import { drawn, drawnTexts } from '../../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../../tests/moduleFakes.ts';
 import { partKeyHints } from '../../kit/keyHints.ts';
+import { actionName } from '../../kit/keyNames.ts';
 import { isUpperCaseLetter } from '../../kit/keys.ts';
 
 interface FakeView {
@@ -77,6 +78,15 @@ describe('key hints view', () => {
       .filter((label) => !texts.includes(label));
 
     expect(missing).toEqual([]);
+  });
+
+  test('draws the counted action the next key will run', () => {
+    shownProps = { part: 'g', count: 3, list: false };
+
+    const tabLabel = actionName({ kind: 'nthTab', index: 3 });
+    const shown = drawnTexts(new keyHintsView().render()).filter((text) => text === tabLabel);
+
+    expect(shown).toHaveLength(1);
   });
 
   test('draws no card for a part it does not know', () => {
