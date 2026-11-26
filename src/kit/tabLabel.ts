@@ -43,13 +43,53 @@ const workerLabel = (tasks: readonly string[]): string | null => {
   return `${first}${suffix}`;
 };
 
+// An agent reports its work in the terminal title after a status glyph or a blinking mark. A title
+// that starts with a bracket or a quote keeps it.
+const cleanTitle = (title: string): string =>
+  title
+    .replace(/^[^\p{L}\p{N}\p{Ps}\p{Pi}]+/u, '')
+    .replace(/^\[ [!.] \] /, '')
+    .trim();
+
+// cleanTitle would strip a path's leading ~ or /, so the path test drops only the status glyph.
+const isPath = (title: string): boolean =>
+  /^[~/]|^[A-Za-z]:\\/.test(title.replace(/^[^\p{L}\p{N}~/]+/u, ''));
+
+const tabLead = (tabInfo: TabInfo, paneList: PaneInfo[]): PaneInfo | undefined => {
+  const tabPanes = paneList.filter((pane) => pane.tab === tabInfo.id && pane.terminal !== null);
+
+  return tabPanes.find((pane) => pane.program.agent) ?? tabPanes[0];
+};
+
+const namesThePlace = (title: string, pane: PaneInfo): boolean =>
+  title === pane.terminal ||
+  title === pane.program.name ||
+  title.toLowerCase() === pane.program.key;
+
+const tellsTheWork = (pane: PaneInfo): boolean => {
+  const title = cleanTitle(pane.title);
+  const describesWork = title !== '' && !title.includes('@') && !namesThePlace(title, pane);
+
+  return describesWork && !isPath(pane.title);
+};
+
+const liveTitle = (tabInfo: TabInfo, paneList: PaneInfo[]): string | null => {
+  const lead = tabLead(tabInfo, paneList);
+
+  if (lead === undefined || !lead.program.agent) {
+    return null;
+  }
+
+  return tellsTheWork(lead) ? cleanTitle(lead.title) : null;
+};
+
 export const tabName = (
   tabInfo: TabInfo,
   program: PaneInfo['program'] | undefined,
   paneList: PaneInfo[],
   terminalRecords: readonly unknown[],
 ): string => {
-  if (tabInfo.named) {
+  if (tabInfo.named && tabInfo.name !== program?.name) {
     return tabInfo.name;
   }
 
@@ -58,6 +98,12 @@ export const tabName = (
 
   if (workerName !== null) {
     return workerName;
+  }
+
+  const live = liveTitle(tabInfo, paneList);
+
+  if (live !== null) {
+    return live;
   }
 
   return program?.name ?? 'Terminal';
@@ -77,8 +123,4 @@ export const tabLabel = (
 export const tabProgram = (
   tabInfo: TabInfo,
   paneList: PaneInfo[],
-): PaneInfo['program'] | undefined => {
-  const tabPanes = paneList.filter((pane) => pane.tab === tabInfo.id && pane.terminal !== null);
-
-  return (tabPanes.find((pane) => pane.program.agent) ?? tabPanes[0])?.program;
-};
+): PaneInfo['program'] | undefined => tabLead(tabInfo, paneList)?.program;

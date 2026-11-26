@@ -24,6 +24,15 @@ let zoom = 1;
 let plusButton: DrawnElement | null = null;
 let toggleStates: boolean[] = [];
 let layoutReads = 0;
+let tabList: Record<string, unknown>[] = [{ id: 'tab-1', active: true }];
+let scrollCalls: number[] = [];
+let tabElements: DrawnElement[] = [];
+
+const scrollHandle = {
+  scroll_to_item: (index: number) => {
+    scrollCalls.push(index);
+  },
+};
 
 const context = { notify: () => undefined, stop_propagation: () => undefined };
 
@@ -36,7 +45,10 @@ Object.assign(globalThis, {
   },
 });
 
-await mock.module('gpui-base', () => gpuiBaseFake({ h_flex: chainable }));
+await mock.module('gpui-base', () =>
+  gpuiBaseFake({ h_flex: chainable, ScrollHandle: { new: () => scrollHandle } }),
+);
+
 await mock.module('gpui-kit', () => gpuiKitFake({ div: chainable }));
 
 await mock.module('herdr', () =>
@@ -56,7 +68,7 @@ await mock.module('herdr', () =>
     },
     settings: () => ({ zoom }),
     shared: (key: string) => sharedValues[key],
-    spaces: () => [{ id: 'space-1', active: true, tabs: [{ id: 'tab-1', active: true }] }],
+    spaces: () => [{ id: 'space-1', active: true, tabs: tabList }],
   }),
 );
 
@@ -97,7 +109,11 @@ await mock.module('../../kit/index.ts', () =>
     tab: ({ label }: { label: string }) => {
       shownTabs.push(label);
 
-      return chainable();
+      const element = drawn();
+
+      tabElements.push(element);
+
+      return element;
     },
     tabLabel: (tab: { id: string }) => tab.id,
     tabProgram: () => null,
@@ -131,6 +147,9 @@ beforeEach(() => {
   plusButton = null;
   toggleStates = [];
   layoutReads = 0;
+  tabList = [{ id: 'tab-1', active: true }];
+  scrollCalls = [];
+  tabElements = [];
 });
 
 describe('tabs layout reads', () => {
@@ -140,6 +159,45 @@ describe('tabs layout reads', () => {
     view.render();
 
     expect(layoutReads).toBe(1);
+  });
+});
+
+describe('the active tab in view', () => {
+  test('reveals the active tab when another one is selected', () => {
+    tabList = [
+      { id: 'tab-1', active: false },
+      { id: 'tab-2', active: true },
+    ];
+
+    new loaded.default().render();
+
+    expect(scrollCalls).toEqual([1]);
+  });
+
+  test('leaves the strip alone while the active tab stays put', () => {
+    const view = new loaded.default();
+
+    view.render();
+    view.render();
+
+    expect(scrollCalls).toEqual([0]);
+  });
+
+  test('reveals the active tab again when a tab before it changes size', () => {
+    tabList = [
+      { id: 'tab-1', active: false },
+      { id: 'tab-2', active: true },
+    ];
+
+    new loaded.default().render();
+
+    scrollCalls = [];
+
+    for (const handler of tabElements[0]?.sizeHandlers ?? []) {
+      handler({ width: 120, height: 28 }, context);
+    }
+
+    expect(scrollCalls).toEqual([1]);
   });
 });
 
