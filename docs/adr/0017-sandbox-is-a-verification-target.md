@@ -31,7 +31,8 @@ wins over `RUTA_NAME`, because Tau passes the manager's environment to launch an
 
 A name belongs to the checkout that installed it. `scripts/sandbox` refuses to start, change, or
 remove a sandbox whose install record names another checkout, before it runs ruta, and it names that
-checkout. `identity` reports the same fact instead of refusing, so a session can still ask who holds
+checkout. A checkout that no longer exists holds nothing, so its name is free to take over or
+remove. `identity` reports the same facts instead of refusing, so a session can still ask who holds
 a name.
 
 ## Consequences

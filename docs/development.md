@@ -85,7 +85,8 @@ content hash, and prints each reason when it does not. It changes no file and st
 `bun run sandbox guide` prints ruta's rules for a session that starts a sandbox and for one that
 only drives it. A sandbox name belongs to the checkout that installed it: every command that would
 start, change, or remove a sandbox refuses when another checkout holds the name, and names that
-checkout. `RUTA_NAME=<name>` runs a second sandbox side by side, and `TAU_VERIFICATION_RUN` names it
+checkout. A checkout that no longer exists holds nothing, so its sandbox can still be inspected and
+removed. `RUTA_NAME=<name>` runs a second sandbox side by side, and `TAU_VERIFICATION_RUN` names it
 `koja-<run>` for a Tau verification run. `HERDR_APP_BIN` runs another herdr-app binary instead of
 the installed one.
 

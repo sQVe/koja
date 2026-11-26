@@ -23,6 +23,7 @@ export interface IdentityOptions {
 export type IdentityFailure =
   | { kind: 'windowSilent' }
   | { kind: 'recordMissing' }
+  | { kind: 'recordUnreadable'; path: string }
   | { kind: 'recordWithoutOrigin' }
   | { kind: 'otherCheckout'; installedFrom: string }
   | { kind: 'checkFailed' }
@@ -133,8 +134,20 @@ const originFailures = async (
   return failures;
 };
 
+const readRecordOrUnreadable = async (home: string): Promise<RecordRead> => {
+  try {
+    return await readRecord(home);
+  } catch {
+    return 'unreadable';
+  }
+};
+
 const installFailures = async (options: IdentityOptions): Promise<IdentityFailure[]> => {
-  const record = await readRecord(options.home);
+  const record = await readRecordOrUnreadable(options.home);
+
+  if (record === 'unreadable') {
+    return [{ kind: 'recordUnreadable', path: join(options.home, recordName) }];
+  }
 
   if (record === null) {
     return [{ kind: 'recordMissing' }];
@@ -170,6 +183,10 @@ const failureLine = (options: IdentityOptions, failure: IdentityFailure): string
 
     case 'recordMissing': {
       return `no install record at ${join(options.home, recordName)}`;
+    }
+
+    case 'recordUnreadable': {
+      return `cannot read the install record at ${failure.path}`;
     }
 
     case 'recordWithoutOrigin': {
@@ -217,14 +234,6 @@ export const identityReport = async (options: IdentityOptions): Promise<Identity
   }
 
   return { exitCode: 1, lines: failures.map((failure) => failureLine(options, failure)) };
-};
-
-const readRecordOrUnreadable = async (home: string): Promise<RecordRead> => {
-  try {
-    return await readRecord(home);
-  } catch {
-    return 'unreadable';
-  }
 };
 
 const findNameHolder = async (options: NameHolderOptions): Promise<NameHolder> => {

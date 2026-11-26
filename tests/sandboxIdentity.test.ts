@@ -137,6 +137,14 @@ describe('sandbox identity', () => {
     expect(await findIdentityFailures(options)).toEqual([{ kind: 'recordMissing' }]);
   });
 
+  test('fails when the install record cannot be read', async () => {
+    await writeFile(recordPath(), 'not a record\n');
+
+    expect(await findIdentityFailures(options)).toEqual([
+      { kind: 'recordUnreadable', path: recordPath() },
+    ]);
+  });
+
   test('fails when the record names no checkout and no check result', async () => {
     const record = JSON.parse(await readFile(recordPath(), 'utf8')) as { files: string[] };
 
@@ -526,7 +534,7 @@ describe('scripts/sandbox', () => {
   const runSandbox = async (
     command: string,
     environment: Record<string, string>,
-  ): Promise<{ exitCode: number; output: string }> => {
+  ): Promise<{ exitCode: number; output: string; stdout: string; stderr: string }> => {
     const child = spawnSandbox(command, environment);
 
     const [stdout, stderr, exitCode] = await Promise.all([
@@ -535,7 +543,7 @@ describe('scripts/sandbox', () => {
       child.exited,
     ]);
 
-    return { exitCode, output: stderr + stdout };
+    return { exitCode, output: stderr + stdout, stdout, stderr };
   };
 
   const runIdentity = async (
@@ -712,20 +720,43 @@ describe('scripts/sandbox', () => {
       await writeProgram(program, 'exit 0');
       await writeRuta('ruta is up', 0);
 
-      const child = spawnSandbox(command, { RUTA_NAME: name, HERDR_APP_BIN: program });
+      const result = await runSandbox(command, { RUTA_NAME: name, HERDR_APP_BIN: program });
 
-      const [stdout, stderr, exitCode] = await Promise.all([
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-        child.exited,
-      ]);
-
-      expect(exitCode).toBe(1);
-      expect(stderr).toContain(other);
-      expect(stdout).toBe('');
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(other);
+      expect(result.stdout).toBe('');
       expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
     },
   );
+
+  test.each(['log', 'opened', 'shot'])('reads through %s without refusing', async (command) => {
+    const other = join(root, 'other-checkout');
+
+    await writeCheckout(other);
+    await installIntoSandbox(other);
+    await writeRuta('ruta is up', 0);
+
+    const result = await runSandbox(command, { RUTA_NAME: name });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).not.toContain(other);
+
+    expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`${name} ${repository} ${command}\n`);
+  });
+
+  test('reads the window status without refusing', async () => {
+    const other = join(root, 'other-checkout');
+
+    await writeCheckout(other);
+    await installIntoSandbox(other);
+    await writeWindow(0);
+
+    const result = await runSandbox('status', { RUTA_NAME: name });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.output).not.toContain(other);
+    expect(await Bun.file(join(fakes, 'calls')).exists()).toBe(false);
+  });
 
   test('reports the holder through identity instead of refusing', async () => {
     const other = join(root, 'other-checkout');
@@ -737,6 +768,7 @@ describe('scripts/sandbox', () => {
 
     const result = await runSandbox('identity', { RUTA_NAME: name });
 
+    expect(result.exitCode).toBe(1);
     expect(await readFile(join(fakes, 'calls'), 'utf8')).toBe(`${name} ${repository} status\n`);
     expect(result.output).toContain(other);
   });
