@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import type { SpaceInfo, Status } from 'herdr';
 
-import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
+import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, rootSpaceIds, shownSpaces } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
@@ -33,6 +33,7 @@ const gitAt = (
   machine: string | null = null,
 ): GitInfo => ({
   branch: 'main',
+  worktreeKey: worktreeOf(machine, root).key,
   repo: repositoryOf(machine, path),
   root,
   linked,

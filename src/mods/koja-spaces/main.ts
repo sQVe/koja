@@ -111,11 +111,9 @@ const ticketTitleAt = (state: DataState, row: ListedSpace): string | null => {
     return null;
   }
 
-  const place = state.snapshot.facts.git.places[row.place.key];
-  const worktreeKey = place?.kind === 'repository' ? place.worktree : null;
-  const stackTitle = worktreeKey === null ? null : stackTitleOf(state.snapshot.facts, worktreeKey);
+  const stackTitle = stackTitleOf(state.snapshot.facts, row.git.worktreeKey);
 
-  if (stackTitle !== null) {
+  if (stackTitle !== null && stackTitle !== '') {
     return stackTitle;
   }
 

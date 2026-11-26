@@ -10,7 +10,7 @@ import type {
   Snapshot,
   WorktreeGit,
 } from '../../data/snapshot.ts';
-import { emptyFacts } from '../../data/snapshot.ts';
+import { emptyFacts, snapshotVersion } from '../../data/snapshot.ts';
 import { answeredPlaces, gitInfoAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
 import type { GitInfo } from './tree.ts';
 
@@ -45,17 +45,17 @@ const factsOf = (
     };
   }
 
-  return { git: { places, worktrees }, pulls, trackers: {}, stacks: {} };
+  return { ...emptyFacts(), git: { places, worktrees }, pulls };
 };
 
 const placesFacts = (places: Record<string, PlaceGit>): Facts => {
   const facts: GitFacts = { places, worktrees: {} };
 
-  return { git: facts, pulls: {}, trackers: {}, stacks: {} };
+  return { ...emptyFacts(), git: facts };
 };
 
 const stateOf = (facts: Facts, kind: 'live' | 'stale' = 'live'): DataState => {
-  const snapshot: Snapshot = { version: 7, revision: 3, facts };
+  const snapshot: Snapshot = { version: snapshotVersion, revision: 3, facts };
   const fields = { snapshot, owner: 'window-a', generation: 1, heartbeatAt: 0 };
 
   return kind === 'live' ? { kind, ...fields, staleAt: 30_000 } : { kind, ...fields };
@@ -71,6 +71,7 @@ describe('gitInfoAt', () => {
 
     expect(gitInfoAt(state, place)).toEqual({
       branch: 'main',
+      worktreeKey: worktreeOf(null, '/code/koja-fix').key,
       repo: repositoryOf(null, '/code/koja/.git'),
       root: '/code/koja-fix',
       linked: true,
@@ -121,6 +122,7 @@ const kojaFacts = (pulls: Record<string, RepositoryPulls> = {}): Facts =>
 
 const kojaGit: GitInfo = {
   branch: 'main',
+  worktreeKey: worktreeOf(null, '/code/koja').key,
   repo: repositoryOf(null, '/code/koja/.git'),
   root: '/code/koja',
   linked: false,

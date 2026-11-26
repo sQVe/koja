@@ -17,7 +17,7 @@ import {
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
-import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
+import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type { Project } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
@@ -98,6 +98,7 @@ afterAll(() => {
 
 const git: GitInfo = {
   branch: 'feature-login',
+  worktreeKey: worktreeOf(null, '/code/koja').key,
   repo: repositoryOf(null, '/code/koja/.git'),
   root: '/code/koja',
   linked: true,

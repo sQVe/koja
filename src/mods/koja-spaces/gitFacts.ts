@@ -31,6 +31,7 @@ export const gitInfoAt = (state: DataState, place: Place): GitInfo | null | unde
 
   return {
     branch: worktree.branch,
+    worktreeKey: entry.worktree,
     repo: worktree.repository,
     root: worktree.root,
     linked: worktree.linked,

@@ -15,7 +15,7 @@ interface Fixture {
   pulls?: Pull[];
   pullNumber?: number;
   parents?: Record<string, string>;
-  parentTitle?: string;
+  readParent?: boolean;
 }
 
 const folder = '/code/me-1-one';
@@ -42,8 +42,10 @@ const factsOf = (fixture: Fixture): Facts => {
     }
   }
 
-  for (const parent of Object.values(fixture.parents ?? {})) {
-    tickets[parent] = ticketFacts(parent, null);
+  if (fixture.readParent !== false) {
+    for (const parent of Object.values(fixture.parents ?? {})) {
+      tickets[parent] = ticketFacts(parent, null);
+    }
   }
 
   const pullNumber = fixture.pullNumber ?? null;
@@ -183,6 +185,17 @@ describe('stackTitleOf', () => {
     expect(stackTitleOf(facts, worktree.key)).toBeNull();
   });
 
+  test('a parent whose facts were not read keeps the ticket title', () => {
+    const facts = factsOf({
+      stack: ['me-1-one'],
+      branch: 'me-1-one',
+      parents: { 'ME-1': 'ME-9' },
+      readParent: false,
+    });
+
+    expect(stackTitleOf(facts, worktree.key)).toBeNull();
+  });
+
   test('a named space keeps its name over the stack title', () => {
     const facts = factsOf({
       stack: ['me-1-one', 'me-2-two'],
@@ -192,6 +205,7 @@ describe('stackTitleOf', () => {
 
     const title = stackTitleOf(facts, worktree.key);
 
+    expect(title).toBe('Title of ME-9');
     expect(rowTitleOf(true, 'My name', null, title)).toBe('My name');
   });
 });

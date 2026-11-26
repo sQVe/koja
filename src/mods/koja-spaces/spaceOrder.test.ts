@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import type { SpaceInfo } from 'herdr';
 
-import { placeOf, repositoryOf } from '../../data/gitIdentity.ts';
+import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import { readSpaceOrder } from '../../kit/spaceOrder.ts';
 import type { Project } from './projects.ts';
 import { groupProjects } from './projects.ts';
@@ -26,6 +26,7 @@ const spaceOf = (id: string): SpaceInfo => ({
 
 const gitOf = (linked: boolean): GitInfo => ({
   branch: 'main',
+  worktreeKey: worktreeOf(null, '/code/koja').key,
   repo: repositoryOf(null, repoPath),
   root: '/code/koja',
   linked,
