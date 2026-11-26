@@ -70,6 +70,11 @@ describe('gallery fact line specimen', () => {
     expect(texts).toContain(longValue);
     expect(texts).toContain('fix-crash');
     expect(texts.indexOf('fix-crash')).toBeGreaterThan(texts.indexOf(longValue));
+  });
+
+  test('gives each specimen row its own facts', () => {
+    const part = specimen();
+
     expect(separatorsIn(part, 'add-search')).toBe(2);
     expect(separatorsIn(part, longValue)).toBe(2);
     expect(separatorsIn(part, 'fix-crash')).toBe(0);
