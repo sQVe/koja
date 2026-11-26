@@ -118,7 +118,7 @@ export const attentionBadge = (label: string): Element => {
     .px(spacing.small)
     .flex_none()
     .items_center()
-    .rounded(radius.default)
+    .rounded(radius.badge)
     .bg(withAlpha(palette.blocked, badgeFillAlpha));
 
   return withTextRole(badge, 'badge').child(label);

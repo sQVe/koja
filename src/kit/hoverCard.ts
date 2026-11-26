@@ -45,7 +45,7 @@ const card = (options: HoverCardOptions): Element => {
     .w(hoverCardSize.width)
     .flex_none()
     .py(spacing.xsmall)
-    .rounded(radius.pill)
+    .rounded(radius.default)
     .border(spacing.hairline)
     .border_color(palette.border)
     .bg(palette.popover)

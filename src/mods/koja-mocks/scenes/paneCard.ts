@@ -7,6 +7,7 @@ import {
   controlSize,
   paneHeader,
   paneHeaderMenu,
+  popupFrameRadius,
   radius,
   roleText,
   shellSize,
@@ -25,7 +26,7 @@ export const specimen = (header: PaneHeaderOptions): Element => {
 
   const card = v_flex()
     .flex_none()
-    .rounded(radius.dialog)
+    .rounded(radius.default)
     .border(spacing.hairline)
     .border_color(borderInk)
     .bg(palette.background)
@@ -46,7 +47,7 @@ export const compactWithMenu = (header: PaneHeaderOptions): Element => {
     .absolute()
     .top(controlSize.sectionHeader)
     .right(spacing.none)
-    .rounded(radius.dialog)
+    .rounded(popupFrameRadius)
     .border(spacing.hairline)
     .border_color(palette.border)
     .child(

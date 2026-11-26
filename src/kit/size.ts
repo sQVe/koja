@@ -27,12 +27,17 @@ export const spacing = {
 export const separatorHeight = spacing.xsmall * 2 + spacing.hairline;
 
 export const radius = {
-  default: 4,
-  pill: 6,
-  dialog: 8,
-  // A card's inner radius, one px less than its border, so a header fill fits its top corners.
-  cardInner: 7,
+  // Panes and the side panel, tabs, inset row pills, buttons, icon toggles, and the mode pill.
+  default: 6,
+  // Badges and other small marks.
+  badge: 4,
+  // A card's inner radius, one px less than its frame, for a header that meets the card edge.
+  cardInner: 5,
 } as const;
+
+// Herdr draws a popup's frame and does not clip the content to it, so a popup surface and the
+// picker's outer corners round to the frame's radius.
+export const popupFrameRadius = 8;
 
 export const rowHeight = {
   small: 24,
@@ -134,7 +139,7 @@ export const badgeSize = {
   height: controlSize.badge,
   padding: spacing.small,
   border: spacing.hairline,
-  radius: radius.default,
+  radius: radius.badge,
   horizontal: badgeHorizontal,
 } as const;
 

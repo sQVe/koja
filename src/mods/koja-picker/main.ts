@@ -17,7 +17,7 @@ import {
   colors,
   modName,
   overlayId,
-  radius,
+  popupFrameRadius,
   recordOverlayClose,
   repeat,
   searchField,
@@ -162,8 +162,8 @@ export default class Picker extends View {
       .id(modName)
       .size_full()
       .bg(palette.popover)
-      .rounded_tl(radius.dialog)
-      .rounded_bl(radius.dialog)
+      .rounded_tl(popupFrameRadius)
+      .rounded_bl(popupFrameRadius)
       .on_key_down((event, cx) => {
         this.onKey(event, cx);
       })

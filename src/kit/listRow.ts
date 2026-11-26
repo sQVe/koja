@@ -114,7 +114,7 @@ const rowFrame = (options: ListRowOptions, palette: Palette): Element => {
     .text_size(textSize.default)
     .text_color(labelColor(options, palette));
 
-  return options.inset ? frame.mx(spacing.xsmall).rounded(radius.pill) : frame;
+  return options.inset ? frame.mx(spacing.xsmall).rounded(radius.default) : frame;
 };
 
 const withDrag = (row: Element, options: { dragged?: boolean; drop?: DropMark }): Element => {

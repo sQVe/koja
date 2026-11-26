@@ -213,6 +213,22 @@ describe('paneHeader role badge', () => {
   });
 });
 
+describe('paneHeader focus', () => {
+  test('the focused header draws no fill', () => {
+    const focused = paneHeader({
+      program: null,
+      name: 'Pi',
+      folder: '~/code/koja',
+      status: null,
+      focused: true,
+      zoomed: false,
+      width: shellSize.wideSpecimenWidth,
+    });
+
+    expect(focused.styles['bg']).toBeUndefined();
+  });
+});
+
 const statusHeader = (status: AttentionStatus | null): DrawnElement =>
   paneHeader({
     program: null,

@@ -66,13 +66,13 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 ### Panes and side panel
 
 - Panes and the side panel are rounded cards on the frame, with a 1 px `border` outline in
-  `#b6bbc4`.
+  `#b6bbc4`, and they round with the kit's one radius, 6 px.
 - Pane titles use the detail role, 11 px Regular. The focused pane's title is `foreground` and its
   icon `muted`; an unfocused pane's title is `muted` and its icon `dim`.
-- Focus also shows as the 1 px `foreground` border, and the focused pane's header draws a faint fill
-  from the kit's focus value. Herdr cannot dim or tint an unfocused terminal, so the header is the
-  one place Koja can mark focus beyond the border. Koja adds no other mark of pane focus. The list
-  cursor of a marked section is a separate mark; see [Selection and hover](#selection-and-hover).
+- Focus also shows as the 1 px `foreground` border. Herdr cannot dim or tint an unfocused terminal,
+  so the border is the only mark of pane focus that reaches the terminal, and the focused header
+  draws no fill. Koja adds no other mark of pane focus. The list cursor of a marked section is a
+  separate mark; see [Selection and hover](#selection-and-hover).
 - In normal mode, Koja's overlay holds the keyboard, so Herdr draws no focus border. The focused
   pane's header then draws an `accent` tint at alpha `18`, with its title and icon in `accent`. The
   tint stays this light so the title and folder keep 4.5:1 contrast. Insert mode keeps the look
@@ -119,12 +119,24 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
   one `lucide-static` release.
 - The kit draws an icon at 10, 12, 14, or 16 px. A mod never picks an icon size outside that scale.
 
+### Corners
+
+- Koja rounds every corner of a card, row, or control with one radius, 6 px. Panes and the side
+  panel, tabs, inset row pills, buttons, icon toggles, and the mode pill all use it. No mod sets a
+  radius of its own.
+- A circular mark, such as a status dot or the ring of a space with no agent, and the fully rounded
+  ends of the stack progress bar follow their own shape instead: they round at half their size.
+- Badges, such as the role badge and the attention badge, round at 4 px, so a small mark does not
+  round away its own shape.
+- A card's inner radius follows its frame: where a header meets the card edge, the kit rounds it one
+  px less than the frame, so a fill stays inside the card's curve.
+- Herdr draws a popup's frame and does not clip the content to it, so popup content and the picker's
+  outer corners round to the frame's own radius instead.
+
 ### Selection and hover
 
 - Only one of these gets a fill: a selected row, the active tab, or the active toggle. A hovered one
   of them draws no fill.
-- The focused pane header's focus fill is the one exception. It marks focus only: selection, hover,
-  and agent status never draw it.
 - A hovered list row, tab, or toggle draws a 1 px pill outline in `selected`. A hovered tab or
   toggle also brightens its text and icon to `foreground`.
 - In normal mode, the row under the list cursor of a marked section draws a 1 px pill outline in
@@ -152,9 +164,9 @@ The panes, the side panel, and the terminals share the pane body color `#dfe1e5`
 ### Tabs and controls
 
 - The tab bar's tabs, the panel switcher, and the kit's toggle and icon buttons are pills. They
-  round with the kit's `radius.pill`.
-- Inset list rows, such as sidebar rows, menu rows, and picker rows, also round with `radius.pill`.
-  A selected row is therefore a pill.
+  round with the kit's `radius.default`.
+- Inset list rows, such as sidebar rows, menu rows, and picker rows, also round with
+  `radius.default`. A selected row is therefore a pill.
 - A pill sits inside the bar on its own, so it works with any gap between the bar and the pane
   cards.
 - The panel switcher is a row of icon-only toggles. Each names its panel in a tooltip and an
@@ -205,10 +217,11 @@ Herdr's own dialogs keep Herdr's frame. Koja's popups use the same frame, so pop
 whether Koja or Herdr opens them. The picker is the one exception: its list sits beside a terminal
 preview inside one framed overlay, so the list rounds only its own two outer corners.
 
-- A hover card is a `popover` card with a 1 px `border` outline and `radius.pill` corners. An arrow
-  4 px deep on its left edge points at the row it describes. GPUI cannot rotate a box, so the arrow
-  is 1 px columns that grow 2 px each, which keeps both edges at 45 degrees and crisp. A fill layer
-  1 px inside the outline layer covers the card's left border, so arrow and card read as one shape.
+- A hover card is a `popover` card with a 1 px `border` outline and `radius.default` corners. An
+  arrow 4 px deep on its left edge points at the row it describes. GPUI cannot rotate a box, so the
+  arrow is 1 px columns that grow 2 px each, which keeps both edges at 45 degrees and crisp. A fill
+  layer 1 px inside the outline layer covers the card's left border, so arrow and card read as one
+  shape.
 
 ### Motion
 
@@ -256,7 +269,6 @@ preview inside one framed overlay, so the list rounds only its own two outer cor
 - One fixed density and two row heights leave no room for a compact or roomy setting.
 - Popups and rows appear without a fade, because Herdr cannot animate a first appearance.
 - Hover is a faint outline, so selection and hover rely on fill alone until a second cue is needed.
-- The focus fill is a second kind of fill, so a focused header may at first read as selected.
 - Each mod must track its reads per resource to show error and stale lines, which adds state to
   every mod that reads.
 
@@ -303,10 +315,12 @@ short sooner than IBM Plex Sans did.
 Use another installed sans font. Rejected because neither ships with Herdr, while Geist does, so
 Koja would depend on a font the machine may lack.
 
-### Focus shown by the border and title alone
+### Focus shown by a fill on the header
 
-Keep the foreground border and brighter title as the only focus marks. Rejected because in a split
-tab the focused pane was hard to find at a glance, and Herdr cannot dim the other panes instead.
+Draw a faint fill on the focused pane header in insert mode too. Rejected because the border and the
+brighter title already mark the focused pane, and a second kind of fill made a focused header read
+as selected. Normal mode keeps its tint, because Herdr draws no focus border while Koja's overlay
+holds the keyboard.
 
 ### Done as a green dot
 

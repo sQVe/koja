@@ -136,6 +136,6 @@ export const sidebarScene = (): Element =>
     .min_h(0)
     .py(spacing.medium)
     .gap(spacing.medium)
-    .rounded(radius.dialog)
+    .rounded(radius.default)
     .bg(colors().chrome)
     .children(fakeRepos.map(repoGroup));
