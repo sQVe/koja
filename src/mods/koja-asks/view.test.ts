@@ -121,10 +121,9 @@ describe('cardElement', () => {
 
   test('draws one more line naming the next ask space', () => {
     const without = drawnTexts(cardElement(ask, null, actions));
-    const withMore = drawnTexts(cardElement(ask, { count: 1, space: 'Hill-climb' }, actions));
+    const withMore = drawnTexts(cardElement(ask, { count: 2, space: 'Hill-climb' }, actions));
 
-    expect(withMore.length).toBe(without.length + 1);
-    expect(withMore.some((text) => text.includes('Hill-climb'))).toBe(true);
+    expect(withMore).toEqual([...without, '2 more asks in Hill-climb']);
   });
 
   test('a click on the card goes to the ask', () => {
