@@ -53,7 +53,7 @@ interface HostState {
   linearTickets: Record<string, TicketFacts>;
   ghFailures: number;
   checkingNow: boolean;
-  window: WindowFake;
+  window: WindowFake | null;
   intervals: number[];
 }
 
@@ -322,15 +322,18 @@ export const setupDataHost = async (): Promise<DataHostHarness> => {
         state.spaceFolders.map((spaceFolder, index) => spaceOf(`s${index + 1}`, spaceFolder)),
       readTextFile: async () => null,
       watchFolder: (watched: string) => watchFolderFake(state, watched),
-      window: () => ({
-        platform: 'linux' as const,
-        titlebar: 'none' as const,
-        buttons: false,
-        maximized: false,
-        fullscreen: false,
-        active: state.window.active,
-        visible: state.window.visible,
-      }),
+      window: () =>
+        state.window === null
+          ? null
+          : {
+              platform: 'linux' as const,
+              titlebar: 'none' as const,
+              buttons: false,
+              maximized: false,
+              fullscreen: false,
+              active: state.window.active,
+              visible: state.window.visible,
+            },
     }),
   );
 
