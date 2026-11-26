@@ -63,7 +63,8 @@ describe('gallery content samples', () => {
     const staleTexts = drawnTexts(stale);
     const liveTexts = drawnTexts(live);
 
-    expect(staleTexts).toContain('Could not sync checks · showing checks from 6m ago');
+    expect(staleTexts.some((text) => text.includes('6m ago'))).toBe(true);
+    expect(clickablesWithText(stale, 'Retry')).toHaveLength(1);
     expect(staleTexts).toContain('typecheck');
     expect(staleTexts).toContain('started 8m ago');
     expect(staleTexts).toContain('started 7m ago');
@@ -71,7 +72,7 @@ describe('gallery content samples', () => {
     expect(spinning(stale)).toBe(false);
 
     expect(liveTexts).toContain('started 2m ago');
-    expect(liveTexts.some((text) => text.startsWith('Could not sync'))).toBe(false);
+    expect(clickablesWithText(live, 'Retry')).toEqual([]);
     expect(spinning(live)).toBe(true);
   });
 
@@ -79,17 +80,20 @@ describe('gallery content samples', () => {
     const retried = sampleNamed('Checks section with stale rows', { checksRetried: true });
     const texts = drawnTexts(retried);
 
-    expect(texts.some((text) => text.startsWith('Could not sync'))).toBe(false);
+    expect(clickablesWithText(retried, 'Retry')).toEqual([]);
     expect(texts).toContain('started 2m ago');
   });
 
   test('a folded section keeps its header and drops its rows', () => {
-    const folded = sampleNamed('Checks section with stale rows', { folded: new Set(['Checks']) });
+    const folded = sampleNamed('Checks section with stale rows', {
+      folded: new Set(['Checks with stale rows']),
+    });
+
     const texts = drawnTexts(folded);
 
     expect(texts).toContain('Checks');
     expect(texts).not.toContain('typecheck');
-    expect(texts).not.toContain('Could not sync checks · showing checks from 6m ago');
+    expect(clickablesWithText(folded, 'Retry')).toEqual([]);
   });
 
   test('a section header reports its fold to the gallery', () => {
@@ -103,7 +107,7 @@ describe('gallery content samples', () => {
 
     click(headerOf(sample, 'Checks'));
 
-    expect(toggled).toEqual(['Checks']);
+    expect(toggled).toEqual(['Checks with stale rows']);
   });
 
   test('the part note reports its retry to the gallery', () => {

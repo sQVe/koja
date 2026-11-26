@@ -234,12 +234,13 @@ const sectionOptions = (
   name: string,
   parts: Element[],
   count?: number,
+  key: string = name,
 ): ContentSectionOptions => {
   const look: ContentSectionOptions = {
     name,
-    open: isOpen(options, name),
+    open: isOpen(options, key),
     parts,
-    onToggle: toggle(options, name),
+    onToggle: toggle(options, key),
   };
 
   return count === undefined ? look : { ...look, count };
@@ -260,7 +261,10 @@ const checksSection = (stale: boolean, options: ContentPartsOptions): Element =>
     ? [partNote({ ...staleChecksNote, onRetry: options.onRetryChecks }), ...rows]
     : rows;
 
-  return contentSection(sectionOptions(options, 'Checks', parts, checksCount));
+  // Both Checks specimens show the same label, so each folds on its own key.
+  const key = stale ? 'Checks with stale rows' : 'Checks with live rows';
+
+  return contentSection(sectionOptions(options, 'Checks', parts, checksCount, key));
 };
 
 const threadRow = (reference: string, detail: string): StatusRowOptions => ({
@@ -336,8 +340,15 @@ const filesSection = (options: ContentPartsOptions): Element =>
       options,
       'Files',
       [
+        statusRow(fileRow('src/kit/contentSection.ts', '+64 −0')),
+        statusRow(fileRow('src/kit/partNote.ts', '+48 −0')),
         statusRow(fileRow('src/kit/sectionHeader.ts', '+18 −2')),
+        statusRow(fileRow('src/kit/stateLine.ts', '+4 −6')),
+        statusRow(fileRow('src/kit/statusMark.ts', '+3 −1')),
         statusRow(fileRow('src/kit/statusRow.ts', '+59 −0')),
+        statusRow(fileRow('src/kit/workIcon.ts', '+12 −6')),
+        statusRow(fileRow('src/mods/koja-gallery/content.ts', '+120 −30')),
+        statusRow(fileRow('src/mods/koja-gallery/main.ts', '+18 −2')),
       ],
       filesCount,
     ),

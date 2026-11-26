@@ -132,6 +132,31 @@ describe('gallery data layer section', () => {
 });
 
 describe('gallery section folding', () => {
+  test('folds one Checks specimen without folding the other, then opens it again', () => {
+    const view = openGallery();
+    const before = view.render(context);
+    const headers = clickablesWithText(before, 'Checks');
+
+    expect(headers).toHaveLength(2);
+
+    const [liveHeader] = headers;
+
+    if (liveHeader === undefined) {
+      throw new Error('The gallery draws no Checks header.');
+    }
+
+    click(liveHeader, context);
+
+    const folded = view.render(context);
+
+    expect(drawnTexts(folded)).not.toContain('started 2m ago');
+    expect(drawnTexts(folded)).toContain('started 8m ago');
+
+    click(liveHeader, context);
+
+    expect(drawnTexts(view.render(context))).toContain('started 2m ago');
+  });
+
   test('opens the folded Files section from its header', () => {
     const view = openGallery();
     const before = view.render(context);
@@ -155,9 +180,8 @@ describe('gallery retry wiring', () => {
   test('reads the Checks part again when its stale note is retried', () => {
     const view = openGallery();
     const before = view.render(context);
-    const staleNote = 'Could not sync checks · showing checks from 6m ago';
 
-    expect(drawnTexts(before)).toContain(staleNote);
+    expect(drawnTexts(before)).toContain('started 8m ago');
 
     const [retry] = clickablesWithText(before, 'Retry');
 
@@ -168,6 +192,10 @@ describe('gallery retry wiring', () => {
     click(retry, context);
 
     expect(notifyCalls).toBe(1);
-    expect(drawnTexts(view.render(context))).not.toContain(staleNote);
+
+    const after = view.render(context);
+
+    expect(drawnTexts(after)).not.toContain('started 8m ago');
+    expect(drawnTexts(after)).toContain('started 2m ago');
   });
 });
