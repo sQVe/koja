@@ -19,7 +19,9 @@ const palette = {
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
-await mock.module('gpui-base', () => gpuiBaseFake({ h_flex: () => drawn() }));
+await mock.module('gpui-base', () =>
+  gpuiBaseFake({ Input: { new: () => drawn() }, h_flex: () => drawn() }),
+);
 
 await mock.module('gpui-kit', () =>
   gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
@@ -29,8 +31,9 @@ await mock.module('herdr', () => herdrFake({ settings: () => ({}), theme: () => 
 
 const modulePath = './lines.ts';
 
-const { footerLine, searchLine } = (await import(modulePath)) as {
+const { footerLine, searchInputLine, searchLine } = (await import(modulePath)) as {
   footerLine: (parts: (string | string[])[]) => DrawnElement;
+  searchInputLine: (input: never) => DrawnElement;
   searchLine: (text: string) => DrawnElement;
 };
 
@@ -48,6 +51,19 @@ describe('searchLine', () => {
     expect(elementWithText(line, 'Type a command')?.textColors).toContain(palette.dim);
     expect(caret?.styles['bg']).toEqual([palette.foreground]);
     expect(caret?.styles['w']).toEqual([1]);
+  });
+});
+
+describe('searchInputLine', () => {
+  test('shares the search frame around the input and draws no placeholder text', () => {
+    const input = searchInputLine({} as never);
+    const text = searchLine('Type a command');
+
+    expect(drawnIcons(input)).toEqual(['search.svg']);
+    expect(drawnTexts(input)).toEqual([]);
+    expect(input.styles['h']).toEqual(text.styles['h']);
+    expect(input.styles['px']).toEqual(text.styles['px']);
+    expect(input.styles['gap']).toEqual(text.styles['gap']);
   });
 });
 
