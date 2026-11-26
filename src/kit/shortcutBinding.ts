@@ -20,6 +20,12 @@ export interface KeyBinding {
 
 type ActionKeys = Pick<KeyBinding, 'action' | 'keys'>;
 
+interface NamedBinding {
+  action: string;
+  identity: string | null;
+  keys: string;
+}
+
 const hasUnnamedFirstArg = (args: Record<string, unknown> | undefined): boolean => {
   const values = Object.values(args ?? {});
 
@@ -58,12 +64,26 @@ const isPlainKey = (stroke: string): boolean => stroke.length === 1;
 const capLabels = (keys: string, platform: Platform): string[] =>
   keyStrokes(keys).map((stroke) => (isPlainKey(stroke) ? stroke : formatStroke(stroke, platform)));
 
-const namesAction = (binding: ActionKeys, action: string): boolean =>
-  binding.action === action || actionIdentity(binding.action) === action;
+const namesAction = (binding: NamedBinding, action: string): boolean =>
+  binding.action === action || binding.identity === action;
 
-const normalHint = (platform: Platform, actions: readonly string[]): string[] => {
+const namedBindings = (bindings: readonly ActionKeys[]): NamedBinding[] =>
+  bindings.map((binding) => ({
+    action: binding.action,
+    identity: actionIdentity(binding.action),
+    keys: binding.keys,
+  }));
+
+const findNamed = (bindings: readonly NamedBinding[], action: string): NamedBinding | undefined =>
+  bindings.find((candidate) => namesAction(candidate, action));
+
+const normalHint = (
+  normal: readonly NamedBinding[],
+  platform: Platform,
+  actions: readonly string[],
+): string[] => {
   for (const action of actions) {
-    const binding = normalBindings.find((candidate) => namesAction(candidate, action));
+    const binding = findNamed(normal, action);
 
     if (binding !== undefined) {
       return capLabels(binding.keys, platform);
@@ -74,14 +94,12 @@ const normalHint = (platform: Platform, actions: readonly string[]): string[] =>
 };
 
 const insertHint = (
-  bindings: readonly KeyBinding[],
+  global: readonly NamedBinding[],
   platform: Platform,
   actions: readonly string[],
 ): string[] | undefined => {
-  const global = globalBindings(bindings);
-
   for (const action of actions) {
-    const binding = global.find((candidate) => namesAction(candidate, action));
+    const binding = findNamed(global, action);
 
     if (binding !== undefined) {
       return capLabels(binding.keys, platform);
@@ -95,12 +113,11 @@ export const bindingFor = (
   bindings: readonly KeyBinding[],
   ...actions: string[]
 ): string | null => {
-  const global = globalBindings(bindings);
+  const normal = namedBindings(normalBindings);
+  const global = namedBindings(globalBindings(bindings));
 
   for (const action of actions) {
-    const binding =
-      normalBindings.find((candidate) => namesAction(candidate, action)) ??
-      global.find((candidate) => namesAction(candidate, action));
+    const binding = findNamed(normal, action) ?? findNamed(global, action);
 
     if (binding !== undefined) {
       return binding.keys;
@@ -115,8 +132,10 @@ export const hintFor = (
   platform: Platform,
   ...actions: string[]
 ): OverlayHint => {
-  const insert = insertHint(bindings, platform, actions);
-  const hint: OverlayHint = { normal: normalHint(platform, actions) };
+  const normal = namedBindings(normalBindings);
+  const global = namedBindings(globalBindings(bindings));
+  const insert = insertHint(global, platform, actions);
+  const hint: OverlayHint = { normal: normalHint(normal, platform, actions) };
 
   return insert === undefined ? hint : { ...hint, insert };
 };
