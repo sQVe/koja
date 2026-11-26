@@ -17,6 +17,18 @@ describe('hintFor', () => {
     expect(hintFor([], 'linux', 'pane.split:right')).toEqual({ normal: ['w', 'v'] });
   });
 
+  test('draws a modified normal-mode stroke in its display form', () => {
+    expect(hintFor([], 'linux', bindingAction('terminal.scroll', { pages: -0.5 }))).toEqual({
+      normal: ['Ctrl+U'],
+    });
+  });
+
+  test('keeps a plain shifted normal-mode key whole, so its cap marks the shift', () => {
+    expect(hintFor([], 'linux', bindingAction('tab.move', { by: -1 }))).toEqual({
+      normal: ['t', 'H'],
+    });
+  });
+
   test('gives no normal key to an action with only a global binding', () => {
     const bindings = [{ section: 'global', keys: 'ctrl-alt-o', action: 'worktree:open' }];
 
