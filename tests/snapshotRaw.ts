@@ -23,8 +23,8 @@ export const gitFacts = (): GitFacts => {
   const place = placeOf(null, '/work');
 
   return {
-    places: { [place.key]: { kind: 'repository', worktree: placeOf(null, '/work').key } },
-    worktrees: { [placeOf(null, '/work').key]: worktree(null, '/work') },
+    places: { [place.key]: { kind: 'repository', worktree: place.key } },
+    worktrees: { [place.key]: worktree(null, '/work') },
   };
 };
 
@@ -37,7 +37,7 @@ export const snapshotOf = (git: unknown): unknown => ({
 export const pull = (fields: Partial<Pull> = {}): Pull =>
   pullFacts({ number: 1, headRefName: 'main', title: 'Title', ...fields });
 
-export const repositoryKey = placeOf(null, '/work/.git').key;
+export const repositoryKey = repositoryOf(null, '/work/.git').key;
 
 const ticketFacts = (): RawRecord => ({
   id: 'ME-1',
@@ -67,7 +67,7 @@ export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
             repository: {
               machine: null,
               commonDirectory: '/work/.git',
-              key: placeOf(null, '/work/.git').key,
+              key: repositoryOf(null, '/work/.git').key,
             },
             root: '/work',
             branch: 'main',

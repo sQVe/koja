@@ -5,7 +5,13 @@ import { join } from 'node:path';
 
 import type { ExecResult } from 'herdr';
 
-import { placeOf, readGitIdentity, worktreeKeyOf } from './gitIdentity.ts';
+import {
+  placeOf,
+  readGitIdentity,
+  repositoryOf,
+  worktreeKeyOf,
+  worktreeOf,
+} from './gitIdentity.ts';
 import type { GitIdentity, RunCommand } from './gitIdentity.ts';
 
 // Git hooks export variables such as GIT_DIR that would point every command at the outer repository.
@@ -114,13 +120,13 @@ describe('readGitIdentity', () => {
         repository: {
           machine: 'box',
           commonDirectory: join(main, '.git'),
-          key: placeOf('box', join(main, '.git')).key,
+          key: repositoryOf('box', join(main, '.git')).key,
         },
-        worktree: { machine: 'box', top: linked, key: placeOf('box', linked).key },
+        worktree: { machine: 'box', top: linked, key: worktreeOf('box', linked).key },
         branch: { kind: 'named', name: 'feature' },
       });
 
-      expect(worktree).toBe(placeOf('box', linked).key);
+      expect(worktree).toBe(worktreeOf('box', linked).key);
     });
   });
 
@@ -137,7 +143,7 @@ describe('readGitIdentity', () => {
         branch: { kind: 'named', name: 'main' },
       });
 
-      expect(worktree).toBe(placeOf(null, main).key);
+      expect(worktree).toBe(worktreeOf(null, main).key);
     });
   });
 
@@ -150,7 +156,7 @@ describe('readGitIdentity', () => {
       expect(identity).toMatchObject({
         kind: 'main',
         repository: { commonDirectory: join(checkout, '.git') },
-        worktree: { top: checkout, key: placeOf(null, checkout).key },
+        worktree: { top: checkout, key: worktreeOf(null, checkout).key },
       });
     });
   });
@@ -185,7 +191,7 @@ describe('readGitIdentity', () => {
       expect(identity).toEqual({
         kind: 'bare',
         place: { machine: null, folder: bare, key: placeOf(null, bare).key },
-        repository: { machine: null, commonDirectory: bare, key: placeOf(null, bare).key },
+        repository: { machine: null, commonDirectory: bare, key: repositoryOf(null, bare).key },
         branch: { kind: 'named', name: 'main' },
       });
     });
@@ -201,7 +207,7 @@ describe('readGitIdentity', () => {
       const identity = await read(bare);
       const worktree = identity.kind === 'bare' ? worktreeKeyOf(identity) : null;
 
-      expect(worktree).toBe(placeOf(null, bare).key);
+      expect(worktree).toBe(worktreeOf(null, bare).key);
     });
   });
 
@@ -216,7 +222,7 @@ describe('readGitIdentity', () => {
 
       expect(identity).toMatchObject({
         kind: 'bare',
-        repository: { commonDirectory: bare, key: placeOf(null, bare).key },
+        repository: { commonDirectory: bare, key: repositoryOf(null, bare).key },
       });
     });
   });
@@ -270,7 +276,7 @@ describe('readGitIdentity', () => {
     await withTemp(async (root) => {
       const main = await makeRepository(root);
       const linked = join(root, 'linked');
-      const repositoryKey = placeOf(null, join(main, '.git')).key;
+      const repositoryKey = repositoryOf(null, join(main, '.git')).key;
 
       await git(main, 'worktree', 'add', '--quiet', '-b', 'feature', linked);
 
@@ -279,12 +285,12 @@ describe('readGitIdentity', () => {
 
       expect(first).toMatchObject({
         repository: { key: repositoryKey },
-        worktree: { key: placeOf(null, main).key },
+        worktree: { key: worktreeOf(null, main).key },
       });
 
       expect(second).toMatchObject({
         repository: { key: repositoryKey },
-        worktree: { key: placeOf(null, linked).key },
+        worktree: { key: worktreeOf(null, linked).key },
       });
     });
   });

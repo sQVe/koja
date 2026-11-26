@@ -14,7 +14,7 @@ import {
   worktreesAt,
 } from '../../tests/snapshotRaw.ts';
 import type { RawSnapshot } from '../../tests/snapshotRaw.ts';
-import { placeOf } from './gitIdentity.ts';
+import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import { parseSnapshot } from './snapshot.ts';
 
 const malformedFields: [string, (snapshot: RawSnapshot, key: string) => void][] = [
@@ -97,7 +97,7 @@ describe('parseSnapshot git facts', () => {
     const git = gitFacts();
     const place = placeOf(null, '/work');
 
-    git.places[place.key] = { kind: 'repository', worktree: placeOf(null, '/missing').key };
+    git.places[place.key] = { kind: 'repository', worktree: worktreeOf(null, '/missing').key };
 
     expect(parseSnapshot(snapshotOf(git))).toBeNull();
   });
@@ -105,7 +105,7 @@ describe('parseSnapshot git facts', () => {
   test('rejects a worktree whose key does not match its root', () => {
     const git = gitFacts();
     const place = placeOf(null, '/work');
-    const wrongKey = placeOf(null, '/elsewhere').key;
+    const wrongKey = worktreeOf(null, '/elsewhere').key;
 
     git.worktrees = { [wrongKey]: worktree(null, '/work') };
     git.places[place.key] = { kind: 'repository', worktree: wrongKey };
@@ -115,7 +115,7 @@ describe('parseSnapshot git facts', () => {
 
   test('rejects a repository whose key does not match its commonDirectory', () => {
     const git = gitFacts();
-    const key = placeOf(null, '/work').key;
+    const key = worktreeOf(null, '/work').key;
     const tree = worktree(null, '/work');
     const repository = { ...tree.repository, commonDirectory: '/other/.git' };
 
@@ -131,7 +131,7 @@ describe('parseSnapshot git facts', () => {
   });
 
   test('rejects an unknown field in a worktree', () => {
-    const key = placeOf(null, '/work').key;
+    const key = worktreeOf(null, '/work').key;
 
     const git = {
       places: gitFacts().places,
@@ -167,7 +167,7 @@ describe('parseSnapshot git facts', () => {
   });
 
   test('rejects a branch that is not a string or null', () => {
-    const key = placeOf(null, '/work').key;
+    const key = worktreeOf(null, '/work').key;
 
     const git = {
       places: gitFacts().places,
@@ -199,14 +199,10 @@ describe('parseSnapshot git facts', () => {
 
   test('accepts a worktree no place names', () => {
     const { snapshot, key } = validRaw();
-    const orphanKey = placeOf(null, '/orphan').key;
+    const orphanKey = worktreeOf(null, '/orphan').key;
 
     worktreesAt(snapshot)[orphanKey] = {
-      repository: {
-        machine: null,
-        commonDirectory: '/orphan/.git',
-        key: placeOf(null, '/orphan/.git').key,
-      },
+      repository: { ...repositoryOf(null, '/orphan/.git') },
       root: '/orphan',
       branch: 'main',
       linked: false,

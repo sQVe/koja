@@ -9,7 +9,7 @@ import {
   snapshotOf,
   validRaw,
 } from '../../tests/snapshotRaw.ts';
-import { placeOf } from './gitIdentity.ts';
+import { repositoryOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
 import type {
   Facts,
@@ -53,7 +53,7 @@ describe('parseSnapshot', () => {
 
     expect(worktrees.map((tree) => tree.linked)).toEqual([false, true]);
 
-    const read = pulls?.[placeOf(null, '/code/koja/.git').key]?.pulls ?? [];
+    const read = pulls?.[repositoryOf(null, '/code/koja/.git').key]?.pulls ?? [];
 
     expect(read.map((entry) => pullNeeds(entry))).toEqual([['ready']]);
   });
@@ -113,8 +113,8 @@ describe('parseSnapshot', () => {
 
 describe('joinFacts', () => {
   test('drops PR and tracker facts of a repository with no worktree', () => {
-    const named = placeOf(null, '/work/.git').key;
-    const orphan = placeOf(null, '/gone/.git').key;
+    const named = repositoryOf(null, '/work/.git').key;
+    const orphan = repositoryOf(null, '/gone/.git').key;
     const tracker = { workspace: 'sqve', tickets: {}, failed: false };
 
     const facts = joinFacts(
