@@ -1,4 +1,4 @@
-import { listOf, numberOf, recordOf, stringOf } from '../fields.ts';
+import { findLayoutNode, layoutRoot } from '../layout.ts';
 import { spacing } from '../size.ts';
 
 export interface MainColumnInsets {
@@ -16,46 +16,16 @@ interface MainColumnPlacement {
 // reports the window's own size.
 const popupInset = spacing.medium;
 
-const findNode = (id: string, value: unknown): Record<string, unknown> | null => {
-  const node = recordOf(value);
-
-  if (stringOf(node['id']) === id) {
-    return node;
-  }
-
-  for (const child of listOf(node['children'])) {
-    const found = findNode(id, child);
-
-    if (found !== null) {
-      return found;
-    }
-  }
-
-  return null;
-};
-
-const pxOf = (node: Record<string, unknown> | null): number =>
-  numberOf(recordOf(node?.['size'])['px']) ?? 0;
-
-const paddingOf = (value: unknown): number => {
-  const direct = numberOf(value);
-
-  if (direct !== null) {
-    return direct;
-  }
-
-  return numberOf(listOf(value)[0]) ?? 0;
-};
-
 // The palette places its card from the window's own edges, so it needs the width the sidebar takes
 // and the height the tab bar and the work area's padding take.
-export const mainColumnInsets = (layoutTree: unknown): MainColumnInsets => {
-  const sidebar = findNode('sidebar', layoutTree);
-  const tabs = findNode('tabs', layoutTree);
-  const workBody = findNode('work-body', layoutTree);
+export const mainColumnInsets = (): MainColumnInsets => {
+  const root = layoutRoot();
+  const sidebar = findLayoutNode('sidebar', root);
+  const tabs = findLayoutNode('tabs', root);
+  const workBody = findLayoutNode('work-body', root);
 
-  const left = sidebar?.['hidden'] === true ? 0 : pxOf(sidebar);
-  const top = pxOf(tabs) + paddingOf(workBody?.['padding']);
+  const left = sidebar?.hidden === true ? 0 : (sidebar?.sizePx ?? 0);
+  const top = (tabs?.sizePx ?? 0) + (workBody?.padding ?? 0);
 
   return { left, top };
 };
@@ -65,6 +35,6 @@ export const mainColumnPlacement = (
   topOffset: number,
 ): MainColumnPlacement => ({
   left: Math.max(0, insets.left - popupInset),
-  right: popupInset,
+  right: 2 * popupInset - Math.min(insets.left, popupInset),
   top: Math.max(0, insets.top + topOffset - popupInset),
 });

@@ -29,6 +29,7 @@ const layoutNode = (overrides: Partial<LayoutNode>): LayoutNode => ({
   active: null,
   sizePx: null,
   trafficLights: null,
+  padding: 0,
   children: [],
   ...overrides,
 });

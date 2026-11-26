@@ -103,8 +103,9 @@ const tabIds = (space: SpaceInfo | undefined): string[] =>
   space?.tabs.map((tabInfo) => tabInfo.id) ?? [];
 
 const shownPanel = (): string | null => {
-  const panel = findLayoutNode('panel');
-  const body = findLayoutNode('panel-body');
+  const root = layoutRoot();
+  const panel = findLayoutNode('panel', root);
+  const body = findLayoutNode('panel-body', root);
 
   if (panel === null || panel.hidden) {
     return null;
@@ -114,7 +115,11 @@ const shownPanel = (): string | null => {
 };
 
 const enabledPanels = (): string[] => {
-  const offered = new Set((findLayoutNode('panel-body')?.children ?? []).map((child) => child.id));
+  const root = layoutRoot();
+
+  const offered = new Set(
+    (findLayoutNode('panel-body', root)?.children ?? []).map((child) => child.id),
+  );
 
   const chosen = listOf(shared('workspace.panels') ?? ['files', 'changes']);
 
@@ -136,14 +141,15 @@ const appZoom = (): number => numberOf(settings()['zoom']) ?? 1;
 
 const windowButtonsPadding = (): number => {
   const shown = currentWindow();
-  const sidebar = findLayoutNode('sidebar');
+  const root = layoutRoot();
+  const sidebar = findLayoutNode('sidebar', root);
   const sidebarWidth = sidebar?.hidden === true ? 0 : (sidebar?.sizePx ?? 0);
 
   return trafficLightsPadding({
     platform: shown?.platform ?? 'linux',
     titlebar: shown?.titlebar ?? 'system',
     fullscreen: shown?.fullscreen ?? false,
-    lights: layoutRoot().trafficLights,
+    lights: root.trafficLights,
     zoom: appZoom(),
     offset: sidebarWidth,
     base: spacing.none,
@@ -217,7 +223,7 @@ export default class Tabs extends View {
   }
 
   private syncPanel(space: SpaceInfo | undefined, enabled: string[]): void {
-    if (space === undefined || findLayoutNode('panel') === null) {
+    if (space === undefined || findLayoutNode('panel', layoutRoot()) === null) {
       return;
     }
 

@@ -7,6 +7,7 @@ import {
   askFirst,
   closeOverlay,
   findLayoutNode,
+  layoutRoot,
   modName,
   overlayCloseCount,
   overlayId,
@@ -84,7 +85,7 @@ export default class KojaModal extends View {
     run: (command, args) => {
       run(command, args);
     },
-    shown: () => shownSections(findLayoutNode('sidebar')),
+    shown: () => shownSections(findLayoutNode('sidebar', layoutRoot())),
   });
 
   override init(_props: unknown, cx: AsyncContext): void {

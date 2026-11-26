@@ -1,6 +1,26 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import { mainColumnInsets, mainColumnPlacement } from './place.ts';
+import { herdrFake } from '../../../tests/moduleFakes.ts';
+
+let layoutTree: unknown = null;
+
+await mock.module('herdr', () => herdrFake({ layout: () => layoutTree }));
+
+const { mainColumnInsets, mainColumnPlacement } = (await import('./place.ts')) as {
+  mainColumnInsets: () => { left: number; top: number };
+  mainColumnPlacement: (
+    insets: { left: number; top: number },
+    topOffset: number,
+  ) => { left: number; right: number; top: number };
+};
+
+afterAll(() => {
+  mock.restore();
+});
+
+beforeEach(() => {
+  layoutTree = null;
+});
 
 const tree = (sidebar: Record<string, unknown>, padding: unknown = 6): unknown => ({
   id: 'root',
@@ -18,48 +38,70 @@ const tree = (sidebar: Record<string, unknown>, padding: unknown = 6): unknown =
   ],
 });
 
+const windowWidth = 1200;
+
+const sidebarWidth = 268;
+
+// Herdr places the popup's root 8 px inside the window on every side, while the root reports the
+// window's own width.
+const rootInset = 8;
+
+const cardCenter = (placement: { left: number; right: number }): number =>
+  rootInset + placement.left + (windowWidth - placement.left - placement.right) / 2;
+
 describe('mainColumnInsets', () => {
   test('reads the sidebar width and the tab bar plus the work padding', () => {
-    expect(mainColumnInsets(tree({}))).toEqual({ left: 268, top: 34 });
+    layoutTree = tree({});
+
+    expect(mainColumnInsets()).toEqual({ left: 268, top: 34 });
   });
 
   test('drops the sidebar width while it is hidden', () => {
-    expect(mainColumnInsets(tree({ hidden: true })).left).toBe(0);
+    layoutTree = tree({ hidden: true });
+
+    expect(mainColumnInsets().left).toBe(0);
   });
 
   test('answers zeros for a missing node', () => {
-    expect(mainColumnInsets({ id: 'root', children: [] })).toEqual({ left: 0, top: 0 });
+    layoutTree = { id: 'root', children: [] };
+
+    expect(mainColumnInsets()).toEqual({ left: 0, top: 0 });
   });
 
   test('answers zeros for a malformed tree', () => {
-    expect(mainColumnInsets(null)).toEqual({ left: 0, top: 0 });
-    expect(mainColumnInsets('sidebar')).toEqual({ left: 0, top: 0 });
-    expect(mainColumnInsets([])).toEqual({ left: 0, top: 0 });
+    layoutTree = null;
+    expect(mainColumnInsets()).toEqual({ left: 0, top: 0 });
+
+    layoutTree = 'sidebar';
+    expect(mainColumnInsets()).toEqual({ left: 0, top: 0 });
+
+    layoutTree = [];
+    expect(mainColumnInsets()).toEqual({ left: 0, top: 0 });
   });
 
   test('reads a list padding from its first value', () => {
-    expect(mainColumnInsets(tree({}, [6, 0])).top).toBe(34);
+    layoutTree = tree({}, [6, 0]);
+
+    expect(mainColumnInsets().top).toBe(34);
   });
 });
 
 describe('mainColumnPlacement', () => {
-  test('moves the card past the popup inset and off the sidebar', () => {
-    expect(mainColumnPlacement({ left: 268, top: 34 }, 40)).toEqual({
-      left: 260,
-      right: 8,
-      top: 66,
-    });
+  test('centers the card in the main column beside the sidebar', () => {
+    const place = mainColumnPlacement({ left: 268, top: 34 }, 40);
+
+    expect(cardCenter(place)).toBe((sidebarWidth + windowWidth) / 2);
+    expect(place.top).toBe(66);
   });
 
-  test('centers the card from the window edge while the sidebar is hidden', () => {
-    expect(mainColumnPlacement({ left: 0, top: 34 }, 40)).toEqual({
-      left: 0,
-      right: 8,
-      top: 66,
-    });
+  test('centers the card in the window while the sidebar is hidden', () => {
+    const place = mainColumnPlacement({ left: 0, top: 34 }, 40);
+
+    expect(cardCenter(place)).toBe(windowWidth / 2);
+    expect(place.top).toBe(66);
   });
 
   test('keeps the card inside the root when the insets are smaller than the popup inset', () => {
-    expect(mainColumnPlacement({ left: 4, top: 2 }, 0)).toEqual({ left: 0, right: 8, top: 0 });
+    expect(mainColumnPlacement({ left: 4, top: 2 }, 0)).toEqual({ left: 0, right: 12, top: 0 });
   });
 });
