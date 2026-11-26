@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
-import { drawn, drawnTexts, elementWithText } from '../../../tests/drawn.ts';
+import { drawn, drawnTexts, textColorOf } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
   chainable,
@@ -27,6 +27,8 @@ let sharedValues: Record<string, unknown> = {};
 let tasks: DeadlineTask[] = [];
 let notifyCalls = 0;
 
+const dimColor = '#525460';
+
 Object.assign(globalThis, { kojaModName: 'koja' });
 
 await mock.module('gpui-base', () =>
@@ -42,7 +44,7 @@ await mock.module('gpui-kit', () =>
 );
 
 await mock.module('herdr', () =>
-  herdrFake({ shared: (key: string) => sharedValues[key], theme: () => ({}) }),
+  herdrFake({ shared: (key: string) => sharedValues[key], theme: () => ({ dim: dimColor }) }),
 );
 
 const kitFake = await realKitIndexFake([
@@ -186,10 +188,10 @@ describe('gallery data layer section', () => {
 });
 
 describe('gallery overlay rows', () => {
-  test('leaves the disabled row label to the row color', () => {
+  test('draws the disabled row label in the dim palette color', () => {
     const view = openGallery();
-    const label = elementWithText(view.render(context), 'Delete space');
+    const tree = view.render(context);
 
-    expect(label?.textColors).toEqual([]);
+    expect(textColorOf(tree, 'Delete space')).toBe(dimColor);
   });
 });

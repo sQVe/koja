@@ -79,7 +79,7 @@ const overlayRows = (): Element => {
     size: 'medium',
     state: 'normal',
     start: icon('search', 'small'),
-    label: label('Go to space or tab…'),
+    label: 'Go to space or tab…',
     end: overlayHints({ normal: ['t', 'n'] }, true),
   });
 
@@ -87,7 +87,7 @@ const overlayRows = (): Element => {
     size: 'medium',
     state: 'selected',
     start: icon('plus', 'small'),
-    label: label('New tab'),
+    label: 'New tab',
     end: overlayHints({ normal: ['t', 'n'] }, true),
   });
 
