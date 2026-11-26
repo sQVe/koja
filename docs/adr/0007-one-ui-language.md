@@ -42,8 +42,9 @@ rather than showing up on screen.
 
 ### Negative
 
-- Herdr opens some surfaces itself, such as its prompts and notifications. Koja cannot replace them,
-  so they keep Herdr's look.
+- Herdr opens some surfaces itself, such as its prompts and notifications. Koja cannot replace its
+  prompts, so they keep Herdr's look. Notifications are replaceable: a layout's root `toast` key
+  names the mod that draws every one of them.
 - A surface that needs a size the kit lacks must add it to the kit first.
 
 ## Alternatives considered

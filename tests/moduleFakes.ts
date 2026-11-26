@@ -57,6 +57,7 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   nextCommand: () => new Promise<string>(() => {}),
   openOverlay: () => null,
   panes: () => [],
+  playSound: () => null,
   props: () => ({}),
   readTextFile: () => '',
   run: () => null,

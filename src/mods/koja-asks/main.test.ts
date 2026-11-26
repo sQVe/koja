@@ -84,6 +84,7 @@ let values: Record<string, unknown> = {};
 let opened: Record<string, unknown>[] = [];
 let closed: unknown[] = [];
 let runs: { name: string; args: unknown }[] = [];
+let sounds: string[] = [];
 let timerHandler: (() => void) | null = null;
 let readDeferred: { promise: Promise<string>; resolve: (value: string) => void } | null = null;
 let readPaths: string[] = [];
@@ -114,6 +115,11 @@ await mock.module('herdr', () =>
       opened.push(spec);
 
       return 'overlay-1';
+    },
+    playSound: (sound: string) => {
+      sounds.push(sound);
+
+      return null;
     },
     props: () => propsValue,
     readTextFile: (path: string) => {
@@ -219,6 +225,7 @@ beforeEach(() => {
   opened = [];
   closed = [];
   runs = [];
+  sounds = [];
   timerHandler = null;
   readDeferred = null;
   readPaths = [];
@@ -255,6 +262,7 @@ describe('the ask host', () => {
     await tick();
 
     expect(opened).toHaveLength(1);
+    expect(sounds).toEqual(['blocked']);
   });
 
   test('reopens the card when the window bounds change', async () => {
@@ -265,6 +273,7 @@ describe('the ask host', () => {
 
     expect(opened).toHaveLength(2);
     expect(closed).toEqual(['overlay-1']);
+    expect(sounds).toEqual(['blocked']);
   });
 
   test('opens no card for an ask in the focused tab', async () => {
@@ -273,6 +282,16 @@ describe('the ask host', () => {
     await runHost();
 
     expect(opened).toEqual([]);
+    expect(sounds).toEqual([]);
+  });
+
+  test('plays no sound for a finished turn', async () => {
+    terminalsValue = [{ ...blockedTerminal, report: { state: 'done', kind: null, msg: '' } }];
+
+    await runHost();
+
+    expect(opened).toEqual([]);
+    expect(sounds).toEqual([]);
   });
 
   test('opens no card for an ask the user already dismissed', async () => {
