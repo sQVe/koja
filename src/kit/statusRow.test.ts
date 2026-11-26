@@ -58,6 +58,18 @@ const frameOf = (row: DrawnElement): DrawnElement => row.kids[0] as DrawnElement
 const firstNumber = (element: DrawnElement | undefined, style: string): number =>
   Number(element?.styles[style]?.[0]);
 
+const nameEdge = (row: DrawnElement): number => {
+  const frame = frameOf(row);
+
+  return (
+    firstNumber(frame, 'mx') +
+    firstNumber(frame, 'border') +
+    firstNumber(frame, 'pl') +
+    firstNumber(frame.kids[0], 'w') +
+    firstNumber(frame, 'gap')
+  );
+};
+
 describe('statusRow', () => {
   test('a stale running row draws a still mark and a dim state word', () => {
     const row = statusRow(staleRunning);
@@ -85,10 +97,16 @@ describe('statusRow', () => {
   test('a work need draws its own icon in the mark slot', () => {
     const row = statusRow({ mark: 'failing', name: 'typecheck', state: 'failing' });
     const icon = elementWithIcon(row, 'circle-x.svg');
-    const slot = frameOf(row).kids[0] as DrawnElement;
 
     expect(icon?.textColors).toEqual([palette.blocked]);
-    expect(slot.styles['w']).toEqual([12]);
+  });
+
+  test('every mark kind keeps the same slot, so the names share one edge', () => {
+    const nameEdges = ['failing', 'working', 'done', 'review', null].map((mark) =>
+      nameEdge(statusRow({ mark: mark as StatusRowOptions['mark'], name: 'typecheck' })),
+    );
+
+    expect(new Set(nameEdges).size).toBe(1);
   });
 
   test('a status keeps its mark in the slot and a done row draws the check', () => {
@@ -100,14 +118,7 @@ describe('statusRow', () => {
 
   test('the detail line starts under the name', () => {
     const row = statusRow(staleRunning);
-    const frame = frameOf(row);
 
-    const nameEdge =
-      firstNumber(frame, 'mx') +
-      firstNumber(frame, 'pl') +
-      firstNumber(frame.kids[0], 'w') +
-      firstNumber(frame, 'gap');
-
-    expect(row.kids[1]?.styles['ml']).toEqual([nameEdge]);
+    expect(row.kids[1]?.styles['ml']).toEqual([nameEdge(row)]);
   });
 });

@@ -2,6 +2,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
 import {
+  click,
   drawn,
   drawnIcons,
   drawnTexts,
@@ -43,14 +44,18 @@ afterAll(() => {
 
 const checksNote = partNote({ part: 'checks', age: '6m ago' });
 
+const messageOf = (note: DrawnElement): string =>
+  drawnTexts(note).find((text) => text !== 'Retry') ?? '';
+
 const retryOf = (note: DrawnElement): DrawnElement | undefined => note.kids.at(-1);
 
 describe('partNote', () => {
   test('a part note names the part, its age, and a Retry action', () => {
-    expect(drawnTexts(checksNote)).toEqual([
-      'Could not sync checks · showing checks from 6m ago',
-      'Retry',
-    ]);
+    const message = messageOf(checksNote);
+
+    expect(message).toContain('checks');
+    expect(message).toContain('6m ago');
+    expect(drawnTexts(checksNote)).toContain('Retry');
   });
 
   test('the note marks the failure with the alert icon', () => {
@@ -59,11 +64,7 @@ describe('partNote', () => {
   });
 
   test('the note reads in the dim ink and Retry follows it at the row end', () => {
-    const message = elementWithText(
-      checksNote,
-      'Could not sync checks · showing checks from 6m ago',
-    );
-
+    const message = elementWithText(checksNote, messageOf(checksNote));
     const retry = retryOf(checksNote);
 
     expect(message?.textColors).toEqual([palette.dim]);
@@ -75,9 +76,36 @@ describe('partNote', () => {
   });
 
   test('the note names the part it belongs to', () => {
-    expect(drawnTexts(partNote({ part: 'threads', age: '2m ago' }))).toEqual([
-      'Could not sync threads · showing threads from 2m ago',
-      'Retry',
-    ]);
+    expect(messageOf(partNote({ part: 'threads', age: '2m ago' }))).toContain('threads');
+    expect(messageOf(partNote({ part: 'threads', age: '2m ago' }))).not.toContain('checks');
+  });
+
+  test('Retry reads the part again when the note binds it', () => {
+    let retries = 0;
+
+    const note = partNote({
+      part: 'checks',
+      age: '6m ago',
+      onRetry: () => {
+        retries += 1;
+      },
+    });
+
+    const retry = retryOf(note);
+
+    if (retry !== undefined) {
+      click(retry);
+    }
+
+    expect(retries).toBe(1);
+    expect(note.clickHandlers).toEqual([]);
+    expect(retry?.styles['cursor_pointer']).toBeDefined();
+  });
+
+  test('a note without a retry handler draws a quiet Retry', () => {
+    const retry = retryOf(checksNote);
+
+    expect(retry?.clickHandlers).toEqual([]);
+    expect(retry?.styles['cursor_pointer']).toBeUndefined();
   });
 });

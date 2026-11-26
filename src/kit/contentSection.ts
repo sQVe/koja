@@ -1,19 +1,20 @@
 import { h_flex, v_flex } from 'gpui-base';
-import type { Element } from 'gpui-kit';
+import type { Context, Element } from 'gpui-kit';
 
 import { icon } from './icon.ts';
 import { sectionHeader } from './sectionHeader.ts';
-import { markSize } from './size.ts';
+import { markSize, sidebarSize } from './size.ts';
 import { detailText } from './text.ts';
 import { colors } from './theme.ts';
 
-interface ContentSectionLook {
+export interface ContentSectionOptions {
   name: string;
   count?: number;
+  open: boolean;
+  parts?: Element[];
+  // Folds and unfolds the section from its header.
+  onToggle?: (cx: Context) => void;
 }
-
-export type ContentSectionOptions = ContentSectionLook &
-  ({ open: true; parts: Element[] } | { open: false });
 
 const chevronSlot = (open: boolean): Element => {
   const name = open ? 'chevron-down' : 'chevron-right';
@@ -25,19 +26,33 @@ const chevronSlot = (open: boolean): Element => {
 const countDetail = (count: number | undefined): Element[] =>
   count === undefined ? [] : [detailText(String(count))];
 
-export const contentSection = (options: ContentSectionOptions): Element => {
+const foldHeader = (options: ContentSectionOptions): Element => {
   const header = sectionHeader({
     label: options.name,
     size: 'default',
     start: chevronSlot(options.open),
     detail: countDetail(options.count),
+    interactive: options.onToggle !== undefined,
+    paddingStart: sidebarSize.rowContentInset,
   });
 
-  const section = v_flex().flex_none().min_w(0).child(header);
+  const onToggle = options.onToggle;
+
+  if (onToggle === undefined) {
+    return header;
+  }
+
+  return header.on_click((_event, cx) => {
+    onToggle(cx);
+  });
+};
+
+export const contentSection = (options: ContentSectionOptions): Element => {
+  const section = v_flex().flex_none().min_w(0).child(foldHeader(options));
 
   if (!options.open) {
     return section;
   }
 
-  return section.children(options.parts);
+  return section.children(options.parts ?? []);
 };

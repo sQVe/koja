@@ -3,7 +3,7 @@ import type { Element } from 'gpui-kit';
 import type { Status } from 'herdr';
 
 import { listRow } from './listRow.ts';
-import { markSize, spacing } from './size.ts';
+import { markSize, sidebarSize, spacing } from './size.ts';
 import { statusMark } from './statusMark.ts';
 import { detailText } from './text.ts';
 import { roleText } from './textRole.ts';
@@ -21,7 +21,7 @@ export interface StatusRowOptions {
   stale?: boolean;
 }
 
-const nameInset = spacing.xsmall + spacing.small + markSize.slot + spacing.small;
+const nameInset = sidebarSize.rowContentInset + markSize.slot + spacing.small;
 
 const markSlot = (mark: StatusRowMark | null, stale: boolean): Element => {
   const slot = h_flex().w(markSize.slot).flex_none().items_center().justify_center();
