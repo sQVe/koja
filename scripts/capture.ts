@@ -401,9 +401,9 @@ export const publishCapture = async (
       return removeStagingAfterFailure(staging, error);
     }
 
-    const removed = await removeNewCaptureFiles(folder, existing, installed);
-    const restored = await restoreBackedUpFiles(folder, backup, backedUp, move);
-    const restoreErrors = [...removed, ...restored];
+    const removalErrors = await removeNewCaptureFiles(folder, existing, installed);
+    const moveBackErrors = await restoreBackedUpFiles(folder, backup, backedUp, move);
+    const restoreErrors = [...removalErrors, ...moveBackErrors];
 
     if (restoreErrors.length > 0) {
       const details = restoreErrors.map(messageOf).join('; ');

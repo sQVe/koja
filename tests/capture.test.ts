@@ -411,6 +411,26 @@ describe('mock:capture', () => {
     }
   });
 
+  test('a log that stops growing fails as not ready, not as rotated', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
+    const folder = join(root, 'judge', 'sidebar');
+
+    const { context, logReads } = successContext({
+      logs: ['earlier\n'],
+      onShot: writeShot,
+      waitMilliseconds: 300,
+    });
+
+    try {
+      const message = await failureMessageOf(capture(['sidebar', folder], context));
+
+      expect(message).toContain('did not become ready');
+      expect(logReads()).toBeGreaterThan(2);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test('a ready line for sidebar-inbox does not satisfy a wait for sidebar', async () => {
     const root = await mkdtemp(join(tmpdir(), 'koja-capture-'));
     const folder = join(root, 'judge', 'sidebar');
