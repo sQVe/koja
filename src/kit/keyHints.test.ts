@@ -52,7 +52,9 @@ const keysOfGroups = (part: PartLetter): string[] => {
 
 describe('partKeyHints', () => {
   test('each part letter is known', () => {
-    expect(partLetters.every(isPartLetter)).toBe(true);
+    const empty = partLetters.filter((part) => partKeyHints(part).groups.length === 0);
+
+    expect(empty).toEqual([]);
     expect(isPartLetter('x')).toBe(false);
   });
 

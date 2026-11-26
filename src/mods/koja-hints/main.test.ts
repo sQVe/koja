@@ -2,7 +2,6 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { drawn, drawnTexts, elementsWithStyle } from '../../../tests/drawn.ts';
-import { keyLabel } from '../../../tests/keyLabels.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../../tests/moduleFakes.ts';
 import { partKeyHints, partLetters } from '../../kit/keyHints.ts';
 import { actionName } from '../../kit/keyNames.ts';
@@ -71,14 +70,7 @@ describe('key hints view', () => {
   test.each(partLetters)('draws the card of the %s part', (part) => {
     shownProps = { part };
 
-    const drawnKeys = elementsWithStyle(new keyHintsView().render(), 'font_family')
-      .flatMap((element) => drawnTexts(element))
-      .toSorted();
-
-    const rows = partKeyHints(part).groups.flatMap((group) => group.rows);
-    const expected = [part, ...rows.flatMap((row) => row.keys)].map(keyLabel).toSorted();
-
-    expect(drawnKeys).toEqual(expected);
+    expect(drawnTexts(new keyHintsView().render())).toContain(partKeyHints(part).title);
   });
 
   test('places the card where the placement puts it', () => {

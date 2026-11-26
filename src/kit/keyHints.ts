@@ -204,11 +204,13 @@ const firstBy = <Item>(
 };
 
 // The parser runs the first row that matches a sequence, so a layer's key shadows the table's own.
-const partEntries = (part: PartLetter, layer: readonly NormalKey[]): NormalKey[] =>
-  firstBy(
-    [...layer, ...normalKeys].filter((entry) => entry.keys.length === 2 && entry.keys[0] === part),
-    (entry) => entry.keys.join(' '),
+const partEntries = (part: PartLetter, layer: readonly NormalKey[]): NormalKey[] => {
+  const scoped = [...layer, ...normalKeys].filter(
+    (entry) => entry.keys.length === 2 && entry.keys[0] === part,
   );
+
+  return firstBy(scoped, (entry) => entry.keys.join(' '));
+};
 
 // The table repeats an action once per alias, and the parser runs the first row that matches. The
 // card shows that same row, one per action, so it never lists an alias beside the key it stands for.
