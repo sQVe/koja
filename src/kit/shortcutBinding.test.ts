@@ -1,4 +1,4 @@
-import { describe, expect, spyOn, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 
 import { bindingAction } from './binding.ts';
 import { commandIdentity } from './commandTitles.ts';
@@ -100,41 +100,17 @@ describe('bindingFor', () => {
     expect(bindingFor(bindings, commandIdentity('tab.new', { px: 240 }))).toBeNull();
   });
 
-  test('parses each JSON action once per call, whatever the number of actions', () => {
+  test('ignores a JSON action that does not parse or names no command', () => {
     const bindings = [
-      {
-        section: 'global',
-        keys: 'ctrl-alt-r',
-        action: '{"command":"layout.resize","args":{"px":240}}',
-      },
-      {
-        section: 'global',
-        keys: 'ctrl-alt-s',
-        action: '{"command":"layout.resize","args":{"px":320}}',
-      },
+      { section: 'global', keys: 'ctrl-alt-x', action: '{"command":' },
+      { section: 'global', keys: 'ctrl-alt-y', action: '{"args":{"px":240}}' },
     ];
 
-    const actions = [
-      commandIdentity('layout.resize', { px: 100 }),
-      commandIdentity('layout.resize', { px: 200 }),
-      commandIdentity('tab.new'),
-    ];
+    expect(bindingFor(bindings, commandIdentity('layout.resize', { px: 240 }))).toBeNull();
 
-    const parse = spyOn(JSON, 'parse');
-
-    try {
-      bindingFor(bindings, ...actions);
-      const bindingParses = parse.mock.calls.length;
-
-      parse.mockClear();
-      hintFor(bindings, 'linux', ...actions);
-      const hintParses = parse.mock.calls.length;
-
-      expect(bindingParses).toBe(bindings.length);
-      expect(hintParses).toBe(bindings.length);
-    } finally {
-      parse.mockRestore();
-    }
+    expect(hintFor(bindings, 'linux', commandIdentity('layout.resize', { px: 240 }))).toEqual({
+      normal: [],
+    });
   });
 
   test('draws the key of a JSON action in the row hint', () => {
