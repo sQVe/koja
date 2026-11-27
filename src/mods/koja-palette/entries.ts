@@ -397,21 +397,17 @@ const fillsInName = (command: string): boolean =>
   command.endsWith('.rename') || command === 'layout.clone' || command === 'mod.clone';
 
 const hasRequiredArg = (command: string, args: Record<string, unknown>, name: string): boolean => {
-  if (name === 'name' && fillsInName(command)) {
-    const value = args[name];
-
-    if (value === null || value === undefined) {
-      return true;
-    }
-  }
-
   const value = args[name];
 
   if (value === null || value === undefined) {
-    return false;
+    return name === 'name' && fillsInName(command);
   }
 
-  return typeof value !== 'string' || value.trim() !== '';
+  if (typeof value === 'string') {
+    return value.trim() !== '';
+  }
+
+  return name !== 'name';
 };
 
 const argsFit = (args: Record<string, unknown>, command: Command): boolean => {

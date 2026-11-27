@@ -554,6 +554,48 @@ describe('mod palettes', () => {
     expect(chosenArgs).toEqual([{ name: 'main' }]);
   });
 
+  test('keeps the other arguments of a layout clone that leaves the name out', async () => {
+    withCommand('layout.clone', [
+      { name: 'name', required: true },
+      { name: 'as', required: false },
+    ]);
+
+    homeDirectory = await homeWithPalette('koja-gallery', [
+      { title: 'Copy as mine', command: 'layout.clone', args: { as: 'mine' } },
+    ]);
+
+    const view = await openPalette();
+    const row = rowWithText(renderTree(view), 'Copy as mine');
+
+    if (row !== null) {
+      click(row);
+    }
+
+    expect(chosenCommands).toEqual(['layout.clone']);
+    expect(chosenArgs).toEqual([{ as: 'mine', name: 'main' }]);
+  });
+
+  test('keeps the other arguments of a mod clone that leaves the name out', async () => {
+    withCommand('mod.clone', [
+      { name: 'name', required: true },
+      { name: 'as', required: false },
+    ]);
+
+    homeDirectory = await homeWithPalette('koja-gallery', [
+      { title: 'Copy the mod as mine', command: 'mod.clone', args: { as: 'mine' } },
+    ]);
+
+    const view = await openPalette();
+    const row = rowWithText(renderTree(view), 'Copy the mod as mine');
+
+    if (row !== null) {
+      click(row);
+    }
+
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]?.['command']).toEqual({ name: 'mod.clone', args: { as: 'mine' } });
+  });
+
   test('asks which mod to duplicate when the entry names none', async () => {
     withCommand('mod.clone', [{ name: 'name', required: false }]);
 

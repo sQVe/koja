@@ -226,7 +226,7 @@ export default class Palette extends View {
         title: 'Duplicate mod',
         value: '',
         hint: 'Mod to copy; creates <name>-copy',
-        command: { name: 'mod.clone', args: {} },
+        command: { name: 'mod.clone', args: entry.args },
       });
 
       return;
@@ -234,7 +234,7 @@ export default class Palette extends View {
 
     const layoutName = shownLayout();
     const clone = entry.name === 'layout.clone' && !hasName(entry);
-    const args = clone ? { name: layoutName } : entry.args;
+    const args = clone ? { ...entry.args, name: layoutName } : entry.args;
 
     askFirst(entry.name, args);
   }

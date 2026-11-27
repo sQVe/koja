@@ -434,6 +434,12 @@ describe('mod entries', () => {
     expect(added({ title: 'Do the thing', command: 'tab.rename', args: { name: '' } })).toBe(false);
   });
 
+  test('rejects a rename whose name is not a string', () => {
+    commandList = [{ name: 'tab.rename', args: [{ name: 'name', required: true }], about: '' }];
+
+    expect(added({ title: 'Do the thing', command: 'tab.rename', args: { name: 42 } })).toBe(false);
+  });
+
   test('lets only a rename leave its required name out', () => {
     commandList = [
       { name: 'tab.new', args: [{ name: 'name', required: true }], about: '' },
