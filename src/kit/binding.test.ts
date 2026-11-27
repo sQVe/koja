@@ -24,4 +24,16 @@ describe('actionIdentity', () => {
       commandIdentity('x', { name: 'a' }),
     );
   });
+
+  test('matches a JSON action that names no arguments to its bare command', () => {
+    expect(actionIdentity('{"command":"tab.new"}')).toBe(bindingAction('tab.new', {}));
+  });
+
+  test('gives a JSON action with no arguments the bare command identity', () => {
+    expect(actionIdentity('{"command":"tab.new","args":{}}')).toBe('tab.new');
+  });
+
+  test('still rejects a null argument record', () => {
+    expect(actionIdentity('{"command":"x","args":null}')).toBeNull();
+  });
 });

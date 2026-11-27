@@ -19,10 +19,14 @@ export const actionIdentity = (action: string): string | null => {
     const parsed: unknown = JSON.parse(action);
     const record = recordOf(parsed);
     const command = stringOf(record['command']);
-    const args = record['args'];
+    const args = Object.hasOwn(record, 'args') ? record['args'] : {};
 
     if (command === null || !isRecord(args)) {
       return null;
+    }
+
+    if (Object.keys(args).length === 0) {
+      return command;
     }
 
     return commandIdentity(command, args);
