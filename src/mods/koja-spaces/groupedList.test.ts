@@ -73,8 +73,8 @@ describe('groupedList', () => {
     expect(loaded.groupedList([], false)).toEqual([]);
   });
 
-  test('puts the row gap on both sides of the spacer', () => {
-    const rows = loaded.groupedList([blockOf('a'), blockOf('b')], false);
+  test('keeps the projects a group gap apart, with the row gap on both sides of the spacer', () => {
+    const rows = loaded.groupedList([blockOf('koja'), blockOf('tikk')], false);
     const gap = rows[1] as DrawnElement;
 
     expect(gap.styles['h']).toEqual([sidebarSize.groupGap - 2 * spacing.xxsmall]);

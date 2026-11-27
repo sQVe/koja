@@ -41,8 +41,15 @@ afterAll(() => {
   mock.restore();
 });
 
-const optionButton = (element: DrawnElement, label: string): DrawnElement | undefined =>
-  clickablesWithText(element, label)[0];
+const optionButton = (element: DrawnElement, label: string): DrawnElement => {
+  const option = clickablesWithText(element, label)[0];
+
+  if (option === undefined) {
+    throw new Error(`The view bar drew no ${label} option.`);
+  }
+
+  return option;
+};
 
 describe('viewBar', () => {
   test('the stored view is the active option', () => {
@@ -50,8 +57,8 @@ describe('viewBar', () => {
 
     const element = viewBar(store, () => undefined);
 
-    expect(optionButton(element, 'Projects')?.backgroundColors).toEqual([]);
-    expect(optionButton(element, 'Inbox')?.backgroundColors).toEqual([palette.selected]);
+    expect(optionButton(element, 'Projects').backgroundColors).toEqual([]);
+    expect(optionButton(element, 'Inbox').backgroundColors).toEqual([palette.selected]);
   });
 
   test('an empty store makes Projects the active option', () => {
@@ -59,8 +66,8 @@ describe('viewBar', () => {
 
     const element = viewBar(store, () => undefined);
 
-    expect(optionButton(element, 'Projects')?.backgroundColors).toEqual([palette.selected]);
-    expect(optionButton(element, 'Inbox')?.backgroundColors).toEqual([]);
+    expect(optionButton(element, 'Projects').backgroundColors).toEqual([palette.selected]);
+    expect(optionButton(element, 'Inbox').backgroundColors).toEqual([]);
   });
 
   test('a select stores the chosen view', () => {
@@ -70,9 +77,7 @@ describe('viewBar', () => {
 
     const inbox = optionButton(element, 'Inbox');
 
-    if (inbox !== undefined) {
-      click(inbox);
-    }
+    click(inbox);
 
     expect(values[sidebarViewKey]).toBe('inbox');
   });
@@ -82,7 +87,7 @@ describe('viewBar', () => {
 
     const element = viewBar(store, () => undefined);
 
-    const projects = optionButton(element, 'Projects') as DrawnElement;
+    const projects = optionButton(element, 'Projects');
 
     click(projects);
 
@@ -98,9 +103,7 @@ describe('viewBar', () => {
 
     const inbox = optionButton(element, 'Inbox');
 
-    if (inbox !== undefined) {
-      click(inbox, context);
-    }
+    click(inbox, context);
 
     expect(changes).toEqual([context]);
   });

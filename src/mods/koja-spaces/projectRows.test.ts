@@ -18,7 +18,6 @@ import {
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
-import { sidebarSize, spacing } from '../../kit/size.ts';
 import type { Project } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 
@@ -338,16 +337,6 @@ describe('projectRows', () => {
     expect(texts).toEqual(['koja', 'space-a', 'gap', 'tikk', 'space-t']);
     expect(gap.kids).toEqual([]);
     expect(gap.backgroundColors).toEqual([]);
-  });
-
-  test('keeps the projects a group gap apart, with the row gap on both sides of the spacer', () => {
-    const rows = loaded.projectRows(
-      hostOf({ projects: projectsOf([listed('a', 'koja'), listed('t', 'tikk')]) }),
-    );
-
-    const gap = rows[2] as DrawnElement;
-
-    expect(gap.styles['h']).toEqual([sidebarSize.groupGap - 2 * spacing.xxsmall]);
   });
 
   test('a header without a main space reports hover and shows its chevron while hovered', () => {
