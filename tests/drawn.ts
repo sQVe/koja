@@ -189,6 +189,9 @@ export const numberStyle = (element: DrawnElement | undefined, style: string): n
   return value;
 };
 
+export const tipRow = (layer: DrawnElement): number =>
+  numberStyle(layer, 'top') + (numberStyle(layer, 'h') - 1) / 2;
+
 export const elementWithText = (element: DrawnElement, text: string): DrawnElement | null =>
   descendants(element).find((part) => hasText(part, text)) ?? null;
 

@@ -8,6 +8,7 @@ import {
   drawnTooltips,
   elementsWithStyle,
   textColorOf,
+  tipRow,
 } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 import type { StackCardModel, StackCardPull } from './stackCard.ts';
@@ -72,13 +73,6 @@ const rowOf = (card: DrawnElement, text: string): DrawnElement => {
   return row;
 };
 
-const tipRow = (layer: DrawnElement): number => {
-  const [top] = layer.styles['top'] as [number];
-  const [height] = layer.styles['h'] as [number];
-
-  return top + (height - 1) / 2;
-};
-
 describe('stackCard', () => {
   test('the merged line shows only when a pull merged', () => {
     const merged = cardOf({ merged: [502, 504], pulls: [pull({ number: 507 })], total: 3 });
@@ -89,6 +83,23 @@ describe('stackCard', () => {
     expect(texts).toContain('2 merged');
     expect(texts.indexOf('2 merged')).toBeLessThan(texts.indexOf('#507'));
     expect(drawnTexts(open)).not.toContain('0 merged');
+  });
+
+  test('the header leads with the title and then the project', () => {
+    const card = cardOf({
+      title: 'Tau workflow sidebar',
+      project: 'koja',
+      merged: [502],
+      pulls: [pull({ number: 507 }), pull({ number: 509 })],
+      total: 3,
+    });
+
+    const texts = drawnTexts(card);
+
+    expect(texts.indexOf('Tau workflow sidebar')).toBeLessThan(texts.indexOf('koja'));
+    expect(texts.indexOf('koja')).toBeLessThan(texts.indexOf('#502'));
+    expect(texts.indexOf('#502')).toBeLessThan(texts.indexOf('#507'));
+    expect(texts.indexOf('#507')).toBeLessThan(texts.indexOf('#509'));
   });
 
   test('the checked-out pull gets the branch mark', () => {
@@ -141,6 +152,12 @@ describe('stackCard', () => {
 
     expect(drawnTexts(card)).toContain('8 PRs');
     expect(drawnTexts(card)).not.toContain('5 PRs');
+  });
+
+  test('the footer says one PR for a stack of one pull', () => {
+    const card = cardOf({ pulls: [pull({ number: 507 })], total: 1 });
+
+    expect(drawnTexts(card)).toContain('1 PR');
   });
 
   test('the arrow sits at the middle of the height that centers the card', () => {

@@ -15,6 +15,8 @@ export interface HoverCardOptions {
 
 const arrowColumns = hoverCardSize.arrowDepth - 1;
 
+// The height counts the border, the vertical padding, the header and footer rows, both separators,
+// and the body rows at rowHeight.small, so a body row of another height throws the arrow tip off.
 export const hoverCardHeight = (bodyRows: number): number =>
   spacing.hairline * 2 +
   spacing.xsmall * 2 +

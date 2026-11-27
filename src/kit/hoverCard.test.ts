@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { drawn, drawnTexts, elementsWithStyle } from '../../tests/drawn.ts';
+import { drawn, drawnTexts, elementsWithStyle, tipRow } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 
 interface HoverCardOptions {
@@ -24,9 +24,8 @@ await mock.module('herdr', () => herdrFake({ theme: () => palette }));
 
 const modulePath = './hoverCard.ts';
 
-const { hoverCard, hoverCardHeight } = (await import(modulePath)) as {
+const { hoverCard } = (await import(modulePath)) as {
   hoverCard: (options: HoverCardOptions) => DrawnElement;
-  hoverCardHeight: (bodyRows: number) => number;
 };
 
 afterAll(() => {
@@ -48,22 +47,19 @@ const cardWithBodyRows = (bodyRows: number): DrawnElement =>
     footer: textElement('8 PRs'),
   });
 
-const tipRow = (layer: DrawnElement): number => {
-  const [top] = layer.styles['top'] as [number];
-  const [height] = layer.styles['h'] as [number];
-
-  return top + (height - 1) / 2;
-};
-
 describe('hoverCard', () => {
   test('the card draws its header, body rows, and footer in order', () => {
     expect(drawnTexts(cardWithBodyRows(2))).toEqual(['Tau workflow sidebar', '#0', '#1', '8 PRs']);
   });
 
   test('the arrow tip sits arrowTop px below the card top', () => {
-    for (const bodyRows of [1, 6]) {
+    const middles = [
+      { bodyRows: 1, middle: 50 },
+      { bodyRows: 6, middle: 110 },
+    ];
+
+    for (const { bodyRows, middle } of middles) {
       const layers = elementsWithStyle(cardWithBodyRows(bodyRows), 'top');
-      const middle = hoverCardHeight(bodyRows) / 2;
 
       expect(layers.map(tipRow)).toEqual([middle, middle]);
     }

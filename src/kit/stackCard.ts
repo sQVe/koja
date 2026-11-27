@@ -28,8 +28,10 @@ export interface StackCardModel {
   total: number;
 }
 
+const lineLayout = (): Element => h_flex().flex_1().min_w(0).gap(spacing.small).items_center();
+
 const cardLine = (start: Element, end: string | null): Element => {
-  const line = h_flex().flex_1().min_w(0).gap(spacing.small).items_center().child(start.flex_1());
+  const line = lineLayout().child(start.flex_1());
 
   if (end !== null) {
     line.child(roleText('detail', end));
@@ -51,31 +53,27 @@ const ticketLabel = (ticket: string | null): Element =>
 const layerMark = (pull: StackCardPull): Element =>
   pull.checkedOut ? icon('git-branch', 'small') : statusMark(null);
 
+const isQuietEnd = (end: StackCardPull['end']): end is 'draft' | 'closed' =>
+  end === 'draft' || end === 'closed';
+
 const layerEnd = (pull: StackCardPull): Element => {
   if (pull.end === null) {
     return emptyWorkSlot();
   }
 
-  if (pull.end === 'draft' || pull.end === 'closed') {
+  if (isQuietEnd(pull.end)) {
     return roleText('detail', pull.end, 'muted');
   }
 
   return workIcon(pull.end);
 };
 
-const isMuted = (pull: StackCardPull): boolean => pull.end === 'draft' || pull.end === 'closed';
+const isMuted = (pull: StackCardPull): boolean => isQuietEnd(pull.end);
 
 const layerLabel = (pull: StackCardPull): Element => {
   const title = div().flex_1().min_w(0).truncate().child(pull.title);
 
-  return h_flex()
-    .flex_1()
-    .min_w(0)
-    .gap(spacing.small)
-    .items_center()
-    .child(pullNumber(pull.number))
-    .child(ticketLabel(pull.ticket))
-    .child(title);
+  return lineLayout().child(pullNumber(pull.number)).child(ticketLabel(pull.ticket)).child(title);
 };
 
 const layerRow = (pull: StackCardPull): Element =>
@@ -105,12 +103,6 @@ const mergedRow = (merged: number[]): Element => {
 
 const drawsMergedLine = (model: StackCardModel): boolean => model.merged.length > 0;
 
-const stackCardRows = (model: StackCardModel): number =>
-  model.pulls.length + (drawsMergedLine(model) ? 1 : 0);
-
-export const stackCardHeight = (model: StackCardModel): number =>
-  hoverCardHeight(stackCardRows(model));
-
 const bodyRows = (model: StackCardModel): Element[] => {
   const rows: Element[] = [];
 
@@ -121,9 +113,14 @@ const bodyRows = (model: StackCardModel): Element[] => {
   return [...rows, ...model.pulls.map((pull) => layerRow(pull))];
 };
 
+export const stackCardHeight = (model: StackCardModel): number =>
+  hoverCardHeight(bodyRows(model).length);
+
+const footerText = (total: number): string => (total === 1 ? '1 PR' : `${total} PRs`);
+
 export const stackCard = (model: StackCardModel): Element =>
   hoverCard({
     header: cardLine(roleText('title', model.title), model.project),
     body: bodyRows(model),
-    footer: cardLine(roleText('detail', `${model.total} PRs`), null),
+    footer: cardLine(roleText('detail', footerText(model.total)), null),
   });

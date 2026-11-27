@@ -104,11 +104,6 @@ const hoverCardElement = (id: string): DrawnElement => {
 
       return element;
     },
-    anchor: (anchor: unknown) => {
-      element.styles['anchor'] = [anchor];
-
-      return element;
-    },
   });
 
   return element;
