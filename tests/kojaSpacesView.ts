@@ -1,6 +1,6 @@
 import { mock } from 'bun:test';
 
-import type { PaneInfo, SpaceInfo } from 'herdr';
+import type { PaneInfo, SpaceInfo, Status, TabInfo } from 'herdr';
 
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
 import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
@@ -127,6 +127,46 @@ export const state = {
   store: new Map<string, string>(),
 };
 
+const tab = (id: string): TabInfo => ({
+  id: `tab-${id}`,
+  index: 1,
+  name: '1',
+  named: false,
+  active: true,
+  status: null,
+  panes: 1,
+  zoomed: false,
+  settled: false,
+  settled_at: null,
+  changed_at: null,
+  working_since: null,
+});
+
+const pane = (id: string, status: Status | null): PaneInfo => ({
+  pane: `pane-${id}`,
+  terminal: `terminal-${id}`,
+  tab: `tab-${id}`,
+  title: id,
+  name: null,
+  cwd: '/code/notes',
+  branch: null,
+  status,
+  app: null,
+  program: {
+    key: 'agent',
+    name: 'Agent',
+    icon: null,
+    tint: false,
+    tile: null,
+    color: null,
+    shell: false,
+    agent: true,
+  },
+  focused: false,
+  zoomed: false,
+  movable: false,
+});
+
 export const space = (
   id: string,
   active: boolean,
@@ -144,6 +184,18 @@ export const space = (
   status: null,
   tabs: [],
 });
+
+export const showSpaces = (statuses: Record<string, Status | null>, active: string): void => {
+  state.spaceList = Object.entries(statuses).map(([id]) => {
+    const shown = space(id, id === active);
+
+    shown.tabs = [tab(id)];
+
+    return shown;
+  });
+
+  state.paneList = Object.entries(statuses).map(([id, status]) => pane(id, status));
+};
 
 export const storedFacts = (
   checkouts: readonly Checkout[],

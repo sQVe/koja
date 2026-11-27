@@ -1,9 +1,8 @@
 import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
-import type { PaneInfo, SpaceInfo, Status } from 'herdr';
-
 import { drawn, drawnTexts } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
+import { showSpaces, state } from '../../../tests/kojaSpacesView.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -29,71 +28,11 @@ const start = new Date('2026-11-13T09:00:00Z').getTime();
 
 const ageWord = /^(?:now|\d+[mhdw])$/;
 
-let spaceList: SpaceInfo[] = [];
-let paneList: PaneInfo[] = [];
 let timers: Timer[] = [];
 let notifyCalls = 0;
 let writes: string[] = [];
 let sharedValues: Record<string, unknown> = {};
 const store = new Map<string, string>();
-
-const space = (id: string, active: boolean): SpaceInfo => ({
-  id,
-  index: 1,
-  name: `name-${id}`,
-  named: true,
-  folder: '/code/notes',
-  machine: null,
-  branch: null,
-  active,
-  status: null,
-  tabs: [
-    {
-      id: `tab-${id}`,
-      index: 1,
-      name: '1',
-      named: false,
-      active: true,
-      status: null,
-      panes: 1,
-      zoomed: false,
-      settled: false,
-      settled_at: null,
-      changed_at: null,
-      working_since: null,
-    },
-  ],
-});
-
-const pane = (id: string, status: Status | null): PaneInfo => ({
-  pane: `pane-${id}`,
-  terminal: `terminal-${id}`,
-  tab: `tab-${id}`,
-  title: id,
-  name: null,
-  cwd: '/code/notes',
-  branch: null,
-  status,
-  app: null,
-  program: {
-    key: 'agent',
-    name: 'Agent',
-    icon: null,
-    tint: false,
-    tile: null,
-    color: null,
-    shell: false,
-    agent: true,
-  },
-  focused: false,
-  zoomed: false,
-  movable: false,
-});
-
-const showSpaces = (statuses: Record<string, Status | null>, active: string): void => {
-  spaceList = Object.keys(statuses).map((id) => space(id, id === active));
-  paneList = Object.entries(statuses).map(([id, status]) => pane(id, status));
-};
 
 Object.assign(globalThis, {
   kojaModName: 'koja',
@@ -124,14 +63,14 @@ await mock.module('gpui-kit', () =>
 
 await mock.module('herdr', () =>
   herdrFake({
-    panes: () => paneList,
+    panes: () => state.paneList,
     setShared: (key: string, value: unknown) => {
       sharedValues[key] = value;
 
       return null;
     },
     shared: (key: string) => sharedValues[key],
-    spaces: () => spaceList,
+    spaces: () => state.spaceList,
     theme: () => ({}),
   }),
 );

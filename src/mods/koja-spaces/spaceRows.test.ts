@@ -87,7 +87,7 @@ const loaded = (await import(modulePath)) as {
     state: RowStateLike,
     pull: Pull | null,
     ticketTitle: string | null,
-    project?: string | null,
+    project: string | null,
   ) => DrawnElement;
   headerRow: (
     project: Project,
@@ -143,7 +143,7 @@ const stateWith = (age: string | null = null, need: StackNeed | null = null): Ro
 });
 
 const textsOf = (named: boolean, found: Pull | null): string[] =>
-  drawnTexts(loaded.row(listedSpace(named), ['a'], stateWith(), found, null));
+  drawnTexts(loaded.row(listedSpace(named), ['a'], stateWith(), found, null, null));
 
 describe('row', () => {
   test('draws the space title and no PR number and no branch', () => {
@@ -163,7 +163,7 @@ describe('row', () => {
   });
 
   test('a row with no need ends with an empty work slot after its age', () => {
-    const rowElement = loaded.row(listedSpace(true), ['a'], stateWith('4m'), null, null);
+    const rowElement = loaded.row(listedSpace(true), ['a'], stateWith('4m'), null, null, null);
 
     const [age, slot] = rowElement.kids.slice(-2) as [DrawnElement, DrawnElement];
 
@@ -205,6 +205,31 @@ describe('row', () => {
     );
 
     expect(drags).toEqual([]);
+  });
+
+  test('a row with no project name attaches the drag with the ids it was given', () => {
+    const drags: unknown[] = [];
+
+    loaded.row(
+      listedSpace(true),
+      ['a', 'b'],
+      {
+        ...stateWith(),
+        attachDrag: (...args) => {
+          drags.push(args);
+        },
+      },
+      null,
+      null,
+      null,
+    );
+
+    expect(drags).toHaveLength(1);
+
+    const [, draggedSpace, ids] = drags[0] as [unknown, SpaceInfo, readonly string[]];
+
+    expect(draggedSpace.id).toBe('a');
+    expect(ids).toEqual(['a', 'b']);
   });
 });
 
@@ -366,7 +391,7 @@ const drawnRow = (times: WaitTimes, listed: ListedSpace, now: number): string[] 
     now,
   );
 
-  return drawnTexts(loaded.row(listed, [listed.space.id], stateWith(age), null, null));
+  return drawnTexts(loaded.row(listed, [listed.space.id], stateWith(age), null, null, null));
 };
 
 const advanced = (

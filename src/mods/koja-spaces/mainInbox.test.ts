@@ -1,7 +1,5 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 
-import type { PaneInfo, Status } from 'herdr';
-
 import {
   click,
   clickablesWithText,
@@ -19,6 +17,7 @@ import {
   send,
   setupKojaSpaces,
   showFacts,
+  showSpaces,
   space,
   state,
   storedFacts,
@@ -34,58 +33,6 @@ beforeEach(() => {
 afterAll(() => {
   restoreKojaSpaces();
 });
-
-const tab = (id: string) => ({
-  id: `tab-${id}`,
-  index: 1,
-  name: '1',
-  named: false,
-  active: true,
-  status: null,
-  panes: 1,
-  zoomed: false,
-  settled: false,
-  settled_at: null,
-  changed_at: null,
-  working_since: null,
-});
-
-const pane = (id: string, status: Status | null): PaneInfo => ({
-  pane: `pane-${id}`,
-  terminal: `terminal-${id}`,
-  tab: `tab-${id}`,
-  title: id,
-  name: null,
-  cwd: '/code/notes',
-  branch: null,
-  status,
-  app: null,
-  program: {
-    key: 'agent',
-    name: 'Agent',
-    icon: null,
-    tint: false,
-    tile: null,
-    color: null,
-    shell: false,
-    agent: true,
-  },
-  focused: false,
-  zoomed: false,
-  movable: false,
-});
-
-const showSpaces = (statuses: Record<string, Status | null>, active: string): void => {
-  state.spaceList = Object.entries(statuses).map(([id]) => {
-    const shown = space(id, id === active);
-
-    shown.tabs = [tab(id)];
-
-    return shown;
-  });
-
-  state.paneList = Object.entries(statuses).map(([id, status]) => pane(id, status));
-};
 
 const clickContext = {
   stop_propagation: () => undefined,
@@ -111,6 +58,7 @@ describe('koja-spaces Inbox view', () => {
 
     const texts = listChildren(view).flatMap(drawnTexts);
 
+    expect(texts).toContain('Agent asks');
     expect(texts.indexOf('Agent asks')).toBeLessThan(texts.indexOf('name-a'));
     expect(texts.indexOf('name-a')).toBeLessThan(texts.indexOf('Quiet'));
     expect(texts.indexOf('Quiet')).toBeLessThan(texts.indexOf('name-b'));

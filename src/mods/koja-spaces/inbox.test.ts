@@ -4,7 +4,7 @@ import type { SpaceInfo, Status } from 'herdr';
 
 import { placeOf } from '../../data/gitIdentity.ts';
 import type { StackNeed } from '../../data/pullNeeds.ts';
-import { inboxGroups } from './inbox.ts';
+import { inboxGroups, inboxIds } from './inbox.ts';
 import type { ShownRow } from './projects.ts';
 import type { ListedSpace } from './tree.ts';
 
@@ -28,16 +28,13 @@ const listed = (id: string, status: Status | null): ShownRow => {
   };
 };
 
-const idsOf = (groups: ReturnType<typeof inboxGroups>): string[][] =>
-  groups.map((group) => group.spaces.map(({ row }) => row.space.id));
-
 describe('inboxGroups', () => {
   test('a blocked space with failing CI sits only in Agent asks', () => {
     const row = listed('review', 'blocked');
 
     const groups = inboxGroups([row], () => 'failing');
 
-    expect(idsOf(groups)).toEqual([['review']]);
+    expect(inboxIds(groups)).toEqual(['review']);
     expect(groups.map((group) => group.id)).toEqual(['asks']);
   });
 
@@ -72,6 +69,6 @@ describe('inboxGroups', () => {
     const groups = inboxGroups([first, second, third], () => null);
 
     expect(groups.map((group) => group.id)).toEqual(['quiet']);
-    expect(idsOf(groups)).toEqual([['first', 'second', 'third']]);
+    expect(inboxIds(groups)).toEqual(['first', 'second', 'third']);
   });
 });

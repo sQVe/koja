@@ -1,0 +1,91 @@
+import { afterAll, describe, expect, mock, test } from 'bun:test';
+
+import { click, clickablesWithText, drawn } from '../../../tests/drawn.ts';
+import type { DrawnElement } from '../../../tests/drawn.ts';
+import {
+  gpuiBaseFake,
+  gpuiKitFake,
+  herdrFake,
+  realKitIndexFake,
+} from '../../../tests/moduleFakes.ts';
+import { sidebarViewKey } from './sidebarView.ts';
+import type { KeyValueStore } from './storage.ts';
+
+interface Stored {
+  values: Record<string, string>;
+  store: KeyValueStore;
+}
+
+const palette = {
+  dim: '#2b2b3b',
+  foreground: '#3c3c4c',
+  muted: '#4d4d5d',
+  selected: '#5e5e6e',
+} as const;
+
+Object.assign(globalThis, { kojaModName: 'koja' });
+
+await mock.module('gpui-base', () => gpuiBaseFake({ h_flex: () => drawn() }));
+
+await mock.module('gpui-kit', () => gpuiKitFake({ div: () => drawn() }));
+
+await mock.module('herdr', () => herdrFake({ theme: () => palette }));
+
+const kitFake = await realKitIndexFake(['size', 'viewSwitch']);
+
+await mock.module('../../kit/index.ts', () => kitFake);
+
+const modulePath = './viewBar.ts';
+
+const { viewBar } = (await import(modulePath)) as {
+  viewBar: (store: KeyValueStore, onChange: (cx: unknown) => void) => DrawnElement;
+};
+
+afterAll(() => {
+  mock.restore();
+});
+
+const stored = (view: string | null): Stored => {
+  const values: Record<string, string> = view === null ? {} : { [sidebarViewKey]: view };
+
+  return {
+    values,
+    store: {
+      get: (key) => values[key] ?? null,
+      set: (key, value) => {
+        values[key] = value;
+      },
+    },
+  };
+};
+
+const optionButton = (element: DrawnElement, label: string): DrawnElement | undefined =>
+  clickablesWithText(element, label)[0];
+
+describe('viewBar', () => {
+  test('the stored view is the active option', () => {
+    const { store } = stored('inbox');
+
+    const element = viewBar(store, () => undefined);
+
+    expect(optionButton(element, 'Projects')?.backgroundColors).toEqual([]);
+    expect(optionButton(element, 'Inbox')?.backgroundColors).toEqual([palette.selected]);
+  });
+
+  test('a select stores the view and asks for one redraw', () => {
+    const { values, store } = stored('projects');
+    const changes: unknown[] = [];
+    const context = { stop_propagation: () => undefined };
+
+    const element = viewBar(store, (cx) => changes.push(cx));
+
+    const inbox = optionButton(element, 'Inbox');
+
+    if (inbox !== undefined) {
+      click(inbox, context);
+    }
+
+    expect(values[sidebarViewKey]).toBe('inbox');
+    expect(changes).toEqual([context]);
+  });
+});
