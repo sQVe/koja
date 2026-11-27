@@ -189,6 +189,32 @@ const chooseScan = (
   return scan;
 };
 
+// A panel waits for the copy that started the scan, which another panel may own.
+const waitForScan = (
+  taskCx: AsyncContext,
+  scan: ScanEntry,
+  isCurrent: () => boolean,
+): Promise<boolean> =>
+  new Promise<boolean>((resolve, reject) => {
+    const poll = (): void => {
+      if (!isCurrent()) {
+        resolve(false);
+
+        return;
+      }
+
+      if (!isPending(scan)) {
+        resolve(true);
+
+        return;
+      }
+
+      void taskCx.sleep(waitMilliseconds).then(poll, reject);
+    };
+
+    poll();
+  });
+
 export const repoStatus = async (
   host: ScanHost,
   root: string,
@@ -200,32 +226,27 @@ export const repoStatus = async (
   const scans = sharedScans();
   const key = scanKey(root, on);
 
-  for (;;) {
-    prune(scans, host.now());
+  prune(scans, host.now());
 
-    if (!isCurrent()) {
-      return null;
-    }
-
-    const scan = chooseScan(host, scans, key, taskCx, root, on, request, host.now());
-
-    if (scan === null) {
-      return null;
-    }
-
-    while (isCurrent() && isPending(scan)) {
-      // eslint-disable-next-line no-await-in-loop -- the copy that started the scan is what we wait for
-      await taskCx.sleep(waitMilliseconds);
-    }
-
-    if (!isCurrent()) {
-      return null;
-    }
-
-    if (scan.timing.pollAt === null) {
-      continue;
-    }
-
-    return finishedScan(scan);
+  if (!isCurrent()) {
+    return null;
   }
+
+  const scan = chooseScan(host, scans, key, taskCx, root, on, request, host.now());
+
+  if (scan === null) {
+    return null;
+  }
+
+  const settled = await waitForScan(taskCx, scan, isCurrent);
+
+  if (!settled) {
+    return null;
+  }
+
+  if (scan.timing.pollAt === null) {
+    return repoStatus(host, root, on, request, taskCx, isCurrent);
+  }
+
+  return finishedScan(scan);
 };
