@@ -40,6 +40,7 @@ const rowModel = (stack: SpaceStack | null): RowModel => ({
   row: listed,
   project: 'koja',
   pull: null,
+  ticket: null,
   ticketTitle: null,
   need: null,
   stack,

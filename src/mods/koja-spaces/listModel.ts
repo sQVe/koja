@@ -3,7 +3,7 @@ import { folderNameOf } from '../../data/fields.ts';
 import { ticketIdOf } from '../../data/linearTickets.ts';
 import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
-import type { Facts } from '../../data/snapshot.ts';
+import type { Facts, TicketFacts } from '../../data/snapshot.ts';
 import type { SpaceStack, WorktreeStackFacts } from '../../data/spaceStack.ts';
 import { worktreeStackFactsOf } from '../../data/spaceStack.ts';
 import type { KeptNeed } from './gitFacts.ts';
@@ -21,6 +21,7 @@ export interface RowModel {
   row: ListedSpace;
   project: string;
   pull: Pull | null;
+  ticket: TicketFacts | null;
   ticketTitle: string | null;
   need: StackNeed | null;
   stack: SpaceStack | null;
@@ -46,13 +47,11 @@ const readableRowOf = (state: DataState, row: ListedSpace): ReadableRow | null =
 const stackFactsOf = (readable: ReadableRow): WorktreeStackFacts | null =>
   worktreeStackFactsOf(readable.facts, readable.git.worktreeKey);
 
-const ticketTitleOf = (readable: ReadableRow | null, stackTitle: string | null): string | null => {
+const ticketOf = (state: DataState, row: ListedSpace): TicketFacts | null => {
+  const readable = readableRowOf(state, row);
+
   if (readable === null) {
     return null;
-  }
-
-  if (showsTitle(stackTitle)) {
-    return stackTitle;
   }
 
   const id = ticketIdOf(readable.git.branch, folderNameOf(readable.git.root));
@@ -61,7 +60,15 @@ const ticketTitleOf = (readable: ReadableRow | null, stackTitle: string | null):
     return null;
   }
 
-  return readable.facts.trackers[readable.git.repo.key]?.tickets[id]?.title ?? null;
+  return readable.facts.trackers[readable.git.repo.key]?.tickets[id] ?? null;
+};
+
+const ticketTitleOf = (ticket: TicketFacts | null, stackTitle: string | null): string | null => {
+  if (showsTitle(stackTitle)) {
+    return stackTitle;
+  }
+
+  return ticket?.title ?? null;
 };
 
 const rowModelOf = (
@@ -72,12 +79,14 @@ const rowModelOf = (
 ): RowModel => {
   const readable = readableRowOf(state, row);
   const stackFacts = readable === null ? null : stackFactsOf(readable);
+  const ticket = ticketOf(state, row);
 
   return {
     row,
     project,
     pull: pullOf(row.git, pullFactsOf(state)),
-    ticketTitle: ticketTitleOf(readable, stackFacts?.title ?? null),
+    ticket,
+    ticketTitle: ticketTitleOf(ticket, stackFacts?.title ?? null),
     need: needAt(state, row.git, stackFacts?.need ?? null, lastNeeds),
     stack: stackFacts?.stack ?? null,
   };

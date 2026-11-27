@@ -169,9 +169,8 @@ export const sidebarParts = (): Element[] => {
           title: 'Tau workflow sidebar',
           progress: { merged: 3, total: 8 },
           links: [linkText(sampleLink.ticket), linkText(pullLabel(sampleLink.pull))],
-          end: linkText('Stack ›'),
         }),
-        spaceFooter({ title: 'Notes', links: [linkText('ME-1180')], end: linkText('Stack ›') }),
+        spaceFooter({ title: 'Notes', links: [linkText('ME-1180')] }),
       ]),
     ),
     sample(

@@ -23,7 +23,7 @@ export interface ShownRow {
 
 const projectKey = (row: ListedSpace): string => row.git?.repo.key ?? row.place.key;
 
-const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
+export const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
   row.git !== null && !row.git.linked;
 
 const projectNameOf = (row: ListedSpace): string => {

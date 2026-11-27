@@ -112,7 +112,6 @@ const selectedFooter = (selected: FakeSpace): Element =>
     title: selected.title,
     ...(selected.stack === undefined ? {} : { progress: selected.stack }),
     links: selectedLinks.map((link) => linkText(link)),
-    end: linkText('Stack ›'),
   });
 
 const sidebar = (): Element => {

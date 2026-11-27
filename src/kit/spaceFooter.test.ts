@@ -8,7 +8,7 @@ interface SpaceFooterOptions {
   title: string;
   progress?: { merged: number; total: number };
   links: DrawnElement[];
-  end: DrawnElement;
+  end?: DrawnElement;
 }
 
 const palette = { border: '#1a1a1a', dim: '#2b2b3b', foreground: '#3c3c4c' } as const;
@@ -77,5 +77,11 @@ describe('spaceFooter', () => {
       '#504',
       'Stack ›',
     ]);
+  });
+
+  test('a footer with no links draws only the title line', () => {
+    const footer = spaceFooter({ title: 'Notes', links: [] });
+
+    expect(drawnTexts(footer)).toEqual(['Notes']);
   });
 });
