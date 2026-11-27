@@ -16,32 +16,32 @@ Survivors are `Survived` plus `NoCoverage` mutants. "Timeout" mutants are not in
 
 ## Commits
 
-| Commit    | Change                                                 | Mutants | Killed | Survived | No coverage | Timeout | Wall time |
-| --------- | ------------------------------------------------------ | ------: | -----: | -------: | ----------: | ------: | --------: |
-| `675f1a2` | count sub-agents in space and tab status (#7)          |     154 |    123 |       29 |           0 |       2 |      13 s |
-| `c48dd81` | name tabs in the Go to panel the same way (#9)         |       1 |      1 |        0 |           0 |       0 |      13 s |
-| `4599012` | restyle the sidebar's repository labels and rail (#8)  |     129 |    111 |       14 |           4 |       0 |      14 s |
-| `189acd7` | add a Neovim-style normal mode (#6)                    |     368 |    290 |       60 |          18 |       0 |      14 s |
-| `06e57fe` | restyle Koja with a light theme and rounded panes (#3) |      55 |     51 |        3 |           1 |       0 |      13 s |
-| `09c6ffb` | added lines in the production files changed since it   |    7302 |   5818 |     1259 |         168 |      57 |      54 s |
+| Commit    | Change                                                 | Mutants | Killed | Survived | No coverage | Timeout | Stryker time |
+| --------- | ------------------------------------------------------ | ------: | -----: | -------: | ----------: | ------: | -----------: |
+| `675f1a2` | count sub-agents in space and tab status (#7)          |     154 |    123 |       29 |           0 |       2 |         13 s |
+| `c48dd81` | name tabs in the Go to panel the same way (#9)         |       1 |      1 |        0 |           0 |       0 |         13 s |
+| `4599012` | restyle the sidebar's repository labels and rail (#8)  |     129 |    111 |       14 |           4 |       0 |         14 s |
+| `189acd7` | add a Neovim-style normal mode (#6)                    |     368 |    290 |       60 |          18 |       0 |         14 s |
+| `06e57fe` | restyle Koja with a light theme and rounded panes (#3) |      55 |     51 |        3 |           1 |       0 |         13 s |
+| `09c6ffb` | added lines in the production files changed since it   |    7302 |   5818 |     1259 |         168 |      57 |         54 s |
 
 The `09c6ffb` run differs from the others. It ran in this repository on Bun 1.4.5 with the settings
 below, as `bunx --bun mutation changed 09c6ffb`, so it mutated the added lines in the production
 files changed since that commit. Its dry run ran 3388 tests in 3 seconds. It is one run, and no
-spread was measured. Its time is the 54 seconds Stryker reported for the mutant runs, not the whole
-command. It covers far more code than the older rows.
+spread was measured. Its 54 seconds is the elapsed time Stryker reported, which covers its own
+preparation and the dry run, not the whole command. It covers far more code than the older rows.
 
 Each older run spent about 11 seconds on the dry run of 190 to 300 tests. Nearly all of it was the
 preview-shell tests, which wait on real timers. They are now left out of the sandbox, see
-`ignorePatterns`, and the dry run of the 369 remaining tests took under a second then. No run
-mutated a file outside the `mutate` list below.
+`ignorePatterns`, and the dry run of the 369 remaining tests took under a second after that change.
+No run mutated a file outside the `mutate` list below.
 
 ## Settings
 
 | Setting                       | Value                                                                                                           | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `testRunner`, `plugins`       | `bun`, `@hughescr/stryker-bun-runner`                                                                           | Koja's tests use `bun:test`. The runner gives per-test coverage. All six runs worked.                                                                                                                                                                                                                                                                                                                                                       |
-| `bun.timeout`, `bun.bunArgs`  | `600000`, `--timeout 60000`                                                                                     | Copied from Mergit, where instrumented tests timed out with the defaults. The older runs' dry run took under a second and the `09c6ffb` run's took 3 seconds, so these limits are never close. They were not measured here.                                                                                                                                                                                                                 |
+| `bun.timeout`, `bun.bunArgs`  | `600000`, `--timeout 60000`                                                                                     | Copied from Mergit, where instrumented tests timed out with the defaults. The older runs' dry run took under a second and the `09c6ffb` run's took 3 seconds. The limits themselves were not measured here.                                                                                                                                                                                                                                 |
 | `coverageAnalysis`            | `perTest`                                                                                                       | Stryker runs only the tests that cover a mutant. The older runs of 1 to 368 mutants took 13 to 14 seconds.                                                                                                                                                                                                                                                                                                                                  |
 | `mutate`                      | `src/**/*.ts`, minus tests                                                                                      | Every production file is under `src/`, and every source module is mutated. Tests mock Herdr's modules with `mock.module()`, so every module loads under `bun test`. See "Modules that import Herdr's packages".                                                                                                                                                                                                                             |
 | `patchedDependencies`         | `@hughescr/stryker-bun-runner@1.6.0` to a file under `patches/`                                                 | The runner imported every mutated file before any test ran, which failed for a module that imports Herdr's packages. The patch sets that list to empty. A runner upgrade must carry the patch forward: 1.6.1 still imports the files before the tests and has no option to turn it off.                                                                                                                                                     |
@@ -73,8 +73,7 @@ the tests and has no option to turn it off.
 ## Advisory CI job
 
 The `Mutation` job runs on pull requests, lists survivors, and is not a required check.
-`timeout-minutes: 60` is far above the 54 seconds the slowest run above took, and it bounds a large
-refactor, because the package has no mutant cap by default.
+`timeout-minutes: 60` bounds a large refactor, because the package has no mutant cap by default.
 
 ## Accepted survivors
 
