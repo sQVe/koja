@@ -219,7 +219,7 @@ describe('projectRows', () => {
       age: null,
       hovered: null,
       lookup: () => null,
-      attachDrag: () => undefined,
+      reorder: { start: () => undefined, move: () => undefined, drop: () => undefined },
       onHover: () => undefined,
       toggleFold: () => undefined,
     };

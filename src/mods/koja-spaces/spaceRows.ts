@@ -18,7 +18,7 @@ import {
   workIcon,
 } from '../../kit/index.ts';
 import type { Project } from './projects.ts';
-import { rowCut, rowTitleOf } from './rows.ts';
+import { rowCut } from './rows.ts';
 import { openSpaceMenu } from './spaceMenu.ts';
 import type { ListedSpace } from './tree.ts';
 
@@ -42,16 +42,23 @@ export type RowInteraction =
     };
 
 export interface RowState extends RowBaseState {
+  title: string;
   need: StackNeed | null;
   card: StackCardModel | null;
   interaction: RowInteraction;
+}
+
+export interface ReorderCallbacks {
+  start: () => void;
+  move: (cx: Context) => void;
+  drop: (cx: Context) => void;
 }
 
 export interface HeaderState extends RowBaseState {
   hovered: string | null;
   onHover: (spaceId: string, hovered: boolean, cx: Context) => void;
   toggleFold: (key: string, cx: Context) => void;
-  attachDrag: (element: Element, space: SpaceInfo, ids: readonly string[]) => void;
+  reorder: ReorderCallbacks;
 }
 
 const dropMark = (state: RowBaseState, id: string, ids: readonly string[]): DropMark | undefined =>
@@ -60,6 +67,19 @@ const dropMark = (state: RowBaseState, id: string, ids: readonly string[]): Drop
 const projectDetail = (projectName: string): Element =>
   detailText(projectName).max_w(controlSize.factValueMaxWidth).truncate();
 
+export const attachReorder = (element: Element, callbacks: ReorderCallbacks): void => {
+  element
+    .on_mouse_down('left', () => {
+      callbacks.start();
+    })
+    .on_mouse_move((_event, cx) => {
+      callbacks.move(cx);
+    })
+    .on_mouse_up('left', (_event, cx) => {
+      callbacks.drop(cx);
+    });
+};
+
 const attachInteraction = (
   element: Element,
   space: SpaceInfo,
@@ -67,16 +87,17 @@ const attachInteraction = (
   interaction: RowInteraction,
 ): void => {
   if (interaction.kind === 'reorder') {
-    element
-      .on_mouse_down('left', () => {
+    attachReorder(element, {
+      start: () => {
         interaction.start(space, ids);
-      })
-      .on_mouse_move((_event, cx) => {
+      },
+      move: (cx) => {
         interaction.move(space, cx);
-      })
-      .on_mouse_up('left', (_event, cx) => {
+      },
+      drop: (cx) => {
         interaction.drop(space, ids, cx);
-      });
+      },
+    });
   } else {
     element.on_click((_event, cx) => {
       interaction.select(space.id, cx);
@@ -130,7 +151,7 @@ export const row = (
     inset: true,
     state: rowState,
     start: spaceMark(listed.status),
-    label: rowTitleOf(space.named, space.name, pull, ticketTitle),
+    label: state.title,
     cut: rowCut(space.named, pull, ticketTitle),
     ...(drop === undefined ? {} : { drop }),
     dragged: state.drag.source === space.id && state.drag.over !== space.id,
@@ -172,7 +193,11 @@ export const headerRow = (
     ...(drop === undefined ? {} : { drop }),
   }).id(`space-${space.id}`);
 
-  state.attachDrag(element, space, ids);
+  attachReorder(element, state.reorder);
+
+  element.on_mouse_down('right', () => {
+    openSpaceMenu(space);
+  });
 
   if (foldable(project)) {
     element.on_hover((hovered, cx) => {

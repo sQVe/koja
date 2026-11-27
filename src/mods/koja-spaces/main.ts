@@ -47,10 +47,9 @@ import { rowTitleOf } from './rows.ts';
 import { sidebarViewKey, readSidebarView } from './sidebarView.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
 import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
-import { openSpaceMenu } from './spaceMenu.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
-import type { HeaderState, RowInteraction, RowState } from './spaceRows.ts';
-import { headerRow, row as spaceRow } from './spaceRows.ts';
+import type { HeaderState, ReorderCallbacks, RowInteraction, RowState } from './spaceRows.ts';
+import { attachReorder, headerRow, row as spaceRow } from './spaceRows.ts';
 import { stackCardOf } from './stackCard.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import { viewBar } from './viewBar.ts';
@@ -172,13 +171,7 @@ export default class Spaces extends View {
     this.followClose(order);
     this.followMark(isSidebarMarked());
 
-    const model = listModelOf({
-      state,
-      listed,
-      folds: this.foldedProjects,
-      view: readSidebarView(storage.get(sidebarViewKey)),
-      lastNeeds: this.lastNeeds,
-    });
+    const model = this.currentModel(state, listed);
 
     const topStrip = div().flex_none().h(topStripHeight());
 
@@ -389,14 +382,18 @@ export default class Spaces extends View {
     return groupProjects(this.listedSpaces(state), this.foldedProjects);
   }
 
-  private shownIds(state: DataState): string[] {
+  private currentModel(state: DataState, listed: ListedSpace[]): ListModel {
     return listModelOf({
       state,
-      listed: this.listedSpaces(state),
+      listed,
       folds: this.foldedProjects,
       view: readSidebarView(storage.get(sidebarViewKey)),
       lastNeeds: this.lastNeeds,
-    }).ids;
+    });
+  }
+
+  private shownIds(state: DataState): string[] {
+    return this.currentModel(state, this.listedSpaces(state)).ids;
   }
 
   private projectChildren(state: DataState): ProjectChildren[] {
@@ -453,6 +450,7 @@ export default class Spaces extends View {
     );
 
     return {
+      title,
       drag: this.dragFor('space'),
       refused: this.refused,
       cursor,
@@ -519,9 +517,7 @@ export default class Spaces extends View {
       cursor,
       age: waitAge(this.waitTimes, waiting, now),
       hovered: this.hovered,
-      attachDrag: (element) => {
-        this.addProjectDragHandlers(element, project, ids);
-      },
+      reorder: this.projectReorder(project, ids),
       onHover: this.setHovered,
       toggleFold: this.toggleFold,
     };
@@ -606,7 +602,7 @@ export default class Spaces extends View {
         };
       },
       attachFoldDrag: (element, project) => {
-        this.addProjectDragHandlers(element, project, ids);
+        attachReorder(element, this.projectReorder(project, ids));
       },
       pullFailed: (git) => pullFailedAt(state, git),
       retryPull: this.retryPull,
@@ -686,27 +682,20 @@ export default class Spaces extends View {
     cx.notify();
   }
 
-  private addProjectDragHandlers(element: Element, project: Project, ids: readonly string[]): void {
-    element
-      .on_mouse_down('left', () => {
+  private projectReorder(project: Project, ids: readonly string[]): ReorderCallbacks {
+    return {
+      start: () => {
         const keys = this.projectKeys(readDataState(shared, Date.now()));
 
         this.drag = { kind: 'project', state: startDrag(keys, keys.indexOf(project.key)) };
-      })
-      .on_mouse_move((_event, cx) => {
+      },
+      move: (cx) => {
         this.projectDragOver(project, cx);
-      })
-      .on_mouse_up('left', (_event, cx) => {
+      },
+      drop: (cx) => {
         this.dropProject(project, ids, cx);
-      });
-
-    const { main } = project;
-
-    if (main !== null) {
-      element.on_mouse_down('right', () => {
-        openSpaceMenu(main.space);
-      });
-    }
+      },
+    };
   }
 
   private endDrag(): void {

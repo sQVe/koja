@@ -72,7 +72,7 @@ const dropNeedsOfGoneWorktrees = (
 export const needAt = (
   state: DataState,
   git: GitInfo | null,
-  fresh: StackNeed | null,
+  freshNeed: StackNeed | null,
   lastNeeds: Map<string, KeptNeed>,
 ): StackNeed | null => {
   if (state.kind === 'unavailable' || git === null) {
@@ -93,17 +93,17 @@ export const needAt = (
 
   dropNeedsOfGoneWorktrees(lastNeeds, state.snapshot.facts.git.worktrees);
 
-  if (fresh === null) {
+  if (freshNeed === null) {
     lastNeeds.delete(git.worktreeKey);
   } else {
     lastNeeds.set(git.worktreeKey, {
       branch: git.branch,
       repositoryKey: git.repo.key,
-      need: fresh,
+      need: freshNeed,
     });
   }
 
-  return fresh;
+  return freshNeed;
 };
 
 export const answeredPlaces = (state: DataState): Set<string> => {

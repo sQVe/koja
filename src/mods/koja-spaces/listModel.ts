@@ -3,7 +3,7 @@ import { folderNameOf } from '../../data/fields.ts';
 import { ticketIdOf } from '../../data/linearTickets.ts';
 import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
-import type { RepositoryPulls } from '../../data/snapshot.ts';
+import type { Facts } from '../../data/snapshot.ts';
 import type { SpaceStack, WorktreeStackFacts } from '../../data/spaceStack.ts';
 import { worktreeStackFactsOf } from '../../data/spaceStack.ts';
 import type { KeptNeed } from './gitFacts.ts';
@@ -15,7 +15,7 @@ import { groupProjects, noFolds, shownRows, shownSpaces } from './projects.ts';
 import { pullOf } from './pulls.ts';
 import { showsTitle } from './rows.ts';
 import type { SidebarView } from './sidebarView.ts';
-import type { FoldedKeys, ListedSpace } from './tree.ts';
+import type { FoldedKeys, GitInfo, ListedSpace } from './tree.ts';
 
 export interface RowModel {
   row: ListedSpace;
@@ -30,50 +30,50 @@ export type ListModel =
   | { view: 'projects'; projects: Project[]; rows: ReadonlyMap<string, RowModel>; ids: string[] }
   | { view: 'inbox'; groups: InboxGroup[]; rows: ReadonlyMap<string, RowModel>; ids: string[] };
 
-const stackFactsAt = (state: DataState, row: ListedSpace): WorktreeStackFacts | null => {
+interface ReadableRow {
+  facts: Facts;
+  git: GitInfo;
+}
+
+const readableRowOf = (state: DataState, row: ListedSpace): ReadableRow | null => {
   if (state.kind === 'unavailable' || row.git === null) {
     return null;
   }
 
-  return worktreeStackFactsOf(state.snapshot.facts, row.git.worktreeKey);
+  return { facts: state.snapshot.facts, git: row.git };
 };
 
-const ticketTitleOf = (
-  state: DataState,
-  row: ListedSpace,
-  stackTitle: string | null,
-): string | null => {
-  if (state.kind === 'unavailable' || row.git === null) {
-    return null;
-  }
+const stackFactsOf = (readable: ReadableRow): WorktreeStackFacts | null =>
+  worktreeStackFactsOf(readable.facts, readable.git.worktreeKey);
 
+const ticketTitleOf = (readable: ReadableRow, stackTitle: string | null): string | null => {
   if (showsTitle(stackTitle)) {
     return stackTitle;
   }
 
-  const id = ticketIdOf(row.git.branch, folderNameOf(row.git.root));
+  const id = ticketIdOf(readable.git.branch, folderNameOf(readable.git.root));
 
   if (id === null) {
     return null;
   }
 
-  return state.snapshot.facts.trackers[row.git.repo.key]?.tickets[id]?.title ?? null;
+  return readable.facts.trackers[readable.git.repo.key]?.tickets[id]?.title ?? null;
 };
 
 const rowModelOf = (
   state: DataState,
   row: ListedSpace,
   project: string,
-  pulls: Record<string, RepositoryPulls>,
   lastNeeds: Map<string, KeptNeed>,
 ): RowModel => {
-  const facts = stackFactsAt(state, row);
+  const readable = readableRowOf(state, row);
+  const facts = readable === null ? null : stackFactsOf(readable);
 
   return {
     row,
     project,
-    pull: pullOf(row.git, pulls),
-    ticketTitle: ticketTitleOf(state, row, facts?.title ?? null),
+    pull: pullOf(row.git, pullFactsOf(state)),
+    ticketTitle: readable === null ? null : ticketTitleOf(readable, facts?.title ?? null),
     need: needAt(state, row.git, facts?.need ?? null, lastNeeds),
     stack: facts?.stack ?? null,
   };
@@ -90,13 +90,12 @@ export const listModelOf = (input: {
   lastNeeds: Map<string, KeptNeed>;
 }): ListModel => {
   const { state, listed, folds, view, lastNeeds } = input;
-  const pulls = pullFactsOf(state);
   const all = groupProjects(listed, noFolds);
   const shown = shownRows(all);
   const rows = new Map<string, RowModel>();
 
   for (const { row, project } of shown) {
-    rows.set(row.space.id, rowModelOf(state, row, project, pulls, lastNeeds));
+    rows.set(row.space.id, rowModelOf(state, row, project, lastNeeds));
   }
 
   if (view === 'inbox') {

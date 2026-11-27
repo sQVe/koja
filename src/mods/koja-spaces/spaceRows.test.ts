@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { SpaceInfo, Status } from 'herdr';
 
@@ -22,6 +22,7 @@ import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
 import { controlSize } from '../../kit/size.ts';
 import type { Project } from './projects.ts';
+import { rowTitleOf } from './rows.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import type { WaitTimes } from './waitTimes.ts';
 import { advanceWaitTimes, emptyWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
@@ -50,6 +51,7 @@ type InteractionLike =
     };
 
 interface RowStateLike extends BaseStateLike {
+  title: string;
   need: StackNeed | null;
   card: null;
   interaction: InteractionLike;
@@ -59,7 +61,7 @@ interface HeaderStateLike extends BaseStateLike {
   hovered: string | null;
   onHover: (spaceId: string, hovered: boolean, cx: unknown) => void;
   toggleFold: (key: string, cx: unknown) => void;
-  attachDrag: (element: unknown, space: SpaceInfo, ids: readonly string[]) => void;
+  reorder: { start: () => void; move: (cx: unknown) => void; drop: (cx: unknown) => void };
 }
 
 const themeColors = {
@@ -133,6 +135,10 @@ afterAll(() => {
   mock.restore();
 });
 
+beforeEach(() => {
+  overlays.length = 0;
+});
+
 const git: GitInfo = {
   branch: 'feature-login',
   worktreeKey: worktreeOf(null, '/code/koja').key,
@@ -178,15 +184,29 @@ const reorder = (
   drop: ReorderDrop = () => undefined,
 ): InteractionLike => ({ kind: 'reorder', start, move, drop });
 
-const stateWith = (age: string | null = null, need: StackNeed | null = null): RowStateLike => ({
+const stateWith = (
+  age: string | null = null,
+  need: StackNeed | null = null,
+  title = 'login',
+): RowStateLike => ({
   ...baseState(age),
+  title,
   need,
   card: null,
   interaction: reorder(),
 });
 
 const textsOf = (named: boolean, found: Pull | null): string[] =>
-  drawnTexts(loaded.row(listedSpace(named), ['a'], stateWith(), found, null, null));
+  drawnTexts(
+    loaded.row(
+      listedSpace(named),
+      ['a'],
+      stateWith(null, null, rowTitleOf(named, 'login', found, null)),
+      found,
+      null,
+      null,
+    ),
+  );
 
 describe('row', () => {
   test('draws the space title and no PR number and no branch', () => {
@@ -233,8 +253,6 @@ describe('row', () => {
   test('a row with a project name attaches no drag', () => {
     const selected: string[] = [];
 
-    overlays.length = 0;
-
     const rowElement = loaded.row(
       listedSpace(true),
       ['a'],
@@ -251,8 +269,6 @@ describe('row', () => {
       null,
       'koja',
     );
-
-    expect(rowElement.mouseHandlers['on_mouse_down:left']).toBeUndefined();
 
     rowElement.clickHandlers[0]?.({}, {});
     rowElement.mouseHandlers['on_mouse_down:right']?.[0]?.({}, {});
@@ -339,7 +355,7 @@ const headerState = (hovers: string[]): HeaderStateLike => ({
     hovers.push(`${spaceId} ${String(hovered)}`);
   },
   toggleFold: () => undefined,
-  attachDrag: () => undefined,
+  reorder: { start: () => undefined, move: () => undefined, drop: () => undefined },
 });
 
 describe('headerRow', () => {

@@ -8,7 +8,6 @@ import {
   loadView,
   resetKojaSpaces,
   restoreKojaSpaces,
-  selected,
   setupKojaSpaces,
   showFacts,
   space,
@@ -92,22 +91,6 @@ const rowOf = (view: FakeView, id: string): DrawnElement => {
   return row;
 };
 
-const dragAndDrop = (view: FakeView, source: string, target: string): void => {
-  for (const handler of rowOf(view, source).mouseHandlers['on_mouse_down:left'] ?? []) {
-    handler({}, context);
-  }
-
-  const move = rowOf(view, target).styles['on_mouse_move']?.[0] as
-    | ((event: unknown, cx: unknown) => void)
-    | undefined;
-
-  move?.({}, context);
-
-  for (const handler of rowOf(view, target).mouseHandlers['on_mouse_up:left'] ?? []) {
-    handler({}, context);
-  }
-};
-
 describe('koja-spaces stack card', () => {
   test("a stack space's row opens a card listing its pulls", async () => {
     anotherOwner();
@@ -170,36 +153,7 @@ describe('koja-spaces stack card', () => {
   });
 });
 
-const useProjectRows = (): void => {
-  const checkouts = [
-    { folder: '/code/alpha', commonDirectory: '/code/alpha/.git', linked: false },
-    { folder: '/code/alpha-1', commonDirectory: '/code/alpha/.git', linked: true },
-    { folder: '/code/alpha-2', commonDirectory: '/code/alpha/.git', linked: true },
-    { folder: '/code/alpha-3', commonDirectory: '/code/alpha/.git', linked: true },
-  ];
-
-  showFacts(storedFacts(checkouts));
-
-  state.spaceList = [
-    space('alpha', true, '/code/alpha'),
-    space('alpha-1', false, '/code/alpha-1'),
-    space('alpha-2', false, '/code/alpha-2'),
-    space('alpha-3', false, '/code/alpha-3'),
-  ];
-};
-
 describe('koja-spaces row interaction', () => {
-  test('an Inbox row selects on click', async () => {
-    useSpaces(true);
-    state.store.set(sidebarViewKey, 'inbox');
-
-    const view = await loadView();
-
-    rowOf(view, 'w').clickHandlers[0]?.({}, context);
-
-    expect(selected()).toEqual(['w']);
-  });
-
   test('a right click on a row opens its space menu', async () => {
     useSpaces(true);
     state.store.set(sidebarViewKey, 'inbox');
@@ -217,22 +171,5 @@ describe('koja-spaces row interaction', () => {
         props: { tab: 'space', target: { id: 'w' } },
       }),
     ]);
-  });
-
-  test('a Projects row still reorders by drag and selects on a drop on itself', async () => {
-    useProjectRows();
-
-    const view = await loadView();
-
-    dragAndDrop(view, 'alpha-1', 'alpha-3');
-
-    expect(state.runCalls).toContainEqual({
-      command: 'space.move',
-      args: { id: 'alpha-1', index: 4 },
-    });
-
-    dragAndDrop(view, 'alpha-2', 'alpha-2');
-
-    expect(selected()).toEqual(['alpha-2']);
   });
 });

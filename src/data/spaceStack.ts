@@ -2,7 +2,7 @@ import { ticketIdOf } from './linearTickets.ts';
 import type { StackNeed } from './pullNeeds.ts';
 import { mostBlockingNeed, pullStackNeed } from './pullNeeds.ts';
 import type { Pull } from './pulls.ts';
-import type { Facts, TicketFacts } from './snapshot.ts';
+import type { Facts, TicketFacts, WorktreeGit } from './snapshot.ts';
 import { pullOfBranch } from './snapshot.ts';
 import type { Stack, StackBranch } from './stacks.ts';
 import { stackOfBranch } from './stacks.ts';
@@ -56,13 +56,7 @@ const stateOf = (pull: Pull | null): StackPull['state'] => {
   return 'unknown';
 };
 
-const worktreeStackOf = (facts: Facts, worktreeKey: string): WorktreeStack | null => {
-  const worktree = facts.git.worktrees[worktreeKey];
-
-  if (worktree === undefined) {
-    return null;
-  }
-
+const worktreeStackOf = (facts: Facts, worktree: WorktreeGit): WorktreeStack | null => {
   const recorded = facts.stacks[worktree.repository.key]?.stacks ?? [];
   const stack = stackOfBranch(recorded, worktree.branch);
 
@@ -173,7 +167,7 @@ export const worktreeStackFactsOf = (
     return null;
   }
 
-  const found = worktreeStackOf(facts, worktreeKey);
+  const found = worktreeStackOf(facts, worktree);
 
   if (found === null) {
     return {
