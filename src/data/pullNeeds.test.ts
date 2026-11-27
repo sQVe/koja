@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
 import { pullFacts } from '../../tests/pullFacts.ts';
-import { pullNeeds } from './pullNeeds.ts';
+import type { StackNeed } from './pullNeeds.ts';
+import { pullNeeds, pullStackNeed } from './pullNeeds.ts';
 import type { Pull } from './pulls.ts';
+import type { StackBranch } from './stacks.ts';
 
 const readyPull = (fields: Partial<Pull> = {}): Pull =>
   pullFacts({
@@ -76,5 +78,45 @@ describe('pullNeeds', () => {
 
     expect(pullNeeds(threadsFailed)).toEqual([]);
     expect(pullNeeds(checksFailed)).toEqual(['failing']);
+  });
+});
+
+describe('pullStackNeed', () => {
+  test('the most blocking need of a pull wins', () => {
+    const rows = [
+      {
+        need: 'conflict',
+        pull: readyPull({ mergeable: 'conflicting', checks: { kind: 'read', value: 'failing' } }),
+        restack: 'none',
+      },
+      {
+        need: 'failing',
+        pull: readyPull({ checks: { kind: 'read', value: 'failing' }, review: 'changesRequested' }),
+        restack: 'none',
+      },
+      {
+        need: 'review',
+        pull: readyPull({ review: 'changesRequested' }),
+        restack: 'needed',
+      },
+      {
+        need: 'restack',
+        pull: readyPull(),
+        restack: 'needed',
+      },
+    ] satisfies { need: StackNeed; pull: Pull; restack: StackBranch['restack'] }[];
+
+    for (const row of rows) {
+      expect(pullStackNeed(row.pull, row.restack)).toBe(row.need);
+    }
+  });
+
+  test('drafts, closed PRs, and missing PRs need nothing', () => {
+    const draft = readyPull({ isDraft: true });
+    const merged = readyPull({ state: 'MERGED', checks: { kind: 'read', value: 'failing' } });
+
+    expect(pullStackNeed(draft, 'needed')).toBeNull();
+    expect(pullStackNeed(merged, 'none')).toBeNull();
+    expect(pullStackNeed(null, 'needed')).toBeNull();
   });
 });

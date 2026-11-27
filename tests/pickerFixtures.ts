@@ -103,6 +103,7 @@ export const stackPullOf = (fields: Partial<StackPull> & Pick<StackPull, 'branch
   state: 'open',
   checkedOut: false,
   restack: 'none',
+  need: null,
   ...fields,
 });
 

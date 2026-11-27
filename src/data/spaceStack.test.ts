@@ -5,7 +5,7 @@ import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import { ticketIdOf } from './linearTickets.ts';
 import type { Pull } from './pulls.ts';
 import type { Facts, TicketFacts } from './snapshot.ts';
-import { spaceStackOf, stackTitleOf } from './spaceStack.ts';
+import { spaceNeedOf, spaceStackOf, stackTitleOf } from './spaceStack.ts';
 import type { StackBranch } from './stacks.ts';
 
 interface Fixture {
@@ -87,6 +87,17 @@ const factsOf = (fixture: Fixture): Facts => {
 const pullOf = (branch: string, number: number, state: string, isDraft = false): Pull =>
   pullFacts({ number, headRefName: branch, title: `Title of ${number}`, state, isDraft });
 
+const readyPullOf = (branch: string, number: number): Pull =>
+  pullFacts({
+    number,
+    headRefName: branch,
+    mergeable: 'mergeable',
+    mergeState: 'clean',
+    review: 'approved',
+    checks: { kind: 'read', value: 'passing' },
+    threads: { kind: 'read', value: { unresolved: 0, complete: true } },
+  });
+
 describe('spaceStackOf', () => {
   test("a space's stack counts merged PRs", () => {
     const facts = factsOf({
@@ -106,6 +117,7 @@ describe('spaceStackOf', () => {
           state: 'merged',
           checkedOut: false,
           restack: 'none',
+          need: null,
         },
         {
           branch: 'me-2-two',
@@ -115,6 +127,7 @@ describe('spaceStackOf', () => {
           state: 'open',
           checkedOut: true,
           restack: 'none',
+          need: null,
         },
         {
           branch: 'me-3-three',
@@ -124,6 +137,7 @@ describe('spaceStackOf', () => {
           state: 'unknown',
           checkedOut: false,
           restack: 'none',
+          need: null,
         },
       ],
       merged: 1,
@@ -148,6 +162,7 @@ describe('spaceStackOf', () => {
         state: 'merged',
         checkedOut: true,
         restack: 'none',
+        need: null,
       },
     ]);
   });
@@ -170,6 +185,7 @@ describe('spaceStackOf', () => {
         state: 'unknown',
         checkedOut: true,
         restack: 'needed',
+        need: null,
       },
     ]);
   });
@@ -193,6 +209,7 @@ describe('spaceStackOf', () => {
         state: 'merged',
         checkedOut: true,
         restack: 'none',
+        need: null,
       },
     ]);
   });
@@ -213,6 +230,7 @@ describe('spaceStackOf', () => {
         state: 'unknown',
         checkedOut: true,
         restack: 'none',
+        need: null,
       },
     ]);
   });
@@ -227,6 +245,39 @@ describe('spaceStackOf', () => {
     const states = spaceStackOf(facts, worktree.key)?.pulls.map((pull) => pull.state);
 
     expect(states).toEqual(['draft', 'closed']);
+  });
+});
+
+describe('spaceNeedOf', () => {
+  test('a stack with a failing PR and a mergeable PR needs CI fixed', () => {
+    const facts = factsOf({
+      stack: ['me-1-one', 'me-2-two'],
+      branch: 'me-2-two',
+      pulls: [
+        pullFacts({
+          number: 11,
+          headRefName: 'me-1-one',
+          checks: { kind: 'read', value: 'failing' },
+        }),
+        readyPullOf('me-2-two', 12),
+      ],
+    });
+
+    expect(spaceNeedOf(facts, worktree.key)).toBe('failing');
+
+    const needs = spaceStackOf(facts, worktree.key)?.pulls.map((pull) => pull.need);
+
+    expect(needs).toEqual(['failing', 'merge']);
+  });
+
+  test("a space without a stack takes its own PR's need", () => {
+    const facts = factsOf({
+      stack: [],
+      branch: 'me-1-one',
+      pulls: [pullFacts({ number: 11, headRefName: 'me-1-one', review: 'changesRequested' })],
+    });
+
+    expect(spaceNeedOf(facts, worktree.key)).toBe('review');
   });
 });
 

@@ -7,8 +7,19 @@ import type {
 } from './pullAnswer.ts';
 import type { Pull } from './pulls.ts';
 import { partValueOf } from './pulls.ts';
+import type { StackBranch } from './stacks.ts';
 
 export type PullNeed = 'failing' | 'review' | 'conflict' | 'ready';
+
+export type StackNeed = 'conflict' | 'failing' | 'review' | 'restack' | 'merge';
+
+const needRanks: Record<StackNeed, number> = {
+  conflict: 0,
+  failing: 1,
+  review: 2,
+  restack: 3,
+  merge: 4,
+};
 
 const hasFailingChecks = (checks: PullChecks | null): boolean => checks === 'failing';
 
@@ -68,4 +79,31 @@ export const pullNeeds = (pull: Pull): PullNeed[] => {
   }
 
   return needs;
+};
+
+export const mostBlockingNeed = (needs: readonly (StackNeed | null)[]): StackNeed | null => {
+  const present = needs.filter((need): need is StackNeed => need !== null);
+  const ordered = present.toSorted((first, second) => needRanks[first] - needRanks[second]);
+
+  return ordered[0] ?? null;
+};
+
+const stackNeedOf = (need: PullNeed): StackNeed => (need === 'ready' ? 'merge' : need);
+
+export const pullStackNeed = (
+  pull: Pull | null,
+  restack: StackBranch['restack'],
+): StackNeed | null => {
+  if (pull === null) {
+    return null;
+  }
+
+  if (pull.state !== 'OPEN' || pull.isDraft) {
+    return null;
+  }
+
+  const needs = pullNeeds(pull).map(stackNeedOf);
+  const withRestack = restack === 'needed' ? [...needs, 'restack'] : needs;
+
+  return mostBlockingNeed(withRestack);
 };
