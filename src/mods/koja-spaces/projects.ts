@@ -88,8 +88,7 @@ export const shownRows = (projects: Project[]): ShownRow[] =>
     rowsOfProject(project).map((row) => ({ row, project: project.name })),
   );
 
-export const shownSpaces = (projects: Project[]): ListedSpace[] =>
-  shownRows(projects).map(({ row }) => row);
+export const shownSpaces = (projects: Project[]): ListedSpace[] => projects.flatMap(rowsOfProject);
 
 export const rootSpaceIds = (projects: Project[]): string[] =>
   projects.flatMap((project) => {
