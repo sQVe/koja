@@ -17,7 +17,8 @@ import type { KeptNeed } from '../gitFacts.ts';
 import { needAt } from '../gitFacts.ts';
 import type { InboxGroup, InboxGroupId } from '../inbox.ts';
 import { inboxGroups, inboxIds } from '../inbox.ts';
-import { groupProjects, projectNameOf, shownSpaces } from '../projects.ts';
+import type { ShownRow } from '../projects.ts';
+import { groupProjects, shownRows } from '../projects.ts';
 import type { ListedSpace } from '../tree.ts';
 
 export interface InboxRowsHost {
@@ -35,7 +36,7 @@ export const inboxGroupsOf = (
 ): InboxGroup[] => {
   const projects = groupProjects(rows, noFolds);
 
-  return inboxGroups(shownSpaces(projects), (row) => needAt(state, row.git, lastNeeds));
+  return inboxGroups(shownRows(projects), (row) => needAt(state, row.git, lastNeeds));
 };
 
 export const inboxIdsOf = (
@@ -83,19 +84,19 @@ const groupHeader = (group: InboxGroup): Element => {
   }).id(`inbox-${id}`);
 };
 
-const inboxRow = (row: ListedSpace, host: InboxRowsHost): Element =>
+const inboxRow = (entry: ShownRow, host: InboxRowsHost): Element =>
   host
-    .draw(row, projectNameOf(row))
+    .draw(entry.row, entry.project)
     .on_click((_event, cx) => {
-      selectSpace(row.space.id, cx);
+      selectSpace(entry.row.space.id, cx);
     })
     .on_mouse_down('right', () => {
-      openSpaceMenu(row.space);
+      openSpaceMenu(entry.row.space);
     });
 
 const groupBlock = (group: InboxGroup, host: InboxRowsHost): Element[] => [
   groupHeader(group),
-  ...group.spaces.map((row) => inboxRow(row, host)),
+  ...group.spaces.map((entry) => inboxRow(entry, host)),
 ];
 
 export const inboxRows = (host: InboxRowsHost): Element[] => {

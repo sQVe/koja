@@ -1,4 +1,5 @@
 import type { StackNeed } from '../../data/pullNeeds.ts';
+import type { ShownRow } from './projects.ts';
 import type { ListedSpace } from './tree.ts';
 
 export type InboxGroupId = 'asks' | 'pulls' | 'running' | 'quiet';
@@ -6,7 +7,7 @@ export type InboxGroupId = 'asks' | 'pulls' | 'running' | 'quiet';
 export interface InboxGroup {
   id: InboxGroupId;
   label: string;
-  spaces: ListedSpace[];
+  spaces: ShownRow[];
 }
 
 const groupIds: readonly InboxGroupId[] = ['asks', 'pulls', 'running', 'quiet'];
@@ -18,7 +19,7 @@ const labels: Record<InboxGroupId, string> = {
   quiet: 'Quiet',
 };
 
-const emptyGroups = (): Record<InboxGroupId, ListedSpace[]> => ({
+const emptyGroups = (): Record<InboxGroupId, ShownRow[]> => ({
   asks: [],
   pulls: [],
   running: [],
@@ -45,13 +46,13 @@ const groupOf = (
 };
 
 export const inboxGroups = (
-  rows: readonly ListedSpace[],
+  rows: readonly ShownRow[],
   needOf: (row: ListedSpace) => StackNeed | null,
 ): InboxGroup[] => {
   const spaces = emptyGroups();
 
   for (const row of rows) {
-    spaces[groupOf(row, needOf)].push(row);
+    spaces[groupOf(row.row, needOf)].push(row);
   }
 
   return groupIds.flatMap((id) =>
@@ -60,4 +61,4 @@ export const inboxGroups = (
 };
 
 export const inboxIds = (groups: readonly InboxGroup[]): string[] =>
-  groups.flatMap((group) => group.spaces.map((row) => row.space.id));
+  groups.flatMap((group) => group.spaces.map(({ row }) => row.space.id));

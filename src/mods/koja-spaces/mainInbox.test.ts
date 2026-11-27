@@ -18,8 +18,10 @@ import {
   selected,
   send,
   setupKojaSpaces,
+  showFacts,
   space,
   state,
+  storedFacts,
 } from '../../../tests/kojaSpacesView.ts';
 import { placeOf } from '../../data/gitIdentity.ts';
 
@@ -136,6 +138,37 @@ describe('koja-spaces Inbox view', () => {
     click(clickablesWithText(view.render(), 'name-c')[0] as DrawnElement, clickContext);
 
     expect(selected()).toEqual(['c']);
+  });
+
+  test('an Inbox row names the project its header names in Projects', async () => {
+    showFacts(
+      storedFacts([
+        { folder: '/code/herdr', commonDirectory: '/repos/store/upstream.git', linked: false },
+        {
+          folder: '/code/herdr-feature',
+          commonDirectory: '/repos/store/upstream.git',
+          linked: true,
+        },
+      ]),
+    );
+
+    state.spaceList = [
+      space('herdr', false, '/code/herdr'),
+      space('feature', false, '/code/herdr-feature'),
+    ];
+
+    const projectsView = await loadView();
+    const header = elementsWithId(projectsView.render(), 'space-herdr')[0] as DrawnElement;
+
+    expect(drawnTexts(header)).toContain('herdr');
+
+    state.store.set('sidebar.view', 'inbox');
+
+    const inboxView = await loadView();
+    const row = elementsWithId(inboxView.render(), 'space-feature')[0] as DrawnElement;
+
+    expect(drawnTexts(row)).toContain('herdr');
+    expect(drawnTexts(row)).not.toContain('upstream');
   });
 
   test('the cursor moves in Inbox order', async () => {

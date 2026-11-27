@@ -5,9 +5,10 @@ import type { SpaceInfo, Status } from 'herdr';
 import { placeOf } from '../../data/gitIdentity.ts';
 import type { StackNeed } from '../../data/pullNeeds.ts';
 import { inboxGroups } from './inbox.ts';
+import type { ShownRow } from './projects.ts';
 import type { ListedSpace } from './tree.ts';
 
-const listed = (id: string, status: Status | null): ListedSpace => {
+const listed = (id: string, status: Status | null): ShownRow => {
   const space: SpaceInfo = {
     id,
     index: 1,
@@ -21,11 +22,14 @@ const listed = (id: string, status: Status | null): ListedSpace => {
     tabs: [],
   };
 
-  return { space, git: null, status, place: placeOf(space.machine, space.folder) };
+  return {
+    row: { space, git: null, status, place: placeOf(space.machine, space.folder) },
+    project: 'koja',
+  };
 };
 
 const idsOf = (groups: ReturnType<typeof inboxGroups>): string[][] =>
-  groups.map((group) => group.spaces.map((row) => row.space.id));
+  groups.map((group) => group.spaces.map(({ row }) => row.space.id));
 
 describe('inboxGroups', () => {
   test('a blocked space with failing CI sits only in Agent asks', () => {
@@ -44,15 +48,15 @@ describe('inboxGroups', () => {
     const done = listed('done', 'done');
 
     const needs = new Map<ListedSpace, StackNeed>([
-      [blocked, 'conflict'],
-      [idle, 'failing'],
+      [blocked.row, 'conflict'],
+      [idle.row, 'failing'],
     ]);
 
     const needOf = (row: ListedSpace): StackNeed | null => needs.get(row) ?? null;
 
     const groups = inboxGroups([blocked, idle, working, done], needOf);
 
-    expect(groups.map((group) => [group.id, group.spaces.map((row) => row.space.id)])).toEqual([
+    expect(groups.map((group) => [group.id, group.spaces.map(({ row }) => row.space.id)])).toEqual([
       ['asks', ['blocked']],
       ['pulls', ['idle']],
       ['running', ['working']],

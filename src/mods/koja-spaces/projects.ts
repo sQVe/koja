@@ -16,12 +16,17 @@ export interface Project {
 
 type ProjectRows = [ListedSpace, ...ListedSpace[]];
 
+export interface ShownRow {
+  row: ListedSpace;
+  project: string;
+}
+
 const projectKey = (row: ListedSpace): string => row.git?.repo.key ?? row.place.key;
 
 const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
   row.git !== null && !row.git.linked;
 
-export const projectNameOf = (row: ListedSpace): string => {
+const projectNameOf = (row: ListedSpace): string => {
   if (row.git !== null) {
     const root = row.git.linked ? null : row.git.root;
 
@@ -75,14 +80,20 @@ export const groupProjects = (list: ListedSpace[], foldedKeys: FoldedKeys): Proj
   return [...byKey].map(([key, rows]) => projectOf(key, rows, foldedKeys));
 };
 
-const shownRows = (project: Project): ListedSpace[] =>
+const rowsOfProject = (project: Project): ListedSpace[] =>
   project.main === null ? project.spaces : [project.main, ...project.spaces];
 
-export const shownSpaces = (projects: Project[]): ListedSpace[] => projects.flatMap(shownRows);
+export const shownRows = (projects: Project[]): ShownRow[] =>
+  projects.flatMap((project) =>
+    rowsOfProject(project).map((row) => ({ row, project: project.name })),
+  );
+
+export const shownSpaces = (projects: Project[]): ListedSpace[] =>
+  shownRows(projects).map(({ row }) => row);
 
 export const rootSpaceIds = (projects: Project[]): string[] =>
   projects.flatMap((project) => {
-    const root = shownRows(project)[0];
+    const root = rowsOfProject(project)[0];
 
     return root === undefined ? [] : [root.space.id];
   });
