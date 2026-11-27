@@ -200,6 +200,10 @@ describe('tabLabel live agent titles', () => {
     expect(labelOf(unnamedTab, [liveAgentPane('p1', '[web] login')])).toBe('[web] login');
   });
 
+  test('rejects a live title that holds only a bracket mark', () => {
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', '[ ! ]')])).toBe('Claude Code');
+  });
+
   test('follows the live title of a tab named after its program', () => {
     const named = { ...tab, name: 'Claude Code' };
 

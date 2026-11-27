@@ -65,9 +65,11 @@ const namesThePlace = (title: string, pane: PaneInfo): boolean =>
   title === pane.program.name ||
   title.toLowerCase() === pane.program.key;
 
+const holdsWord = (title: string): boolean => /[\p{L}\p{N}]/u.test(title);
+
 const tellsTheWork = (pane: PaneInfo): boolean => {
   const title = cleanTitle(pane.title);
-  const describesWork = title !== '' && !title.includes('@') && !namesThePlace(title, pane);
+  const describesWork = holdsWord(title) && !title.includes('@') && !namesThePlace(title, pane);
 
   return describesWork && !isPath(pane.title);
 };
