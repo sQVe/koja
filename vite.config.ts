@@ -17,6 +17,7 @@ export default defineConfig({
         // Herdr's runtime declares only bare module specifiers, so a `node:` import neither
         // typechecks nor resolves in a mod.
         files: ['src/mods/**/*.ts'],
+        excludeFiles: ['src/mods/**/*.test.ts'],
         rules: { 'unicorn/prefer-node-protocol': 'off' },
       },
     ],
