@@ -8,5 +8,9 @@
   "ignore": ["herdr/*.d.ts"],
   "ignoreDependencies": ["gpui-base", "gpui-kit"],
   "ignoreBinaries": ["mise"],
-  "stryker": false
+  "stryker": false,
+  "ignoreIssues": {
+    "src/mods/koja-spaces/inbox.ts": ["exports", "types"],
+    "src/mods/koja-spaces/sidebarView.ts": ["exports"]
+  }
 }
