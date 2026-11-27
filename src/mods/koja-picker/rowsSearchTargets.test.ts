@@ -31,6 +31,16 @@ const blockedFixture = (): PickerData =>
     panes: [paneOf('p1', 'k1', 'blocked'), { ...paneOf('p2', 'k1', 'blocked'), title: 'needle' }],
   });
 
+const hiddenStrongPaneFixture = (): PickerData =>
+  pickerData({
+    spaces: [
+      spaceOf('s1', 1, 'koja', [
+        { ...tabOf('k1', 1, true), named: true, name: 'needlework', status: 'working' },
+      ]),
+    ],
+    panes: [paneOf('p1', 'k1', 'working'), { ...paneOf('p2', 'k1', 'idle'), title: 'needle' }],
+  });
+
 const backgroundFixture = (): PickerData =>
   pickerData(
     {
@@ -61,6 +71,13 @@ describe('buildRows search under a status filter', () => {
     const [spaceRow] = buildRows('needle', ['blocked'], fixture);
 
     expect(rowPane(spaceRow, fixture)?.pane).toBe('p2');
+  });
+
+  test('a hidden pane hit never becomes the space row target', () => {
+    const fixture = hiddenStrongPaneFixture();
+    const [spaceRow] = buildRows('needle', ['working'], fixture);
+
+    expect(rowPane(spaceRow, fixture)?.pane).toBe('p1');
   });
 
   test('a background-only status targets the pane that owns the descendant', () => {

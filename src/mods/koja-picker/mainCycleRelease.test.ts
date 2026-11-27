@@ -1,10 +1,11 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import type { SpaceInfo } from 'herdr';
+import type { PaneInfo, SpaceInfo } from 'herdr';
 
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
+import { paneOf, tabOf } from '../../../tests/pickerFixtures.ts';
 
-type ModifierHandler = (event: { modifiers: { control: boolean } }) => void;
+type ModifierHandler = (event: { modifiers: { control: boolean; shift?: boolean } }) => void;
 
 interface RunCall {
   command: string;
@@ -18,6 +19,7 @@ let modifierHandler: ModifierHandler | null = null;
 let keyBindings: { keystroke: string; action: string; context?: string }[] = [];
 let props: Record<string, unknown> = {};
 let spaceValues: SpaceInfo[] = [];
+let paneValues: PaneInfo[] = [];
 let focusedValue: { space: string } | null = null;
 let runCalls: RunCall[] = [];
 let sharedValues: Record<string, unknown> = {};
@@ -116,7 +118,7 @@ await mock.module('herdr', () =>
   herdrFake({
     focused: () => focusedValue,
     nextCommand,
-    panes: () => [],
+    panes: () => paneValues,
     props: () => props,
     run: (command: string, args?: Record<string, unknown>) => {
       runCalls.push({ command, args });
@@ -204,6 +206,7 @@ beforeEach(() => {
   keyBindings = [];
   props = { part: 'list' };
   spaceValues = [];
+  paneValues = [];
   focusedValue = null;
   runCalls = [];
   sharedValues = {};
@@ -235,7 +238,7 @@ const releaseControl = (): void => {
 const selectionCommands = (): RunCall[] =>
   runCalls.filter((call) => call.command === 'space.select');
 
-const spaceOf = (id: string, index: number): SpaceInfo => ({
+const spaceOf = (id: string, index: number, tabs: SpaceInfo['tabs'] = []): SpaceInfo => ({
   id,
   index,
   name: `name-${id}`,
@@ -245,7 +248,7 @@ const spaceOf = (id: string, index: number): SpaceInfo => ({
   branch: null,
   active: index === 1,
   status: null,
-  tabs: [],
+  tabs,
 });
 
 describe('Control release', () => {
@@ -301,6 +304,46 @@ describe('Control release', () => {
 
     expect(selectionCommands()).toEqual([]);
     expect(closeOverlayCalls).toBe(0);
+  });
+
+  test('a modifier change with Control still held commits nothing', async () => {
+    focusedValue = { space: 's1' };
+    spaceValues = [spaceOf('s1', 1), spaceOf('s2', 2), spaceOf('s3', 3)];
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    await cycle();
+    modifierHandler?.({ modifiers: { control: true, shift: false } });
+
+    expect(selectionCommands()).toEqual([]);
+    expect(closeOverlayCalls).toBe(0);
+    expect(overlayCloseCount()).toBe(0);
+  });
+
+  test('a Control cycle skips tab and pane rows to the next space', async () => {
+    focusedValue = null;
+
+    spaceValues = [
+      spaceOf('s1', 1, [tabOf('k1', 1, true), tabOf('k2', 2)]),
+      spaceOf('s2', 2, [tabOf('n1', 1, true)]),
+    ];
+
+    paneValues = [paneOf('p1', 'k1'), paneOf('p2', 'k1'), paneOf('p3', 'k2'), paneOf('p4', 'n1')];
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    await cycle();
+    releaseControl();
+
+    expect(runCalls).toContainEqual({ command: 'space.select', args: { id: 's2' } });
+    expect(runCalls).not.toContainEqual({ command: 'tab.select', args: { id: 'k1' } });
+    expect(closeOverlayCalls).toBe(1);
   });
 
   test('a query edit after a cycle disarms the release', async () => {
