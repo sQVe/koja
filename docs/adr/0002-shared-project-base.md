@@ -33,9 +33,10 @@ Koja lives in its own public repository and uses the same base as Tikk and Mergi
 ### What stays local
 
 - Koja has no TUI and ships no binary. It needs neither OpenTUI nor React.
-- Mutation testing covers only modules that `bun test` can load. Herdr's modules, such as `herdr`
-  and `gpui-kit`, exist only inside the Herdr app, so mutants in modules that import them would
-  never meet a test.
+- Mutation testing covers every source module. Herdr's modules, such as `herdr` and `gpui-kit`,
+  exist only inside the Herdr app, so tests reach the modules that import them through
+  `mock.module()`. A patch on the Bun test runner turns off its import of the mutated files before
+  the tests, and a runner upgrade must carry that patch forward.
 - ADRs after 0003 and the architecture section of `AGENTS.md` belong to Koja.
 - A tool's tuning record, such as `scripts/mutation-tuning.md`, lives next to the tool's setup. It
   states why each setting has its value and the measured runs behind it, so a later change can be
