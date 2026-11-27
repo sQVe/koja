@@ -155,12 +155,34 @@ describe('needAt', () => {
     expect(needAt(readState(true), kojaGit, lastNeeds)).toBeNull();
   });
 
-  test('drops the kept need when the row moves to another branch', () => {
+  test('a successful read with no need drops the kept need', () => {
     const lastNeeds = new Map<string, KeptNeed>();
-    const otherBranch = { ...kojaGit, branch: 'other' };
 
     expect(needAt(readState(false), kojaGit, lastNeeds)).toBe('conflict');
-    expect(needAt(readState(true), otherBranch, lastNeeds)).toBeNull();
+    expect(needAt(stateOf(kojaFacts()), kojaGit, lastNeeds)).toBeNull();
+    expect(lastNeeds.has(kojaGit.worktreeKey)).toBe(false);
+    expect(needAt(readState(true), kojaGit, lastNeeds)).toBeNull();
+  });
+
+  test('drops the kept need when the row moves to another branch or repository', () => {
+    const otherBranch = { ...kojaGit, branch: 'other' };
+    const otherRepository = { ...kojaGit, repo: repositoryOf(null, '/code/other/.git') };
+
+    const moved = [
+      { git: otherBranch, state: readState(true) },
+      {
+        git: otherRepository,
+        state: stateOf(kojaFacts({ [otherRepository.repo.key]: { pulls: [], failed: true } })),
+      },
+    ];
+
+    for (const row of moved) {
+      const lastNeeds = new Map<string, KeptNeed>();
+
+      expect(needAt(readState(false), kojaGit, lastNeeds)).toBe('conflict');
+      expect(needAt(row.state, row.git, lastNeeds)).toBeNull();
+      expect(needAt(readState(true), kojaGit, lastNeeds)).toBeNull();
+    }
   });
 });
 

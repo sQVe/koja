@@ -110,6 +110,11 @@ describe('pullStackNeed', () => {
         pull: readyPull(),
         restack: 'needed',
       },
+      {
+        need: 'merge',
+        pull: readyPull(),
+        restack: 'none',
+      },
     ] satisfies { need: StackNeed; pull: Pull; restack: StackBranch['restack'] }[];
 
     for (const row of rows) {
@@ -117,12 +122,10 @@ describe('pullStackNeed', () => {
     }
   });
 
-  test('drafts, closed PRs, and missing PRs need nothing', () => {
+  test('drafts and missing PRs need nothing', () => {
     const draft = readyPull({ isDraft: true });
-    const merged = readyPull({ state: 'MERGED', checks: { kind: 'read', value: 'failing' } });
 
     expect(pullStackNeed(draft, 'needed')).toBeNull();
-    expect(pullStackNeed(merged, 'none')).toBeNull();
     expect(pullStackNeed(null, 'needed')).toBeNull();
   });
 

@@ -13,6 +13,8 @@ export type PullNeed = 'failing' | 'review' | 'conflict' | 'ready';
 
 export type StackNeed = 'conflict' | 'failing' | 'review' | 'restack' | 'merge';
 
+// The lowest rank is the single need a pull or a stack shows, so reordering this table changes
+// every work icon.
 const needRanks: Record<StackNeed, number> = {
   conflict: 0,
   failing: 1,
@@ -84,10 +86,19 @@ export const pullNeeds = (pull: Pull): PullNeed[] => {
 };
 
 export const mostBlockingNeed = (needs: readonly (StackNeed | null)[]): StackNeed | null => {
-  const present = needs.filter((need): need is StackNeed => need !== null);
-  const ordered = present.toSorted((first, second) => needRanks[first] - needRanks[second]);
+  let most: StackNeed | null = null;
 
-  return ordered[0] ?? null;
+  for (const need of needs) {
+    if (need === null) {
+      continue;
+    }
+
+    if (most === null || needRanks[need] < needRanks[most]) {
+      most = need;
+    }
+  }
+
+  return most;
 };
 
 const stackNeedOf = (need: PullNeed): StackNeed => (need === 'ready' ? 'merge' : need);
@@ -104,8 +115,11 @@ export const pullStackNeed = (
     return null;
   }
 
-  const needs = pullNeeds(pull).map(stackNeedOf);
-  const withRestack: StackNeed[] = restack === 'needed' ? [...needs, 'restack'] : needs;
+  const withRestack: StackNeed[] = pullNeeds(pull).map(stackNeedOf);
+
+  if (restack === 'needed') {
+    withRestack.push('restack');
+  }
 
   return mostBlockingNeed(withRestack);
 };

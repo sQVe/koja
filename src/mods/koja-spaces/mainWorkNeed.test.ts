@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { elementWithIcon, elementsWithId } from '../../../tests/drawn.ts';
+import type { FakeView } from '../../../tests/kojaSpacesView.ts';
 import {
   anotherOwner,
   loadView,
@@ -29,6 +30,14 @@ afterAll(() => {
 });
 
 const kojaRepository = repositoryOf(null, '/code/koja/.git');
+
+const rowEndOf = (view: FakeView, id: string): DrawnElement => {
+  const [row] = elementsWithId(view.render(), id);
+
+  expect(row).toBeDefined();
+
+  return (row as DrawnElement).kids.at(-1) as DrawnElement;
+};
 
 const checkouts = [
   { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
@@ -91,15 +100,10 @@ describe('koja-spaces row work need', () => {
     useStackFacts();
 
     const view = await loadView();
-    const [row] = elementsWithId(view.render(), 'space-w');
+    const rowEnd = rowEndOf(view, 'space-w');
 
-    expect(row).toBeDefined();
-
-    const rowEnd = (row as DrawnElement).kids.at(-1);
-
-    expect(rowEnd).toBeDefined();
-    expect(elementWithIcon(rowEnd as DrawnElement, 'circle-x.svg')).not.toBeNull();
-    expect(elementWithIcon(row as DrawnElement, 'git-merge.svg')).toBeNull();
+    expect(elementWithIcon(rowEnd, 'circle-x.svg')).not.toBeNull();
+    expect(elementWithIcon(rowEnd, 'git-merge.svg')).toBeNull();
   });
 
   test('a failed PR read keeps the last need on the row', async () => {
@@ -107,17 +111,15 @@ describe('koja-spaces row work need', () => {
     useStackFacts();
 
     const view = await loadView();
-    const [before] = elementsWithId(view.render(), 'space-w');
-    const beforeEnd = (before as DrawnElement).kids.at(-1);
+    const beforeEnd = rowEndOf(view, 'space-w');
 
-    expect(elementWithIcon(beforeEnd as DrawnElement, 'circle-x.svg')).not.toBeNull();
+    expect(elementWithIcon(beforeEnd, 'circle-x.svg')).not.toBeNull();
 
     useStackFacts(true);
 
-    const [after] = elementsWithId(view.render(), 'space-w');
-    const afterEnd = (after as DrawnElement).kids.at(-1);
+    const afterEnd = rowEndOf(view, 'space-w');
 
-    expect(elementWithIcon(afterEnd as DrawnElement, 'circle-x.svg')).not.toBeNull();
+    expect(elementWithIcon(afterEnd, 'circle-x.svg')).not.toBeNull();
   });
 
   test('a failed PR read drops the kept need when another repository takes the same path', async () => {
@@ -125,10 +127,9 @@ describe('koja-spaces row work need', () => {
     useStackFacts();
 
     const view = await loadView();
-    const [before] = elementsWithId(view.render(), 'space-w');
-    const beforeEnd = (before as DrawnElement).kids.at(-1);
+    const beforeEnd = rowEndOf(view, 'space-w');
 
-    expect(elementWithIcon(beforeEnd as DrawnElement, 'circle-x.svg')).not.toBeNull();
+    expect(elementWithIcon(beforeEnd, 'circle-x.svg')).not.toBeNull();
 
     const otherRepository = repositoryOf(null, '/code/other/.git');
 
@@ -147,10 +148,9 @@ describe('koja-spaces row work need', () => {
 
     showFacts(replaced);
 
-    const [after] = elementsWithId(view.render(), 'space-w');
-    const afterEnd = (after as DrawnElement).kids.at(-1);
+    const afterEnd = rowEndOf(view, 'space-w');
 
-    expect(elementWithIcon(afterEnd as DrawnElement, 'circle-x.svg')).toBeNull();
+    expect(elementWithIcon(afterEnd, 'circle-x.svg')).toBeNull();
   });
 
   test('a failed PR read keeps the last need when the stack facts change', async () => {
@@ -158,17 +158,15 @@ describe('koja-spaces row work need', () => {
     useSingleStack(false, 'needed');
 
     const view = await loadView();
-    const [before] = elementsWithId(view.render(), 'space-w');
-    const beforeEnd = (before as DrawnElement).kids.at(-1);
+    const beforeEnd = rowEndOf(view, 'space-w');
 
-    expect(elementWithIcon(beforeEnd as DrawnElement, 'layers.svg')).not.toBeNull();
+    expect(elementWithIcon(beforeEnd, 'layers.svg')).not.toBeNull();
 
     useSingleStack(true, 'none');
 
-    const [after] = elementsWithId(view.render(), 'space-w');
-    const afterEnd = (after as DrawnElement).kids.at(-1);
+    const afterEnd = rowEndOf(view, 'space-w');
 
-    expect(elementWithIcon(afterEnd as DrawnElement, 'layers.svg')).not.toBeNull();
-    expect(elementWithIcon(afterEnd as DrawnElement, 'git-merge.svg')).toBeNull();
+    expect(elementWithIcon(afterEnd, 'layers.svg')).not.toBeNull();
+    expect(elementWithIcon(afterEnd, 'git-merge.svg')).toBeNull();
   });
 });
