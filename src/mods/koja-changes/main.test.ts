@@ -65,6 +65,8 @@ let statusText = ' M a.ts\0 M b.ts\0';
 
 let statusError = 'status unavailable';
 
+let failureStdout = '';
+
 let blockStatus = false;
 
 let blockAfterReads = 0;
@@ -271,7 +273,7 @@ await mock.module('herdr', () =>
         }
 
         return failStatus
-          ? { code: 128, stdout: '', stderr: statusError }
+          ? { code: 128, stdout: failureStdout, stderr: statusError }
           : { code: 0, stdout: text, stderr: '' };
       }
 
@@ -371,6 +373,7 @@ beforeEach(() => {
   statusReads = 0;
   statusText = ' M a.ts\0 M b.ts\0';
   statusError = 'status unavailable';
+  failureStdout = '';
   blockStatus = false;
   blockAfterReads = 0;
   statusGate = null;
@@ -488,6 +491,20 @@ describe('Changes view', () => {
 
     expect(commands).toEqual([]);
     expect(watchers).toEqual([]);
+  });
+
+  test('a timer tick starts the first read when init ran during an app check', async () => {
+    checkingNow = true;
+
+    await boot();
+
+    expect(statusReads).toBe(0);
+
+    checkingNow = false;
+    timerHandler?.(context);
+    await settle();
+
+    expect(statusReads).toBe(1);
   });
 
   test('a preview whose diff command fails shows the error on one row', async () => {
@@ -797,6 +814,28 @@ describe('Changes view', () => {
     await boot();
 
     expect(renderedList?.line).toEqual({ kind: 'error', text: 'Error: git status failed' });
+  });
+
+  test('a status failure with no stderr draws no raw porcelain stream', async () => {
+    failStatus = true;
+    statusError = '';
+    failureStdout = ' M a.ts\0 M b.ts\0';
+
+    await boot();
+
+    expect(renderedList?.line).toEqual({ kind: 'error', text: 'Error: git status failed' });
+  });
+
+  test('a status failure with a multi-line stderr draws one line', async () => {
+    failStatus = true;
+    statusError = 'fatal: unable to read\ncould not resolve';
+
+    await boot();
+
+    expect(renderedList?.line).toEqual({
+      kind: 'error',
+      text: 'Error: fatal: unable to read could not resolve',
+    });
   });
 
   test('reports a bare repository as not a git repository and reads no changes', async () => {
@@ -1175,6 +1214,33 @@ describe('Changes view', () => {
     const before = await submitWhileReadBlocked(view, () => {
       cwd = '/repo/b';
     });
+
+    expect(commitCommands()).toBe(before);
+  });
+
+  test('a submit queued for one repository commits nothing after the pane switches', async () => {
+    const view = await boot();
+
+    typeMessage();
+    view.render(context);
+
+    blockNextStatusRead();
+    view.refresh(context);
+    await settle();
+
+    inputHandlers.get('submit')?.({}, context);
+    await settle();
+
+    const before = commitCommands();
+
+    cwd = '/repo/b';
+    statusText = ' M c.ts\0';
+    blockStatus = false;
+    view.render(context);
+    typeMessage();
+    await settle();
+    view.render(context);
+    await settle();
 
     expect(commitCommands()).toBe(before);
   });

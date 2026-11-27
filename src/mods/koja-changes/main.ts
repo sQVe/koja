@@ -34,22 +34,21 @@ const millisecondsPerSecond = 1000;
 
 const nowSeconds = (): number => Math.floor(Date.now() / millisecondsPerSecond);
 
+const oneLine = (detail: string): string => detail.replace(/\s+/g, ' ').trim();
+
 const previewFailureNote = (error: unknown): string => {
   const detail = error instanceof Error ? error.message : String(error);
-  const oneLine = detail.replace(/\s+/g, ' ').trim();
+  const collapsed = oneLine(detail);
 
-  if (oneLine === '') {
+  if (collapsed === '') {
     return 'Cannot preview this diff';
   }
 
-  return `Cannot preview this diff: ${oneLine}`;
+  return `Cannot preview this diff: ${collapsed}`;
 };
 
 const statusFailure = (result: ExecResult | null): string => {
-  const stderr = result?.stderr ?? '';
-  const stdout = result?.stdout ?? '';
-  const raw = stderr === '' ? stdout : stderr;
-  const detail = raw.trim();
+  const detail = oneLine(result?.stderr ?? '');
 
   return detail === '' ? 'git status failed' : detail;
 };
@@ -222,11 +221,13 @@ export default class Changes extends View {
   private tick(cx: Context): boolean {
     const world = this.world();
 
-    if (this.due !== null) {
-      this.due = tickDue(this.due, world, this.watched !== null);
+    if (this.due === null) {
+      return this.refresh(cx);
     }
 
-    if (this.due === null || !readDue(this.due, world)) {
+    this.due = tickDue(this.due, world, this.watched !== null);
+
+    if (!readDue(this.due, world)) {
       return false;
     }
 
@@ -257,6 +258,7 @@ export default class Changes extends View {
 
     if (visiting) {
       this.visit += 1;
+      this.pendingCommit = false;
       this.stopWatch();
       this.due = emptyDue(key);
       this.state = emptyReadState();
