@@ -37,36 +37,10 @@ const spreadSlack = 4;
 const isWordStart = (text: string, index: number): boolean =>
   index === 0 || /[\s/_.\-~]/.test(text.charAt(index - 1));
 
-// Counts each character's folded code points by lowercasing the whole text with a separator between
-// characters. The matched values come from the unseparated whole-string lowercase, because a
-// character alone can fold to a different case form than its context does; the default mapping
-// keeps a character's folded length the same either way.
-const foldedLengths = (characters: readonly string[]): number[] => {
-  if (characters.length === 0) {
-    return [];
-  }
-
-  const joined = characters.join('\u0000');
-  const lowerJoined = joined.toLowerCase();
-  const separated = Array.from(lowerJoined);
-  const lengths: number[] = [];
-  let length = 0;
-
-  for (const codePoint of separated) {
-    if (codePoint !== '\u0000') {
-      length += 1;
-
-      continue;
-    }
-
-    lengths.push(length);
-    length = 0;
-  }
-
-  lengths.push(length);
-
-  return lengths;
-};
+// Lowercasing one character at a time can pick a different case form than the whole string does,
+// so only the per-character folded length is used.
+const foldedLengths = (characters: readonly string[]): number[] =>
+  characters.map((character) => Array.from(character.toLowerCase()).length);
 
 const foldText = (text: string): FoldedText => {
   const characters = Array.from(text);

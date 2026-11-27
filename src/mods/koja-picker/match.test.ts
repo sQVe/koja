@@ -161,6 +161,10 @@ describe('fuzzyMatch', () => {
   test('İ against İ gives one position', () => {
     expect(fuzzyMatch('İ', 'İ')?.positions).toEqual([0]);
   });
+
+  test('returns the original index after a NUL character', () => {
+    expect(fuzzyMatch('b', 'a\u0000b')?.positions).toEqual([2]);
+  });
 });
 
 describe('bestFieldMatch', () => {
