@@ -725,7 +725,6 @@ const parseGitOnlyFacts = (value: unknown): Facts | null => {
   return { git, pulls: {}, trackers: {}, stacks: {} };
 };
 
-// A version 3 pull predates URLs, so it is read only to reject a malformed payload and then dropped.
 const parseVersion3Pull: StoredPullParser = (stored) => {
   if (!isRecord(stored)) {
     return null;

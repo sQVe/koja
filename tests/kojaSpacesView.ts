@@ -336,7 +336,6 @@ export const kitParts = [
 const mockKit = async (): Promise<void> => {
   const kitFake = await realKitIndexFake(kitParts);
 
-  // The footer has its own tests, so the fake draws none and the row tests see no extra text.
   await mock.module('../src/kit/index.ts', () => ({ ...kitFake, spaceFooter: () => drawn() }));
 };
 
