@@ -1,9 +1,27 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import * as fsModule from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { readModPalettes } from './modPalette.ts';
+// Captured before the mock, because the mocked namespace replaces the live bindings.
+const realReaddir = fsModule.readdir;
+const realReadFile = fsModule.readFile;
+const realExists = fsModule.exists;
+
+const listedPaths: string[] = [];
+
+await mock.module('fs/promises', () => ({
+  exists: realExists,
+  readFile: realReadFile,
+  readdir: (path: string) => {
+    listedPaths.push(path);
+
+    return realReaddir(path);
+  },
+}));
+
+const { readModPalettes } = await import('./modPalette.ts');
 
 const homes: string[] = [];
 
@@ -41,6 +59,10 @@ afterEach(async () => {
   for (const home of homes.splice(0)) {
     await rm(home, { recursive: true, force: true });
   }
+});
+
+afterAll(() => {
+  mock.restore();
 });
 
 describe('readModPalettes', () => {
@@ -97,5 +119,27 @@ describe('readModPalettes', () => {
 
   test('answers nothing when the app has no mods folder', async () => {
     expect(await readModPalettes(join(await newHome(), 'missing'))).toEqual([]);
+  });
+
+  test('answers nothing for an empty home and reads no root folder', async () => {
+    listedPaths.length = 0;
+
+    expect(await readModPalettes('')).toEqual([]);
+    expect(listedPaths).toEqual([]);
+  });
+
+  test('answers nothing for a blank home and reads no root folder', async () => {
+    listedPaths.length = 0;
+
+    expect(await readModPalettes('   ')).toEqual([]);
+    expect(listedPaths).toEqual([]);
+  });
+
+  test('skips a folder that holds a manifest but no main.js', async () => {
+    const home = await newHome();
+
+    await writeMod(home, 'ghost', { palette: [entry('tab.new')] }, { main: false });
+
+    expect(await readModPalettes(home)).toEqual([]);
   });
 });

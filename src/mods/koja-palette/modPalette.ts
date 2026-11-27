@@ -7,16 +7,6 @@ export interface ModPalette {
   entries: unknown[];
 }
 
-const modNames = async (modsDirectory: string): Promise<string[]> => {
-  try {
-    const names = await readdir(modsDirectory);
-
-    return names.filter((name) => !name.startsWith('.')).toSorted();
-  } catch {
-    return [];
-  }
-};
-
 const hasMain = async (modsDirectory: string, name: string): Promise<boolean> => {
   try {
     return await exists(`${modsDirectory}/${name}/main.js`);
@@ -25,22 +15,35 @@ const hasMain = async (modsDirectory: string, name: string): Promise<boolean> =>
   }
 };
 
-const opensMissingMod = async (
-  entry: Record<string, unknown>,
-  mods: readonly string[],
-  modsDirectory: string,
-): Promise<boolean> => {
+const installedMods = async (modsDirectory: string): Promise<string[]> => {
+  try {
+    const names = await readdir(modsDirectory);
+    const visible = names.filter((name) => !name.startsWith('.'));
+
+    const checked = await Promise.all(
+      visible.map(async (name) => ({
+        name,
+        installed: await hasMain(modsDirectory, name),
+      })),
+    );
+
+    return checked
+      .filter((pair) => pair.installed)
+      .map((pair) => pair.name)
+      .toSorted();
+  } catch {
+    return [];
+  }
+};
+
+const opensMissingMod = (entry: Record<string, unknown>, mods: readonly string[]): boolean => {
   if (entry['command'] !== 'mod.open') {
     return false;
   }
 
   const name = stringOf(recordOf(entry['args'])['name']);
 
-  if (name === null || !mods.includes(name)) {
-    return true;
-  }
-
-  return !(await hasMain(modsDirectory, name));
+  return name === null || !mods.includes(name);
 };
 
 const paletteOf = async (
@@ -59,14 +62,7 @@ const paletteOf = async (
 
     const records = palette.filter((entry) => isRecord(entry));
 
-    const checked = await Promise.all(
-      records.map(async (entry) => ({
-        entry,
-        missing: await opensMissingMod(entry, mods, modsDirectory),
-      })),
-    );
-
-    return checked.filter((pair) => !pair.missing).map((pair) => pair.entry);
+    return records.filter((entry) => !opensMissingMod(entry, mods));
   } catch {
     return [];
   }
@@ -83,8 +79,12 @@ const paletteOfMod = async (
 };
 
 export const readModPalettes = async (home: string): Promise<ModPalette[]> => {
+  if (home.trim() === '') {
+    return [];
+  }
+
   const modsDirectory = `${home}/mods`;
-  const mods = await modNames(modsDirectory);
+  const mods = await installedMods(modsDirectory);
   const palettes = await Promise.all(mods.map((mod) => paletteOfMod(modsDirectory, mod, mods)));
 
   return palettes.filter((palette) => palette !== null);
