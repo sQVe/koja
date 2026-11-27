@@ -372,7 +372,7 @@ describe('spaceFacts', () => {
           number: 7,
           headRefName: 'main',
           commonDirectory: '/code/notes/.git',
-          mergeable: 'mergeable',
+          mergeable: 'conflicting',
           failed: true,
         },
       ],

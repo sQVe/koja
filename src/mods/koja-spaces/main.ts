@@ -50,6 +50,7 @@ import type { SpaceOrder } from '../../kit/spaceOrder.ts';
 import { closedSpaceCommand } from '../../kit/spaceOrder.ts';
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
+import type { KeptNeed } from './gitFacts.ts';
 import { answeredPlaces, gitInfoAt, needAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
@@ -139,6 +140,8 @@ export default class Spaces extends View {
   private readonly order = createOrderPublisher(setShared);
 
   private waitTimes: WaitTimes = readWaitTimes(storage.get(waitTimesKey));
+
+  private readonly lastNeeds = new Map<string, KeptNeed>();
 
   private watched: SidebarWatch = {
     focused: null,
@@ -539,7 +542,10 @@ export default class Spaces extends View {
       projects,
       loading: this.isWaiting(),
       draw: (row) => {
-        const facts = { ticketTitle: ticketTitleAt(state, row), need: needAt(state, row.git) };
+        const facts = {
+          ticketTitle: ticketTitleAt(state, row),
+          need: needAt(state, row.git, this.lastNeeds),
+        };
 
         return keepRow(row, this.draw(row, ids, cursor, now, pulls, facts));
       },

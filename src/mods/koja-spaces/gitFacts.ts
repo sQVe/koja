@@ -5,6 +5,22 @@ import type { GitFacts, RepositoryPulls } from '../../data/snapshot.ts';
 import { spaceNeedOf } from '../../data/spaceStack.ts';
 import type { GitInfo } from './tree.ts';
 
+export interface KeptNeed {
+  branch: string | null;
+  need: StackNeed;
+}
+
+export const pullFactsOf = (state: DataState): Record<string, RepositoryPulls> => {
+  if (state.kind === 'unavailable') {
+    return {};
+  }
+
+  return state.snapshot.facts.pulls;
+};
+
+export const pullFailedAt = (state: DataState, git: GitInfo): boolean =>
+  pullFactsOf(state)[git.repo.key]?.failed === true;
+
 const factsOf = (state: DataState): GitFacts | null =>
   state.kind === 'unavailable' ? null : state.snapshot.facts.git;
 
@@ -40,12 +56,38 @@ export const gitInfoAt = (state: DataState, place: Place): GitInfo | null | unde
   };
 };
 
-export const needAt = (state: DataState, git: GitInfo | null): StackNeed | null => {
+// A failed PR read freezes the PR array, but the stack facts keep arriving from local reads, so the
+// last need is kept per worktree until a successful read replaces it.
+export const needAt = (
+  state: DataState,
+  git: GitInfo | null,
+  lastNeeds: Map<string, KeptNeed>,
+): StackNeed | null => {
   if (state.kind === 'unavailable' || git === null) {
     return null;
   }
 
-  return spaceNeedOf(state.snapshot.facts, git.worktreeKey);
+  if (pullFailedAt(state, git)) {
+    const last = lastNeeds.get(git.worktreeKey);
+
+    if (last === undefined || last.branch !== git.branch) {
+      lastNeeds.delete(git.worktreeKey);
+
+      return null;
+    }
+
+    return last.need;
+  }
+
+  const need = spaceNeedOf(state.snapshot.facts, git.worktreeKey);
+
+  if (need === null) {
+    lastNeeds.delete(git.worktreeKey);
+  } else {
+    lastNeeds.set(git.worktreeKey, { branch: git.branch, need });
+  }
+
+  return need;
 };
 
 export const answeredPlaces = (state: DataState): Set<string> => {
@@ -57,14 +99,3 @@ export const answeredPlaces = (state: DataState): Set<string> => {
 
   return new Set(Object.keys(facts.places));
 };
-
-export const pullFactsOf = (state: DataState): Record<string, RepositoryPulls> => {
-  if (state.kind === 'unavailable') {
-    return {};
-  }
-
-  return state.snapshot.facts.pulls;
-};
-
-export const pullFailedAt = (state: DataState, git: GitInfo): boolean =>
-  pullFactsOf(state)[git.repo.key]?.failed === true;

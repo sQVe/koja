@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { pullFacts } from '../../../tests/pullFacts.ts';
 import type { DataState } from '../../data/consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import type {
@@ -11,6 +12,7 @@ import type {
   WorktreeGit,
 } from '../../data/snapshot.ts';
 import { emptyFacts, snapshotVersion } from '../../data/snapshot.ts';
+import type { KeptNeed } from './gitFacts.ts';
 import { answeredPlaces, gitInfoAt, needAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
 import type { GitInfo } from './tree.ts';
 
@@ -130,9 +132,35 @@ const kojaGit: GitInfo = {
 };
 
 describe('needAt', () => {
+  const conflictingPull = pullFacts({
+    number: 11,
+    headRefName: 'main',
+    mergeable: 'conflicting',
+  });
+
+  const readState = (failed: boolean): DataState =>
+    stateOf(kojaFacts({ [kojaGit.repo.key]: { pulls: [conflictingPull], failed } }));
+
   test('gives null when the state is unavailable or the row has no checkout', () => {
-    expect(needAt({ kind: 'unavailable' }, kojaGit)).toBeNull();
-    expect(needAt(stateOf(kojaFacts()), null)).toBeNull();
+    expect(needAt({ kind: 'unavailable' }, kojaGit, new Map())).toBeNull();
+    expect(needAt(stateOf(kojaFacts()), null, new Map())).toBeNull();
+  });
+
+  test('keeps the last need through a failed PR read and replaces it on a successful one', () => {
+    const lastNeeds = new Map<string, KeptNeed>();
+
+    expect(needAt(readState(false), kojaGit, lastNeeds)).toBe('conflict');
+    expect(needAt(readState(true), kojaGit, lastNeeds)).toBe('conflict');
+    expect(needAt(stateOf(kojaFacts()), kojaGit, lastNeeds)).toBeNull();
+    expect(needAt(readState(true), kojaGit, lastNeeds)).toBeNull();
+  });
+
+  test('drops the kept need when the row moves to another branch', () => {
+    const lastNeeds = new Map<string, KeptNeed>();
+    const otherBranch = { ...kojaGit, branch: 'other' };
+
+    expect(needAt(readState(false), kojaGit, lastNeeds)).toBe('conflict');
+    expect(needAt(readState(true), otherBranch, lastNeeds)).toBeNull();
   });
 });
 

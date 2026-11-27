@@ -16,6 +16,7 @@ import {
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import { stacksOf } from '../../../tests/stackFixtures.ts';
 import { repositoryOf } from '../../data/gitIdentity.ts';
+import type { RepositoryStacks } from '../../data/snapshot.ts';
 
 await setupKojaSpaces();
 
@@ -66,6 +67,24 @@ const useStackFacts = (failed = false): void => {
   state.spaceList = [space('m', true, '/code/koja'), space('w', false, '/code/koja-fix')];
 };
 
+const useSingleStack = (failed: boolean, restack: 'needed' | 'none'): void => {
+  const facts = storedFacts(checkouts, {
+    [kojaRepository.key]: { pulls: [readyPull], failed },
+  });
+
+  const stacks: Record<string, RepositoryStacks> = {
+    [kojaRepository.key]: {
+      stacks: [{ trunk: 'main', branches: [{ branch: 'me-2-top', pullNumber: null, restack }] }],
+      failed: false,
+    },
+  };
+
+  facts.stacks = stacks;
+  showFacts(facts);
+
+  state.spaceList = [space('m', true, '/code/koja'), space('w', false, '/code/koja-fix')];
+};
+
 describe('koja-spaces row work need', () => {
   test('a stack with a failing PR and a mergeable PR ends the row with the CI failing icon', async () => {
     anotherOwner();
@@ -85,12 +104,38 @@ describe('koja-spaces row work need', () => {
 
   test('a failed PR read keeps the last need on the row', async () => {
     anotherOwner();
-    useStackFacts(true);
+    useStackFacts();
 
     const view = await loadView();
-    const [row] = elementsWithId(view.render(), 'space-w');
-    const rowEnd = (row as DrawnElement).kids.at(-1);
+    const [before] = elementsWithId(view.render(), 'space-w');
+    const beforeEnd = (before as DrawnElement).kids.at(-1);
 
-    expect(elementWithIcon(rowEnd as DrawnElement, 'circle-x.svg')).not.toBeNull();
+    expect(elementWithIcon(beforeEnd as DrawnElement, 'circle-x.svg')).not.toBeNull();
+
+    useStackFacts(true);
+
+    const [after] = elementsWithId(view.render(), 'space-w');
+    const afterEnd = (after as DrawnElement).kids.at(-1);
+
+    expect(elementWithIcon(afterEnd as DrawnElement, 'circle-x.svg')).not.toBeNull();
+  });
+
+  test('a failed PR read keeps the last need when the stack facts change', async () => {
+    anotherOwner();
+    useSingleStack(false, 'needed');
+
+    const view = await loadView();
+    const [before] = elementsWithId(view.render(), 'space-w');
+    const beforeEnd = (before as DrawnElement).kids.at(-1);
+
+    expect(elementWithIcon(beforeEnd as DrawnElement, 'layers.svg')).not.toBeNull();
+
+    useSingleStack(true, 'none');
+
+    const [after] = elementsWithId(view.render(), 'space-w');
+    const afterEnd = (after as DrawnElement).kids.at(-1);
+
+    expect(elementWithIcon(afterEnd as DrawnElement, 'layers.svg')).not.toBeNull();
+    expect(elementWithIcon(afterEnd as DrawnElement, 'git-merge.svg')).toBeNull();
   });
 });

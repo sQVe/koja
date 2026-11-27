@@ -8,7 +8,6 @@ import { placeOf } from '../../data/gitIdentity.ts';
 import { placeOfSpace } from '../../data/places.ts';
 import type { StackNeed } from '../../data/pullNeeds.ts';
 import { pullStackNeed } from '../../data/pullNeeds.ts';
-import type { Pull } from '../../data/pulls.ts';
 import { repositoryNameOf } from '../../data/repositoryName.ts';
 import type { Facts, GitFacts, WorktreeGit } from '../../data/snapshot.ts';
 import { pullOfBranch, worktreeKeyAtPlace } from '../../data/snapshot.ts';
@@ -23,6 +22,11 @@ export interface SpaceFacts {
 interface FoundWorktree {
   key: string;
   worktree: WorktreeGit;
+}
+
+interface PullFacts {
+  pull: number | null;
+  need: StackNeed | null;
 }
 
 const mainWorktreeOf = (git: GitFacts, repository: RepositoryIdentity): WorktreeGit | null =>
@@ -47,17 +51,23 @@ const projectAt = (git: GitFacts, worktree: WorktreeGit | null, folder: string):
 const readFailed = (facts: Facts, found: FoundWorktree): boolean =>
   facts.pulls[found.worktree.repository.key]?.failed === true;
 
-const needIn = (
+const prDataAvailable = (facts: Facts, found: FoundWorktree | null): found is FoundWorktree =>
+  found !== null && !readFailed(facts, found);
+
+const pullFactsIn = (
   facts: Facts,
   found: FoundWorktree | null,
   branch: string | null,
-  pull: Pull | null,
-): StackNeed | null => {
-  if (found === null || readFailed(facts, found)) {
-    return null;
+): PullFacts => {
+  if (!prDataAvailable(facts, found)) {
+    return { pull: null, need: null };
   }
 
-  return branch === null ? spaceNeedOf(facts, found.key) : pullStackNeed(pull, 'none');
+  const repository = facts.pulls[found.worktree.repository.key] ?? null;
+  const pull = pullOfBranch(repository, branch ?? found.worktree.branch);
+  const need = branch === null ? spaceNeedOf(facts, found.key) : pullStackNeed(pull, 'none');
+
+  return { pull: pull?.number ?? null, need };
 };
 
 export const storedFacts = (): Facts | null => {
@@ -78,30 +88,15 @@ const worktreeAt = (place: Place, git: GitFacts): FoundWorktree | null => {
   return worktree === undefined ? null : { key, worktree };
 };
 
-const pullOf = (facts: Facts, found: FoundWorktree | null, branch: string | null): Pull | null => {
-  if (found === null || readFailed(facts, found)) {
-    return null;
-  }
-
-  const repository = facts.pulls[found.worktree.repository.key] ?? null;
-
-  return pullOfBranch(repository, branch ?? found.worktree.branch);
-};
-
 const factsIn = (
   facts: Facts,
   found: FoundWorktree | null,
   folder: string,
   branch: string | null,
-): SpaceFacts => {
-  const pull = pullOf(facts, found, branch);
-
-  return {
-    project: projectAt(facts.git, found?.worktree ?? null, folder),
-    pull: pull?.number ?? null,
-    need: needIn(facts, found, branch, pull),
-  };
-};
+): SpaceFacts => ({
+  project: projectAt(facts.git, found?.worktree ?? null, folder),
+  ...pullFactsIn(facts, found, branch),
+});
 
 const factsAt = (facts: Facts, place: Place, branch: string | null): SpaceFacts | null =>
   Object.hasOwn(facts.git.places, place.key)

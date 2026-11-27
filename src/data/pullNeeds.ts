@@ -41,6 +41,8 @@ const passOrAbsent = (checks: PullChecks): boolean => checks === 'passing' || ch
 const quietThreads = (threads: PullThreads): boolean =>
   threads.unresolved === 0 && threads.complete;
 
+const isOpenAndNotDraft = (pull: Pull): boolean => pull.state === 'OPEN' && !pull.isDraft;
+
 const isReady = (pull: Pull): boolean => {
   if (pull.mergeable !== 'mergeable' || !settles(pull.mergeState)) {
     return false;
@@ -56,7 +58,7 @@ const isReady = (pull: Pull): boolean => {
 };
 
 export const pullNeeds = (pull: Pull): PullNeed[] => {
-  if (pull.state !== 'OPEN' || pull.isDraft) {
+  if (!isOpenAndNotDraft(pull)) {
     return [];
   }
 
@@ -98,7 +100,7 @@ export const pullStackNeed = (
     return null;
   }
 
-  if (pull.state !== 'OPEN' || pull.isDraft) {
+  if (!isOpenAndNotDraft(pull)) {
     return null;
   }
 
