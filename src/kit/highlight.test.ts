@@ -23,4 +23,11 @@ describe('highlightRuns', () => {
       { text: 'o', highlighted: false },
     ]);
   });
+
+  test('highlights a whole astral character', () => {
+    expect(highlightRuns('😀b', [0])).toEqual([
+      { text: '😀', highlighted: true },
+      { text: 'b', highlighted: false },
+    ]);
+  });
 });

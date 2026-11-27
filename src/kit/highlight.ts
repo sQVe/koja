@@ -6,8 +6,9 @@ export interface TextRun {
 export const highlightRuns = (text: string, positions: readonly number[]): TextRun[] => {
   const marked = new Set(positions);
   const runs: TextRun[] = [];
+  let index = 0;
 
-  for (const [index, letter] of text.split('').entries()) {
+  for (const letter of text) {
     const highlighted = marked.has(index);
     const last = runs.at(-1);
 
@@ -16,6 +17,8 @@ export const highlightRuns = (text: string, positions: readonly number[]): TextR
     } else {
       runs.push({ text: letter, highlighted });
     }
+
+    index += letter.length;
   }
 
   return runs;

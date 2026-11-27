@@ -138,6 +138,29 @@ describe('fuzzyMatch', () => {
 
     expect(fuzzyMatch('ab', text)?.positions).toEqual([14, 15]);
   });
+
+  test('finds the word-start route past an earlier letter', () => {
+    expect(fuzzyMatch('abc', 'abxxxxxxxxxx bc')?.positions).toEqual([0, 13, 14]);
+  });
+
+  test('accepts a wide match with a run after an astral character', () => {
+    expect(fuzzyMatch('😀bc', '😀bxxxxxxxxxx c')?.positions).toEqual([0, 2, 14]);
+  });
+
+  test('ranks an astral run above the same letters with a gap', () => {
+    const run = fuzzyMatch('😀b', '😀b');
+    const gap = fuzzyMatch('😀b', '😀 b');
+
+    expect(run?.score ?? 0).toBeGreaterThan(gap?.score ?? 0);
+  });
+
+  test('returns the original index after lowercase expands a character', () => {
+    expect(fuzzyMatch('x', 'İ xz')?.positions).toEqual([2]);
+  });
+
+  test('İ against İ gives one position', () => {
+    expect(fuzzyMatch('İ', 'İ')?.positions).toEqual([0]);
+  });
 });
 
 describe('bestFieldMatch', () => {

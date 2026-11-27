@@ -7,6 +7,21 @@ export interface FieldMatch extends Match {
   field: string;
 }
 
+interface FoldedText {
+  text: string;
+  folded: readonly string[];
+  originalOf: readonly number[];
+  starts: readonly number[];
+}
+
+interface RouteState {
+  positions: number[];
+  score: number;
+  nextFolded: number;
+  previousOriginal: number;
+  from: number;
+}
+
 const runScore = 8;
 
 const wordStartScore = 6;
@@ -22,7 +37,61 @@ const spreadSlack = 4;
 const isWordStart = (text: string, index: number): boolean =>
   index === 0 || /[\s/_.\-~]/.test(text.charAt(index - 1));
 
-const isCompact = (text: string, positions: number[]): boolean => {
+// Counts each character's folded code points by lowercasing the whole text with a separator between
+// characters. The matched values come from the unseparated whole-string lowercase, because a
+// character alone can fold to a different case form than its context does; the default mapping
+// keeps a character's folded length the same either way.
+const foldedLengths = (characters: readonly string[]): number[] => {
+  if (characters.length === 0) {
+    return [];
+  }
+
+  const joined = characters.join('\u0000');
+  const lowerJoined = joined.toLowerCase();
+  const separated = Array.from(lowerJoined);
+  const lengths: number[] = [];
+  let length = 0;
+
+  for (const codePoint of separated) {
+    if (codePoint !== '\u0000') {
+      length += 1;
+
+      continue;
+    }
+
+    lengths.push(length);
+    length = 0;
+  }
+
+  lengths.push(length);
+
+  return lengths;
+};
+
+const foldText = (text: string): FoldedText => {
+  const characters = Array.from(text);
+  const folded = Array.from(text.toLowerCase());
+  const lengths = foldedLengths(characters);
+  const starts: number[] = [];
+  const originalOf: number[] = [];
+  let start = 0;
+
+  for (const [index, character] of characters.entries()) {
+    starts.push(start);
+
+    const foldedLength = lengths[index] ?? 0;
+
+    for (let count = 0; count < foldedLength; count += 1) {
+      originalOf.push(index);
+    }
+
+    start += character.length;
+  }
+
+  return { text, folded, originalOf, starts };
+};
+
+const isCompact = (folded: FoldedText, positions: readonly number[]): boolean => {
   const first = positions[0] ?? 0;
   const last = positions.at(-1) ?? 0;
 
@@ -30,27 +99,34 @@ const isCompact = (text: string, positions: number[]): boolean => {
     return true;
   }
 
-  return positions
-    .slice(1)
-    .every(
-      (position, index) => position === (positions[index] ?? 0) + 1 || isWordStart(text, position),
-    );
+  return positions.slice(1).every((position, index) => {
+    const previous = positions[index] ?? 0;
+    const follows = position === previous + 1;
+    const startsWord = isWordStart(folded.text, folded.starts[position] ?? 0);
+
+    return follows || startsWord;
+  });
 };
 
 // Each letter gets one occurrence table, so the rescue does not rescan the suffix per start.
-const positionsOf = (text: string, letter: string): number[] => {
-  const positions: number[] = [];
-  let at = text.indexOf(letter);
+const occurrenceTables = (
+  folded: readonly string[],
+  queryCodePoints: readonly string[],
+): Map<string, number[]> => {
+  const tables = new Map<string, number[]>();
 
-  while (at !== -1) {
-    positions.push(at);
-    at = text.indexOf(letter, at + 1);
+  for (const letter of new Set(queryCodePoints)) {
+    tables.set(letter, []);
   }
 
-  return positions;
+  for (const [index, codePoint] of folded.entries()) {
+    tables.get(codePoint)?.push(index);
+  }
+
+  return tables;
 };
 
-const firstAtOrAfter = (positions: number[], from: number): number => {
+const firstAtOrAfter = (positions: readonly number[], from: number): number => {
   let low = 0;
   let high = positions.length;
 
@@ -67,39 +143,165 @@ const firstAtOrAfter = (positions: number[], from: number): number => {
   return positions[low] ?? -1;
 };
 
+const scoreStep = (
+  folded: FoldedText,
+  originalIndex: number,
+  previous: number | null,
+  from: number,
+): number => {
+  const follows = previous !== null && originalIndex === previous + 1;
+  const startsWord = isWordStart(folded.text, folded.starts[originalIndex] ?? 0);
+  const gap = Math.min(originalIndex - from, longestCountedGap);
+
+  return (follows ? runScore : 1) + (startsWord ? wordStartScore : 0) - gap * gapPenalty;
+};
+
 const matchFrom = (
-  lowerQuery: string,
+  queryCodePoints: readonly string[],
+  folded: FoldedText,
   tables: ReadonlyMap<string, number[]>,
-  text: string,
   searchFrom: number,
 ): Match | null => {
-  const positions: number[] = [];
+  const originalPositions: number[] = [];
   let score = 0;
   let from = 0;
+  let previous: number | null = null;
   let searching = searchFrom;
 
-  for (const letter of lowerQuery) {
-    const index = firstAtOrAfter(tables.get(letter) ?? [], searching);
+  for (const letter of queryCodePoints) {
+    const foldedIndex = firstAtOrAfter(tables.get(letter) ?? [], searching);
 
-    if (index === -1) {
+    if (foldedIndex === -1) {
       return null;
     }
 
-    const follows = positions.at(-1) === index - 1;
+    searching = foldedIndex + 1;
 
-    score += follows ? runScore : 1;
-    score += isWordStart(text, index) ? wordStartScore : 0;
-    score -= Math.min(index - from, longestCountedGap) * gapPenalty;
-    positions.push(index);
-    from = index + 1;
-    searching = index + 1;
+    const originalIndex = folded.originalOf[foldedIndex] ?? 0;
+
+    if (originalIndex === previous) {
+      continue;
+    }
+
+    score += scoreStep(folded, originalIndex, previous, from);
+    originalPositions.push(originalIndex);
+    previous = originalIndex;
+    from = originalIndex + 1;
   }
 
-  if (positions.length > 0 && !isCompact(text, positions)) {
+  if (originalPositions.length > 0 && !isCompact(folded, originalPositions)) {
     return null;
   }
 
+  const positions = originalPositions.map((index) => folded.starts[index] ?? 0);
+
   return { score, positions };
+};
+
+const continuesRoute = (
+  folded: FoldedText,
+  originalIndex: number,
+  previousOriginal: number,
+): boolean => {
+  if (originalIndex === previousOriginal) {
+    return true;
+  }
+
+  if (originalIndex === previousOriginal + 1) {
+    return true;
+  }
+
+  return isWordStart(folded.text, folded.starts[originalIndex] ?? 0);
+};
+
+const extendRoute = (
+  folded: FoldedText,
+  state: RouteState,
+  originalIndex: number,
+  nextFolded: number,
+): RouteState => {
+  if (originalIndex === state.previousOriginal) {
+    return { ...state, nextFolded };
+  }
+
+  const score = state.score + scoreStep(folded, originalIndex, state.previousOriginal, state.from);
+
+  return {
+    positions: [...state.positions, originalIndex],
+    score,
+    nextFolded,
+    previousOriginal: originalIndex,
+    from: originalIndex + 1,
+  };
+};
+
+// Explores the word-start and adjacent occurrences a greedy pass skipped. A failed state is
+// remembered so the exploration stays bounded by the query length and the text length.
+const routeFrom = (
+  queryCodePoints: readonly string[],
+  queryAt: number,
+  folded: FoldedText,
+  tables: ReadonlyMap<string, number[]>,
+  state: RouteState,
+  failed: Set<number>,
+): Match | null => {
+  if (queryAt === queryCodePoints.length) {
+    const positions = state.positions.map((index) => folded.starts[index] ?? 0);
+
+    return { score: state.score, positions };
+  }
+
+  const failedKey = queryAt * (folded.folded.length + 1) + state.nextFolded;
+
+  if (failed.has(failedKey)) {
+    return null;
+  }
+
+  const occurrences = tables.get(queryCodePoints[queryAt] ?? '') ?? [];
+  let foldedIndex = firstAtOrAfter(occurrences, state.nextFolded);
+
+  while (foldedIndex !== -1) {
+    const originalIndex = folded.originalOf[foldedIndex] ?? 0;
+
+    if (continuesRoute(folded, originalIndex, state.previousOriginal)) {
+      const next = extendRoute(folded, state, originalIndex, foldedIndex + 1);
+      const result = routeFrom(queryCodePoints, queryAt + 1, folded, tables, next, failed);
+
+      if (result !== null) {
+        return result;
+      }
+    }
+
+    foldedIndex = firstAtOrAfter(occurrences, foldedIndex + 1);
+  }
+
+  failed.add(failedKey);
+
+  return null;
+};
+
+const routeMatch = (
+  queryCodePoints: readonly string[],
+  folded: FoldedText,
+  tables: ReadonlyMap<string, number[]>,
+): Match | null => {
+  const firstFolded = firstAtOrAfter(tables.get(queryCodePoints[0] ?? '') ?? [], 0);
+
+  if (firstFolded === -1) {
+    return null;
+  }
+
+  const firstOriginal = folded.originalOf[firstFolded] ?? 0;
+
+  const state: RouteState = {
+    positions: [firstOriginal],
+    score: scoreStep(folded, firstOriginal, null, 0),
+    nextFolded: firstFolded + 1,
+    previousOriginal: firstOriginal,
+    from: firstOriginal + 1,
+  };
+
+  return routeFrom(queryCodePoints, 1, folded, tables, state, new Set<number>());
 };
 
 export const fuzzyMatch = (query: string, text: string): Match | null => {
@@ -109,29 +311,19 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
     return { score: 0, positions: [] };
   }
 
-  const lowerText = text.toLowerCase();
-  const tables = new Map<string, number[]>();
-  let missing = false;
-
-  for (const letter of new Set(lowerQuery)) {
-    const positions = positionsOf(lowerText, letter);
-
-    tables.set(letter, positions);
-
-    if (positions.length === 0) {
-      missing = true;
-    }
-  }
+  const queryCodePoints = Array.from(lowerQuery);
+  const folded = foldText(text);
+  const tables = occurrenceTables(folded.folded, queryCodePoints);
+  const missing = queryCodePoints.some((letter) => (tables.get(letter) ?? []).length === 0);
 
   if (missing) {
     return null;
   }
 
-  const firstLetter = Array.from(lowerQuery)[0] ?? '';
-  const firstPositions = tables.get(firstLetter) ?? [];
+  const firstPositions = tables.get(queryCodePoints[0] ?? '') ?? [];
 
   // The first occurrence keeps today's ranking; later starts rescue a spread-out first match.
-  const first = matchFrom(lowerQuery, tables, text, firstPositions[0] ?? 0);
+  const first = matchFrom(queryCodePoints, folded, tables, firstPositions[0] ?? 0);
 
   if (first !== null) {
     return first;
@@ -141,7 +333,7 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
   let bestScore = Number.NEGATIVE_INFINITY;
 
   for (const start of firstPositions.slice(1)) {
-    const candidate = matchFrom(lowerQuery, tables, text, start);
+    const candidate = matchFrom(queryCodePoints, folded, tables, start);
 
     if (candidate !== null && candidate.score > bestScore) {
       best = candidate;
@@ -149,7 +341,11 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
     }
   }
 
-  return best;
+  if (best !== null) {
+    return best;
+  }
+
+  return routeMatch(queryCodePoints, folded, tables);
 };
 
 export const bestFieldMatch = (
