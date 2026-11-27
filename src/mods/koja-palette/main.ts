@@ -126,13 +126,18 @@ export default class Palette extends View {
     this.input.focus();
 
     cx.spawn(async (taskCx) => {
-      const mods = await readModPalettes(appHome());
+      try {
+        const mods = await readModPalettes(appHome());
 
-      if (mods.length === 0) {
-        return;
+        if (mods.length === 0) {
+          return;
+        }
+
+        this.mods = mods;
+      } catch {
+        // An unreadable mod palette must not hide the built-in commands.
       }
 
-      this.mods = mods;
       taskCx.notify();
     });
 

@@ -81,6 +81,7 @@ let keyBindings: KeyBinding[] = [];
 let homeDirectory = '';
 let themeList: { name: string; light: boolean; colors: Record<string, string> }[] = [];
 let appearanceSetting = 'light';
+let paletteNotifications = 0;
 let tasks: Promise<void>[] = [];
 
 const inputStub = {
@@ -183,7 +184,9 @@ const loadView = async (): Promise<FakeView> => {
 
 const asyncContext = {
   focus_handle: () => ({ focus: () => undefined, is_focused: () => false }),
-  notify: () => undefined,
+  notify: () => {
+    paletteNotifications += 1;
+  },
   spawn: (body: (cx: unknown) => Promise<void>) => {
     tasks.push(body(asyncContext));
   },
@@ -291,6 +294,7 @@ beforeEach(() => {
   homeDirectory = '';
   themeList = [];
   appearanceSetting = 'light';
+  paletteNotifications = 0;
   tasks = [];
 });
 
@@ -498,6 +502,20 @@ describe('mod palettes', () => {
     const view = await openPalette();
 
     expect(drawnTexts(renderTree(view))).toContain('Widen');
+  });
+
+  test('keeps the palette usable and redraws when the mod palettes cannot be read', async () => {
+    homeDirectory = {
+      toString: () => {
+        throw new Error('unreadable');
+      },
+    } as unknown as string;
+
+    const before = paletteNotifications;
+    const view = await openPalette();
+
+    expect(paletteNotifications).toBeGreaterThan(before);
+    expect(rowWithText(renderTree(view), 'New tab')).not.toBeNull();
   });
 
   test('runs an entry with the arguments its mod declared', async () => {

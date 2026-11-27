@@ -393,9 +393,16 @@ const themeEntries = (known: ReadonlyMap<string, Command>, host: PaletteHost): E
 // A target names a pane, a space, or a terminal; a null one means the live focus.
 const isTargetValue = (value: unknown): boolean => value === null || typeof value === 'string';
 
+const fillsInName = (command: string): boolean =>
+  command.endsWith('.rename') || command === 'layout.clone' || command === 'mod.clone';
+
 const hasRequiredArg = (command: string, args: Record<string, unknown>, name: string): boolean => {
-  if (name === 'name' && command.endsWith('.rename') && args['name'] === null) {
-    return true;
+  if (name === 'name' && fillsInName(command)) {
+    const value = args[name];
+
+    if (value === null || value === undefined) {
+      return true;
+    }
   }
 
   const value = args[name];

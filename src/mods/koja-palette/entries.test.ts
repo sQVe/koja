@@ -383,6 +383,57 @@ describe('mod entries', () => {
     );
   });
 
+  test('lets a rename leave its required name out entirely', () => {
+    commandList = [
+      {
+        name: 'tab.rename',
+        args: [
+          { name: 'id', required: false },
+          { name: 'name', required: true },
+        ],
+        about: '',
+      },
+    ];
+
+    expect(added({ title: 'Do the thing', command: 'tab.rename', args: { id: null } })).toBe(true);
+  });
+
+  test('lets a clone leave its required name null for the palette to fill in', () => {
+    commandList = [
+      { name: 'layout.clone', args: [{ name: 'name', required: true }], about: '' },
+      { name: 'mod.clone', args: [{ name: 'name', required: true }], about: '' },
+    ];
+
+    const offered = (command: string, title: string): boolean =>
+      entriesOf([{ title, command, args: { name: null } }]).some((item) => item.title === title);
+
+    expect(offered('layout.clone', 'Duplicate the layout')).toBe(true);
+    expect(offered('mod.clone', 'Duplicate the mod')).toBe(true);
+  });
+
+  test('rejects a rename that leaves another required argument out', () => {
+    commandList = [
+      {
+        name: 'tab.rename',
+        args: [
+          { name: 'id', required: true },
+          { name: 'name', required: true },
+        ],
+        about: '',
+      },
+    ];
+
+    expect(added({ title: 'Do the thing', command: 'tab.rename', args: { name: 'api' } })).toBe(
+      false,
+    );
+  });
+
+  test('rejects a rename whose name is empty', () => {
+    commandList = [{ name: 'tab.rename', args: [{ name: 'name', required: true }], about: '' }];
+
+    expect(added({ title: 'Do the thing', command: 'tab.rename', args: { name: '' } })).toBe(false);
+  });
+
   test('lets only a rename leave its required name out', () => {
     commandList = [
       { name: 'tab.new', args: [{ name: 'name', required: true }], about: '' },
