@@ -54,6 +54,15 @@ describe('viewBar', () => {
     expect(optionButton(element, 'Inbox')?.backgroundColors).toEqual([palette.selected]);
   });
 
+  test('an empty store makes Projects the active option', () => {
+    const { store } = keyValueStore();
+
+    const element = viewBar(store, () => undefined);
+
+    expect(optionButton(element, 'Projects')?.backgroundColors).toEqual([palette.selected]);
+    expect(optionButton(element, 'Inbox')?.backgroundColors).toEqual([]);
+  });
+
   test('a select stores the chosen view', () => {
     const { values, store } = keyValueStore();
 
@@ -66,6 +75,20 @@ describe('viewBar', () => {
     }
 
     expect(values[sidebarViewKey]).toBe('inbox');
+  });
+
+  test('a select from a stored Inbox stores Projects', () => {
+    const { values, store } = keyValueStore({ [sidebarViewKey]: 'inbox' });
+
+    const element = viewBar(store, () => undefined);
+
+    const projects = optionButton(element, 'Projects');
+
+    if (projects !== undefined) {
+      click(projects);
+    }
+
+    expect(values[sidebarViewKey]).toBe('projects');
   });
 
   test('a select asks for one redraw', () => {
