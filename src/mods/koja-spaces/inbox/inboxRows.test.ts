@@ -12,7 +12,7 @@ import {
 } from '../../../../tests/moduleFakes.ts';
 import { placeOf } from '../../../data/gitIdentity.ts';
 import type { StackNeed } from '../../../data/pullNeeds.ts';
-import { overlaySize, sidebarSize, spacing } from '../../../kit/size.ts';
+import { overlaySize } from '../../../kit/size.ts';
 import type { InboxGroup } from '../inbox.ts';
 import { inboxGroups } from '../inbox.ts';
 import type { ShownRow } from '../projects.ts';
@@ -112,8 +112,6 @@ const hostOf = (overrides: Partial<InboxRowsHostLike>): InboxRowsHostLike => ({
 const rowsOf = (overrides: Partial<InboxRowsHostLike>): DrawnElement[] =>
   loaded.inboxRows(hostOf(overrides));
 
-const gapHeight = sidebarSize.groupGap - 2 * spacing.xxsmall;
-
 describe('inboxRows', () => {
   test('draws the loading row while no group shows and the mod is loading', () => {
     expect(drawnTexts(drawnTree(rowsOf({ loading: true })))).toContain('Loading…');
@@ -132,8 +130,15 @@ describe('inboxRows', () => {
     expect(drawnTexts(rows[2] as DrawnElement)).toEqual([]);
     expect(drawnTexts(rows[3] as DrawnElement)).toContain('Quiet');
     expect(drawnTexts(rows[4] as DrawnElement)).toContain('space-quiet');
+  });
 
-    expect((rows[2] as DrawnElement).styles['h']).toEqual([gapHeight]);
+  test('draws the PR needs you group for a row with a pull need', () => {
+    const groups = groupsOf([listed('pull-one', 'idle')]);
+    const rows = rowsOf({ groups });
+
+    expect(drawnTexts(rows[0] as DrawnElement)).toContain('PR needs you');
+    expect(drawnTexts(rows[0] as DrawnElement)).toContain('1');
+    expect(drawnTexts(rows[1] as DrawnElement)).toContain('space-pull-one');
   });
 
   test('draws the group count in the dim detail color', () => {

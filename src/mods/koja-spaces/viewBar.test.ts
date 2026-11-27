@@ -82,11 +82,9 @@ describe('viewBar', () => {
 
     const element = viewBar(store, () => undefined);
 
-    const projects = optionButton(element, 'Projects');
+    const projects = optionButton(element, 'Projects') as DrawnElement;
 
-    if (projects !== undefined) {
-      click(projects);
-    }
+    click(projects);
 
     expect(values[sidebarViewKey]).toBe('projects');
   });
