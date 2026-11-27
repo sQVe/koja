@@ -33,6 +33,10 @@ describe('actionIdentity', () => {
     expect(actionIdentity('{"command":"tab.new","args":{}}')).toBe('tab.new');
   });
 
+  test('matches an empty argument record to the command identity with no arguments', () => {
+    expect(actionIdentity('{"command":"tab.new","args":{}}')).toBe(commandIdentity('tab.new', {}));
+  });
+
   test('still rejects a null argument record', () => {
     expect(actionIdentity('{"command":"x","args":null}')).toBeNull();
   });

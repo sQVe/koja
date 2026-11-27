@@ -17,8 +17,13 @@ const withOrderedKeys = (value: unknown): unknown => {
   return sortRecordKeys(value);
 };
 
-export const commandIdentity = (command: string, args: Record<string, unknown> = {}): string =>
-  `${command}:${JSON.stringify(args, (_key, value: unknown) => withOrderedKeys(value))}`;
+export const commandIdentity = (command: string, args: Record<string, unknown> = {}): string => {
+  if (Object.keys(args).length === 0) {
+    return command;
+  }
+
+  return `${command}:${JSON.stringify(args, (_key, value: unknown) => withOrderedKeys(value))}`;
+};
 
 export const focusPaneTitles: CommandTitle[] = paneDirections.map((direction) => ({
   command: 'pane.go',

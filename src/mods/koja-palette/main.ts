@@ -72,12 +72,18 @@ const refocusMilliseconds = 600;
 
 const recentStorageKey = 'recent';
 
+const emptyArgsSuffix = /:{}$/;
+
 const readRecent = (): string[] => {
   const stored: unknown = parsedJson(localStorage.getItem(recentStorageKey));
 
-  return Array.isArray(stored)
-    ? stored.filter((item): item is string => typeof item === 'string')
-    : [];
+  if (!Array.isArray(stored)) {
+    return [];
+  }
+
+  return stored
+    .filter((item): item is string => typeof item === 'string')
+    .map((id) => id.replace(emptyArgsSuffix, ''));
 };
 
 const plural = (count: number, one: string, many: string): string =>

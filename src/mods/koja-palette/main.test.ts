@@ -311,11 +311,11 @@ describe('palette overlay state', () => {
     submitInput?.();
 
     expect(chosenCommands).toEqual(['tab.new']);
-    expect(storage.get('recent')).toBe('["tab.new:{}"]');
+    expect(storage.get('recent')).toBe('["tab.new"]');
   });
 
   test('reads valid saved recent commands before the default ordering', async () => {
-    storage.set('recent', '["tab.close:{}"]');
+    storage.set('recent', '["tab.close"]');
 
     const view = await loadView();
 
@@ -324,7 +324,19 @@ describe('palette overlay state', () => {
     submitInput?.();
 
     expect(chosenCommands).toEqual(['tab.close']);
-    expect(storage.get('recent')).toBe('["tab.close:{}"]');
+    expect(storage.get('recent')).toBe('["tab.close"]');
+  });
+
+  test('reads a recent id saved before the empty argument record was dropped', async () => {
+    storage.set('recent', '["tab.close:{}"]');
+
+    const view = await openPalette();
+    const tree = renderTree(view);
+    const firstRow = rowOf(tree, 0);
+    const firstWords = firstRow === null ? [] : drawnWords(firstRow);
+
+    expect(firstWords).toContain('Close tab');
+    expect(drawnTexts(tree)).toContain('Recent');
   });
 
   test('opening the palette writes no shared state', async () => {
