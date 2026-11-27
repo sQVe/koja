@@ -2,21 +2,19 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import type { Status } from 'herdr';
 
-import type { WorkNeed } from '../../kit/index.ts';
+import type { StackCardPull, WorkNeed } from '../../kit/index.ts';
 import {
   emptyWorkSlot,
   factLine,
-  hoverCard,
-  hoverCardSize,
   linkText,
   listRow,
   overlaySize,
   projectHeader,
-  roleText,
   sidebarSize,
   spaceFooter,
   spaceMark,
   spacing,
+  stackCard,
   stackProgress,
   viewSwitch,
   workIcon,
@@ -31,16 +29,10 @@ interface HeaderLook {
   age?: string;
 }
 
-interface SampleLayer {
-  pull: number;
-  title: string;
-  need: WorkNeed | null;
-}
-
-const sampleLayers: SampleLayer[] = [
-  { pull: 504, title: 'Two-line rows', need: null },
-  { pull: 507, title: 'Stack panel', need: 'merge' },
-  { pull: 509, title: 'Narrow rail', need: 'review' },
+const sampleLayers: StackCardPull[] = [
+  { number: 504, ticket: null, title: 'Two-line rows', checkedOut: false, end: null },
+  { number: 507, ticket: null, title: 'Stack panel', checkedOut: false, end: 'merge' },
+  { number: 509, ticket: null, title: 'Narrow rail', checkedOut: false, end: 'review' },
 ];
 
 const sampleLink = { ticket: 'ME-1175', pull: 504 } as const;
@@ -84,27 +76,6 @@ const spaceRows = (): Element[] => [
     end: [emptyWorkSlot()],
   }),
 ];
-
-const cardLine = (start: Element, end: string): Element =>
-  h_flex()
-    .flex_1()
-    .min_w(0)
-    .gap(spacing.small)
-    .items_center()
-    .child(start.flex_1())
-    .child(roleText('detail', end));
-
-const stackLayer = (layer: SampleLayer): Element => {
-  const workSlot = layer.need === null ? emptyWorkSlot() : workIcon(layer.need);
-
-  return listRow({
-    size: 'small',
-    inset: false,
-    state: 'normal',
-    label: `${pullLabel(layer.pull)} ${layer.title}`,
-    end: [workSlot],
-  });
-};
 
 const mainHeader = (name: string, look: HeaderLook): Element => {
   const folded = look.folded ?? false;
@@ -204,12 +175,13 @@ export const sidebarParts = (): Element[] => {
       ]),
     ),
     sample(
-      'Hover card with its arrow on the header line',
-      hoverCard({
-        arrowTop: hoverCardSize.headerCenter,
-        header: cardLine(roleText('title', 'Tau workflow sidebar'), 'koja'),
-        body: sampleLayers.map((layer) => stackLayer(layer)),
-        footer: cardLine(roleText('detail', '8 PRs'), 'Open stack ›'),
+      'Stack card with its arrow at the middle',
+      stackCard({
+        title: 'Tau workflow sidebar',
+        project: 'koja',
+        merged: [],
+        pulls: sampleLayers,
+        total: 8,
       }),
     ),
   ];

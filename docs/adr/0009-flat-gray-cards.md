@@ -244,10 +244,10 @@ terminal preview inside one framed overlay, so the list rounds only its own two 
 command palette opens frameless, and its overlay card is its only frame.
 
 - A hover card is a `popover` card with a 1 px `border` outline and `radius.default` corners. An
-  arrow 4 px deep on its left edge points at the row it describes. GPUI cannot rotate a box, so the
-  arrow is 1 px columns that grow 2 px each, which keeps both edges at 45 degrees and crisp. A fill
-  layer 1 px inside the outline layer covers the card's left border, so arrow and card read as one
-  shape.
+  arrow 4 px deep on its left edge points at the row it describes, and sits at the card's vertical
+  middle, so the card centers on that row. GPUI cannot rotate a box, so the arrow is 1 px columns
+  that grow 2 px each, which keeps both edges at 45 degrees and crisp. A fill layer 1 px inside the
+  outline layer covers the card's left border, so arrow and card read as one shape.
 
 ### Key hint card
 
