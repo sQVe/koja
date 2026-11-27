@@ -19,7 +19,7 @@ export const diffRows = (lines: string[]): DiffRow[] => {
       old = Number(match[1]);
       current = Number(match[2]);
 
-      return { kind: '@', text: line };
+      return { kind: '@', text: untab(line) };
     }
 
     const kind = line[0];
@@ -40,6 +40,6 @@ export const diffRows = (lines: string[]): DiffRow[] => {
       return { kind, number, text: untab(line.slice(1)) || ' ' };
     }
 
-    return { kind: '', text: line };
+    return { kind: '', text: untab(line) };
   });
 };

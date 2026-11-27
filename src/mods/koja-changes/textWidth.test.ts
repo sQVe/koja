@@ -7,6 +7,10 @@ describe('displayColumns', () => {
     expect(displayColumns('const x = 1;')).toBe(12);
   });
 
+  test('counts one column for a digit, a hash, and a star', () => {
+    expect(displayColumns('0#*')).toBe(3);
+  });
+
   test('counts two columns for an ideograph', () => {
     expect(displayColumns('名前')).toBe(4);
   });
@@ -15,8 +19,16 @@ describe('displayColumns', () => {
     expect(displayColumns('a🚀')).toBe(3);
   });
 
-  test('keeps the width of a combining mark to the glyph it joins', () => {
-    expect(displayColumns('e\u0301')).toBe(2);
+  test('counts one column for a glyph that is not emoji presentation', () => {
+    expect(displayColumns('☺')).toBe(1);
+  });
+
+  test('adds no column for a combining mark', () => {
+    expect(displayColumns('e\u0301')).toBe(1);
+  });
+
+  test('adds no column for a variation selector', () => {
+    expect(displayColumns('a\uFE0F')).toBe(1);
   });
 });
 
