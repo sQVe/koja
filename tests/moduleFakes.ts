@@ -1,3 +1,6 @@
+import { drawn } from './drawn.ts';
+import type { DrawnElement } from './drawn.ts';
+
 export type ModuleFake = Record<string, unknown>;
 
 type KeyHandler = (
@@ -87,7 +90,25 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   ...overrides,
 });
 
+// A HoverCard draws its trigger while the card is closed and its content only while it is open.
+// The fake draws the trigger as a child and records the content, so a test finds the row and reads
+// the card without hover timing.
+const hoverCardElement = (): DrawnElement => {
+  const element = drawn();
+
+  Object.assign(element, {
+    trigger: (child: unknown) => {
+      element.kids.push(child as DrawnElement);
+
+      return element;
+    },
+  });
+
+  return element;
+};
+
 export const gpuiBaseFake = (overrides: ModuleFake = {}): ModuleFake => ({
+  HoverCard: { new: () => hoverCardElement() },
   Input: { new: () => chainable() },
   InputState: { new: () => undefined },
   ScrollHandle: { new: () => chainable() },

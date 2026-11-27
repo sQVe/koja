@@ -1,8 +1,7 @@
 import type { Context, Element } from 'gpui-kit';
-import { openOverlay, run, setShared, shared, spaces } from 'herdr';
-import type { SpaceInfo } from 'herdr';
+import { run, setShared, shared, spaces } from 'herdr';
 
-import { detailText, overlaySize, sectionHeader, sidebarSize } from '../../../kit/index.ts';
+import { detailText, sectionHeader, sidebarSize } from '../../../kit/index.ts';
 import { runSpaceCommand } from '../../../kit/space/spaceSelection.ts';
 import { groupedList } from '../groupedList.ts';
 import type { InboxGroup } from '../inbox.ts';
@@ -17,23 +16,13 @@ export interface InboxRowsHost {
 
 const activeSpaceId = (): string | null => spaces().find((space) => space.active)?.id ?? null;
 
-const selectSpace = (id: string, cx: Context): void => {
+export const selectSpace = (id: string, cx: Context): void => {
   runSpaceCommand(
     { run, get: shared, set: setShared, shown: activeSpaceId },
     { name: 'space.select', args: { id } },
   );
 
   cx.notify();
-};
-
-const openSpaceMenu = (space: SpaceInfo): void => {
-  openOverlay({
-    mod: 'koja-menu',
-    kind: 'popup',
-    width: overlaySize.menuWidth,
-    height: overlaySize.menuHeight,
-    props: { tab: 'space', target: { id: space.id } },
-  });
 };
 
 const groupHeader = (group: InboxGroup): Element =>
@@ -45,14 +34,7 @@ const groupHeader = (group: InboxGroup): Element =>
   }).id(`inbox-${group.id}`);
 
 const inboxRow = (entry: ShownRow, host: InboxRowsHost): Element =>
-  host
-    .draw(entry.row, entry.project)
-    .on_click((_event, cx) => {
-      selectSpace(entry.row.space.id, cx);
-    })
-    .on_mouse_down('right', () => {
-      openSpaceMenu(entry.row.space);
-    });
+  host.draw(entry.row, entry.project);
 
 const groupBlock = (group: InboxGroup, host: InboxRowsHost): Element[] => [
   groupHeader(group),

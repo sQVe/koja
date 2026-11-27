@@ -1,3 +1,4 @@
+import { HoverCard } from 'gpui-base';
 import type { Context, Element } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
 
@@ -5,7 +6,7 @@ import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine } from '../../kit/drag.ts';
-import type { DropMark } from '../../kit/index.ts';
+import type { DropMark, StackCardModel } from '../../kit/index.ts';
 import {
   controlSize,
   detailText,
@@ -13,10 +14,12 @@ import {
   listRow,
   projectHeader,
   spaceMark,
+  stackCard,
   workIcon,
 } from '../../kit/index.ts';
 import type { Project } from './projects.ts';
 import { rowCut, rowTitleOf } from './rows.ts';
+import { openSpaceMenu } from './spaceMenu.ts';
 import type { ListedSpace } from './tree.ts';
 
 interface RowBaseState {
@@ -24,17 +27,30 @@ interface RowBaseState {
   refused: string | null;
   cursor: string | null;
   age: string | null;
-  attachDrag: (element: Element, space: SpaceInfo, ids: readonly string[]) => void;
 }
+
+export type RowInteraction =
+  | {
+      kind: 'reorder';
+      attachDrag: (element: Element, space: SpaceInfo, ids: readonly string[]) => void;
+    }
+  | {
+      kind: 'select';
+      select: (id: string, cx: Context) => void;
+      openMenu: (space: SpaceInfo) => void;
+    };
 
 export interface RowState extends RowBaseState {
   need: StackNeed | null;
+  card: StackCardModel | null;
+  interaction: RowInteraction;
 }
 
 export interface HeaderState extends RowBaseState {
   hovered: string | null;
   onHover: (spaceId: string, hovered: boolean, cx: Context) => void;
   toggleFold: (key: string, cx: Context) => void;
+  attachDrag: (element: Element, space: SpaceInfo, ids: readonly string[]) => void;
 }
 
 const dropMark = (state: RowBaseState, id: string, ids: readonly string[]): DropMark | undefined =>
@@ -42,6 +58,42 @@ const dropMark = (state: RowBaseState, id: string, ids: readonly string[]): Drop
 
 const projectDetail = (projectName: string): Element =>
   detailText(projectName).max_w(controlSize.factValueMaxWidth).truncate();
+
+const attachInteraction = (
+  element: Element,
+  space: SpaceInfo,
+  ids: readonly string[],
+  interaction: RowInteraction,
+): void => {
+  if (interaction.kind === 'reorder') {
+    interaction.attachDrag(element, space, ids);
+
+    element.on_mouse_down('right', () => {
+      openSpaceMenu(space);
+    });
+
+    return;
+  }
+
+  element
+    .on_click((_event, cx) => {
+      interaction.select(space.id, cx);
+    })
+    .on_mouse_down('right', () => {
+      interaction.openMenu(space);
+    });
+};
+
+const cardWrap = (element: Element, space: SpaceInfo, card: StackCardModel | null): Element => {
+  if (card === null) {
+    return element;
+  }
+
+  return HoverCard.new(`stack-card-${space.id}`)
+    .trigger(element)
+    .content(stackCard(card))
+    .anchor('left_center');
+};
 
 export const row = (
   listed: ListedSpace,
@@ -53,10 +105,9 @@ export const row = (
 ): Element => {
   const { space } = listed;
   const drop = dropMark(state, space.id, ids);
-  const hasProject = projectName !== null;
   const end: Element[] = [];
 
-  if (hasProject) {
+  if (projectName !== null) {
     end.push(projectDetail(projectName));
   }
 
@@ -83,11 +134,9 @@ export const row = (
     end,
   }).id(`space-${space.id}`);
 
-  if (!hasProject) {
-    state.attachDrag(element, space, ids);
-  }
+  attachInteraction(element, space, ids, state.interaction);
 
-  return element;
+  return cardWrap(element, space, state.card);
 };
 
 const foldable = (project: Project): boolean => project.spaces.length + project.hidden > 0;

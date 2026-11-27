@@ -23,6 +23,11 @@ switches away from `unrelated`.
    icon. Move the pointer onto that icon with `bun run sandbox move <x0> <y0> <x> <y>`, using the
    icon's coordinates from the shot for the end point, then take another shot. A tooltip reads
    `CI failing`.
+2. Rest the pointer on the `Fixture PR 505` row with `bun run sandbox move`, wait 1 s, and take a
+   shot. The card shows the title `Fixture PR 505` and `stack-repo`, the merged line `#504` with
+   `1 merged`, `#503` with the red circle-x icon, `#505` with the branch icon and the green merge
+   icon, and the footer `3 PRs`. Switch to Inbox, rest the pointer on the same row, and see the same
+   card. Switch back to Projects.
 
 ## End state
 

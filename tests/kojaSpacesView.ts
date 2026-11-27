@@ -320,6 +320,7 @@ const kitParts = [
   'section',
   'sectionHeader',
   'size',
+  'stackCard',
   'stateLine',
   'statusMark',
   'statusRollup',

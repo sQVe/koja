@@ -2,17 +2,7 @@ import { ScrollHandle, v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { PaneInfo, SpaceInfo } from 'herdr';
-import {
-  checking,
-  nextCommand,
-  openOverlay,
-  panes,
-  run,
-  setShared,
-  shared,
-  spaces,
-  terminals,
-} from 'herdr';
+import { checking, nextCommand, panes, run, setShared, shared, spaces, terminals } from 'herdr';
 
 import type { DataState } from '../../data/consumer.ts';
 import { readDataState } from '../../data/consumer.ts';
@@ -28,7 +18,6 @@ import {
   hoveredAfter,
   layoutRoot,
   listActionOf,
-  overlaySize,
   readSection,
   repeat,
   rollupStatuses,
@@ -48,18 +37,21 @@ import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import type { KeptNeed } from './gitFacts.ts';
 import { answeredPlaces, gitInfoAt, pullFailedAt } from './gitFacts.ts';
-import { inboxRows } from './inbox/inboxRows.ts';
+import { inboxRows, selectSpace } from './inbox/inboxRows.ts';
 import type { ListModel, RowModel } from './listModel.ts';
 import { listModelOf } from './listModel.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, noFolds } from './projects.ts';
+import { rowTitleOf } from './rows.ts';
 import { sidebarViewKey, readSidebarView } from './sidebarView.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
 import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
+import { openSpaceMenu } from './spaceMenu.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
-import type { HeaderState, RowState } from './spaceRows.ts';
+import type { HeaderState, RowInteraction, RowState } from './spaceRows.ts';
 import { headerRow, row as spaceRow } from './spaceRows.ts';
+import { stackCardOf } from './stackCard.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import { viewBar } from './viewBar.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
@@ -369,17 +361,6 @@ export default class Spaces extends View {
     }
   }
 
-  private openMenu(space: SpaceInfo): void {
-    // A popup is as tall as its items; the height is only the most.
-    openOverlay({
-      mod: 'koja-menu',
-      kind: 'popup',
-      width: overlaySize.menuWidth,
-      height: overlaySize.menuHeight,
-      props: { tab: 'space', target: { id: space.id } },
-    });
-  }
-
   private listedSpaces(state: DataState): ListedSpace[] {
     const spaceList = spaces();
     const paneList = panes();
@@ -446,12 +427,24 @@ export default class Spaces extends View {
     return spaces().some((space) => !this.visibility.shown.has(space.id));
   }
 
-  private rowState(model: RowModel, cursor: string | null, now: number): RowState {
+  private rowState(
+    model: RowModel,
+    cursor: string | null,
+    now: number,
+    interaction: RowInteraction,
+  ): RowState {
     const waiting = {
       id: model.row.space.id,
       status: model.row.status,
       active: model.row.space.active,
     };
+
+    const title = rowTitleOf(
+      model.row.space.named,
+      model.row.space.name,
+      model.pull,
+      model.ticketTitle,
+    );
 
     return {
       drag: this.dragFor('space'),
@@ -459,9 +452,8 @@ export default class Spaces extends View {
       cursor,
       age: waitAge(this.waitTimes, waiting, now),
       need: model.need,
-      attachDrag: (element, space, rowIds) => {
-        this.addDragHandlers(element, space, rowIds);
-      },
+      card: stackCardOf(model, title),
+      interaction,
     };
   }
 
@@ -471,7 +463,13 @@ export default class Spaces extends View {
     cursor: string | null,
     now: number,
   ): Element {
-    const state = this.rowState(model, cursor, now);
+    const interaction: RowInteraction = {
+      kind: 'select',
+      select: selectSpace,
+      openMenu: openSpaceMenu,
+    };
+
+    const state = this.rowState(model, cursor, now, interaction);
 
     return spaceRow(model.row, ids, state, model.pull, model.ticketTitle, model.project);
   }
@@ -482,7 +480,14 @@ export default class Spaces extends View {
     cursor: string | null,
     now: number,
   ): Element {
-    const state = this.rowState(model, cursor, now);
+    const interaction: RowInteraction = {
+      kind: 'reorder',
+      attachDrag: (element, space, rowIds) => {
+        this.addDragHandlers(element, space, rowIds);
+      },
+    };
+
+    const state = this.rowState(model, cursor, now, interaction);
 
     return spaceRow(model.row, ids, state, model.pull, model.ticketTitle, null);
   }
@@ -688,7 +693,7 @@ export default class Spaces extends View {
 
     if (main !== null) {
       element.on_mouse_down('right', () => {
-        this.openMenu(main.space);
+        openSpaceMenu(main.space);
       });
     }
   }
@@ -703,9 +708,6 @@ export default class Spaces extends View {
       })
       .on_mouse_up('left', (_event, cx) => {
         this.drop(space, ids, cx);
-      })
-      .on_mouse_down('right', () => {
-        this.openMenu(space);
       });
   }
 

@@ -26,19 +26,35 @@ import type { GitInfo, ListedSpace } from './tree.ts';
 import type { WaitTimes } from './waitTimes.ts';
 import { advanceWaitTimes, emptyWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
 
-interface RowStateLike {
+interface BaseStateLike {
   drag: { source: string | null; over: string | null };
   refused: string | null;
   cursor: string | null;
   age: string | null;
-  need: StackNeed | null;
-  attachDrag: (element: unknown, space: SpaceInfo, ids: readonly string[]) => void;
 }
 
-interface HeaderStateLike extends RowStateLike {
+type InteractionLike =
+  | {
+      kind: 'reorder';
+      attachDrag: (element: unknown, space: SpaceInfo, ids: readonly string[]) => void;
+    }
+  | {
+      kind: 'select';
+      select: (id: string, cx: unknown) => void;
+      openMenu: (space: SpaceInfo) => void;
+    };
+
+interface RowStateLike extends BaseStateLike {
+  need: StackNeed | null;
+  card: null;
+  interaction: InteractionLike;
+}
+
+interface HeaderStateLike extends BaseStateLike {
   hovered: string | null;
   onHover: (spaceId: string, hovered: boolean, cx: unknown) => void;
   toggleFold: (key: string, cx: unknown) => void;
+  attachDrag: (element: unknown, space: SpaceInfo, ids: readonly string[]) => void;
 }
 
 const themeColors = {
@@ -133,13 +149,23 @@ const listedSpace = (named: boolean): ListedSpace => ({
   place: placeOf(null, '/code/koja'),
 });
 
-const stateWith = (age: string | null = null, need: StackNeed | null = null): RowStateLike => ({
+const baseState = (age: string | null = null): BaseStateLike => ({
   drag: { source: null, over: null },
   refused: null,
   cursor: null,
   age,
+});
+
+const reorder = (
+  attachDrag: (element: unknown, space: SpaceInfo, ids: readonly string[]) => void = () =>
+    undefined,
+): InteractionLike => ({ kind: 'reorder', attachDrag });
+
+const stateWith = (age: string | null = null, need: StackNeed | null = null): RowStateLike => ({
+  ...baseState(age),
   need,
-  attachDrag: () => undefined,
+  card: null,
+  interaction: reorder(),
 });
 
 const textsOf = (named: boolean, found: Pull | null): string[] =>
@@ -188,15 +214,22 @@ describe('row', () => {
   });
 
   test('a row with a project name attaches no drag', () => {
-    const drags: unknown[] = [];
+    const selected: string[] = [];
+    const menus: string[] = [];
 
-    loaded.row(
+    const rowElement = loaded.row(
       listedSpace(true),
       ['a'],
       {
         ...stateWith(),
-        attachDrag: (...args) => {
-          drags.push(args);
+        interaction: {
+          kind: 'select',
+          select: (id) => {
+            selected.push(id);
+          },
+          openMenu: (space) => {
+            menus.push(space.id);
+          },
         },
       },
       null,
@@ -204,7 +237,13 @@ describe('row', () => {
       'koja',
     );
 
-    expect(drags).toEqual([]);
+    expect(rowElement.mouseHandlers['on_mouse_down:left']).toBeUndefined();
+
+    rowElement.clickHandlers[0]?.({}, {});
+    rowElement.mouseHandlers['on_mouse_down:right']?.[0]?.({}, {});
+
+    expect(selected).toEqual(['a']);
+    expect(menus).toEqual(['a']);
   });
 
   test('a row with no project name attaches the drag with the ids it was given', () => {
@@ -215,9 +254,9 @@ describe('row', () => {
       ['a', 'b'],
       {
         ...stateWith(),
-        attachDrag: (...args) => {
+        interaction: reorder((...args) => {
           drags.push(args);
-        },
+        }),
       },
       null,
       null,
@@ -252,12 +291,13 @@ const projectWith = (spaces: ListedSpace[]): Project => ({
 });
 
 const headerState = (hovers: string[]): HeaderStateLike => ({
-  ...stateWith(),
+  ...baseState(),
   hovered: null,
   onHover: (spaceId, hovered) => {
     hovers.push(`${spaceId} ${String(hovered)}`);
   },
   toggleFold: () => undefined,
+  attachDrag: () => undefined,
 });
 
 describe('headerRow', () => {

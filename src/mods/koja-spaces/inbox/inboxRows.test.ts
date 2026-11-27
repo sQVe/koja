@@ -12,7 +12,6 @@ import {
 } from '../../../../tests/moduleFakes.ts';
 import { placeOf } from '../../../data/gitIdentity.ts';
 import type { StackNeed } from '../../../data/pullNeeds.ts';
-import { overlaySize } from '../../../kit/size.ts';
 import type { InboxGroup } from '../inbox.ts';
 import { inboxGroups } from '../inbox.ts';
 import type { ShownRow } from '../projects.ts';
@@ -30,8 +29,6 @@ const themeColors = {
   dim: '#666666',
 };
 
-const overlays: unknown[] = [];
-
 Object.assign(globalThis, { kojaModName: 'koja' });
 
 await mock.module('gpui-base', () =>
@@ -42,16 +39,7 @@ await mock.module('gpui-kit', () =>
   gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
 );
 
-await mock.module('herdr', () =>
-  herdrFake({
-    openOverlay: (options: unknown) => {
-      overlays.push(options);
-
-      return null;
-    },
-    theme: () => themeColors,
-  }),
-);
+await mock.module('herdr', () => herdrFake({ theme: () => themeColors }));
 
 const kitParts = ['sectionHeader', 'size', 'stateLine', 'text', 'textRole', 'theme'];
 
@@ -148,27 +136,5 @@ describe('inboxRows', () => {
     const count = descendants(header).find((part) => part.texts.includes('2'));
 
     expect(count?.textColors).toEqual([themeColors.dim]);
-  });
-
-  test('a right click on a row opens its space menu', () => {
-    overlays.length = 0;
-
-    const groups = groupsOf([listed('ask', 'blocked')]);
-
-    const row = rowsOf({ groups }).find((element) =>
-      drawnTexts(element).includes('space-ask'),
-    ) as DrawnElement;
-
-    row.mouseHandlers['on_mouse_down:right']?.[0]?.({}, {});
-
-    expect(overlays).toEqual([
-      {
-        mod: 'koja-menu',
-        kind: 'popup',
-        width: overlaySize.menuWidth,
-        height: overlaySize.menuHeight,
-        props: { tab: 'space', target: { id: 'ask' } },
-      },
-    ]);
   });
 });
