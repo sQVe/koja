@@ -58,7 +58,12 @@ export const row = (
 ): Element => {
   const { space } = listed;
   const drop = dropMark(state, space.id, ids);
-  const end: Element[] = projectName === null ? [] : [projectDetail(projectName)];
+  const hasProject = projectName !== null;
+  const end: Element[] = [];
+
+  if (hasProject) {
+    end.push(projectDetail(projectName));
+  }
 
   if (state.age !== null) {
     end.push(detailText(state.age));
@@ -83,7 +88,7 @@ export const row = (
     end,
   }).id(`space-${space.id}`);
 
-  if (projectName === null) {
+  if (!hasProject) {
     state.attachDrag(element, space, ids);
   }
 

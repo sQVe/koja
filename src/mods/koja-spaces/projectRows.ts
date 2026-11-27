@@ -22,8 +22,9 @@ export interface ProjectRowsHost {
 
 const pullErrorText = 'Could not read PRs';
 
-// The list puts the row gap on both sides of this spacer, so the projects sit a group gap apart.
-export const projectGap = (): Element =>
+// The list puts the row gap on both sides of this spacer, so the groups in a list sit a group gap
+// apart.
+export const groupGap = (): Element =>
   div()
     .flex_none()
     .h(sidebarSize.groupGap - 2 * spacing.xxsmall);
@@ -86,6 +87,6 @@ export const projectRows = (host: ProjectRowsHost): Element[] => {
   return host.projects.flatMap((project, index) => {
     const block = projectBlock(project, host);
 
-    return index === 0 ? block : [projectGap(), ...block];
+    return index === 0 ? block : [groupGap(), ...block];
   });
 };

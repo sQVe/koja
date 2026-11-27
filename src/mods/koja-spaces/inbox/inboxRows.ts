@@ -9,7 +9,7 @@ import type { KeptNeed } from '../gitFacts.ts';
 import { needAt } from '../gitFacts.ts';
 import type { InboxGroup } from '../inbox.ts';
 import { inboxGroups, inboxIds } from '../inbox.ts';
-import { loadingRow, projectGap } from '../projectRows.ts';
+import { groupGap, loadingRow } from '../projectRows.ts';
 import type { ShownRow } from '../projects.ts';
 import { groupProjects, noFolds, shownRows } from '../projects.ts';
 import type { ListedSpace } from '../tree.ts';
@@ -88,6 +88,6 @@ export const inboxRows = (host: InboxRowsHost): Element[] => {
   return host.groups.flatMap((group, index) => {
     const block = groupBlock(group, host);
 
-    return index === 0 ? block : [projectGap(), ...block];
+    return index === 0 ? block : [groupGap(), ...block];
   });
 };
