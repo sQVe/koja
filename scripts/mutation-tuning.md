@@ -5,76 +5,75 @@ change a setting that changes the mutants or their results.
 
 ## Method
 
-Each run cloned the repository into a temporary directory, checked out one commit of `main`, and
-copied in `stryker.config.json`, `.pi/tau.json`, `package.json`, and `bun.lock` from the setup
+Each older run cloned the repository into a temporary directory, checked out one commit of `main`,
+and copied in `stryker.config.json`, `.pi/tau.json`, `package.json`, and `bun.lock` from the setup
 branch. It then ran `bunx --bun mutation changed <commit>~1`. The commit's own tests ran, so the
 results show what that commit's tests killed, not what `main` kills today. The runs went two at a
 time on a 32-core machine with Bun 1.4.4, so `concurrency: "50%"` gave each run 16 workers.
+Reproducing the `09c6ffb` run also needs `patches/`, which the older runs did not have.
 
 Survivors are `Survived` plus `NoCoverage` mutants. "Timeout" mutants are not in "Killed".
 
 ## Commits
 
-| Commit    | Change                                                 | Mutants | Killed | Survived | No coverage | Timeout | Wall time |
-| --------- | ------------------------------------------------------ | ------: | -----: | -------: | ----------: | ------: | --------: |
-| `675f1a2` | count sub-agents in space and tab status (#7)          |     154 |    123 |       29 |           0 |       2 |      13 s |
-| `c48dd81` | name tabs in the Go to panel the same way (#9)         |       1 |      1 |        0 |           0 |       0 |      13 s |
-| `4599012` | restyle the sidebar's repository labels and rail (#8)  |     129 |    111 |       14 |           4 |       0 |      14 s |
-| `189acd7` | add a Neovim-style normal mode (#6)                    |     368 |    290 |       60 |          18 |       0 |      14 s |
-| `06e57fe` | restyle Koja with a light theme and rounded panes (#3) |      55 |     51 |        3 |           1 |       0 |      13 s |
+| Commit    | Change                                                 | Mutants | Killed | Survived | No coverage | Timeout | Stryker time |
+| --------- | ------------------------------------------------------ | ------: | -----: | -------: | ----------: | ------: | -----------: |
+| `675f1a2` | count sub-agents in space and tab status (#7)          |     154 |    123 |       29 |           0 |       2 |         13 s |
+| `c48dd81` | name tabs in the Go to panel the same way (#9)         |       1 |      1 |        0 |           0 |       0 |         13 s |
+| `4599012` | restyle the sidebar's repository labels and rail (#8)  |     129 |    111 |       14 |           4 |       0 |         14 s |
+| `189acd7` | add a Neovim-style normal mode (#6)                    |     368 |    290 |       60 |          18 |       0 |         14 s |
+| `06e57fe` | restyle Koja with a light theme and rounded panes (#3) |      55 |     51 |        3 |           1 |       0 |         13 s |
+| `09c6ffb` | added lines in the production files changed since it   |    7302 |   5818 |     1259 |         168 |      57 |         54 s |
 
-Each run spent about 11 seconds on the dry run of 190 to 300 tests. Nearly all of it was the
+The `09c6ffb` run differs from the others. It ran in this repository on Bun 1.4.5 with the settings
+below, as `bunx --bun mutation changed 09c6ffb`, so it mutated the added lines in the production
+files changed since that commit. Its dry run ran 3388 tests in 3 seconds. It is one run, and no
+spread was measured. Its 54 seconds is the elapsed time Stryker reported, which covers its own
+preparation and the dry run, not the whole command. It covers far more code than the older rows.
+
+Each older run spent about 11 seconds on the dry run of 190 to 300 tests. Nearly all of it was the
 preview-shell tests, which wait on real timers. They are now left out of the sandbox, see
-`ignorePatterns`, and the dry run of the 369 remaining tests takes under a second. No run mutated a
-file outside the `mutate` list below.
+`ignorePatterns`, and the dry run of the 369 remaining tests took under a second after that change.
+No run mutated a file outside the `mutate` list below.
 
 ## Settings
 
 | Setting                       | Value                                                                                                           | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `testRunner`, `plugins`       | `bun`, `@hughescr/stryker-bun-runner`                                                                           | Koja's tests use `bun:test`. The runner gives per-test coverage. All five runs worked.                                                                                                                                                                                                                                                                                                                                                      |
-| `bun.timeout`, `bun.bunArgs`  | `600000`, `--timeout 60000`                                                                                     | Copied from Mergit, where instrumented tests timed out with the defaults. Koja's dry run takes under a second, so these limits are never close. They were not measured here.                                                                                                                                                                                                                                                                |
-| `coverageAnalysis`            | `perTest`                                                                                                       | Stryker runs only the tests that cover a mutant. Runs of 1 to 368 mutants took 13 to 14 seconds.                                                                                                                                                                                                                                                                                                                                            |
-| `mutate`                      | `src/**/*.ts`, minus tests and the files listed below                                                           | Every production file is under `src/`. Only modules that `bun test` can load are mutated. See "Left-out modules".                                                                                                                                                                                                                                                                                                                           |
+| `testRunner`, `plugins`       | `bun`, `@hughescr/stryker-bun-runner`                                                                           | Koja's tests use `bun:test`. The runner gives per-test coverage. All six runs worked.                                                                                                                                                                                                                                                                                                                                                       |
+| `bun.timeout`, `bun.bunArgs`  | `600000`, `--timeout 60000`                                                                                     | Copied from Mergit, where instrumented tests timed out with the defaults. The older runs' dry run took under a second and the `09c6ffb` run's took 3 seconds. The limits themselves were not measured here.                                                                                                                                                                                                                                 |
+| `coverageAnalysis`            | `perTest`                                                                                                       | Stryker runs only the tests that cover a mutant. The older runs of 1 to 368 mutants took 13 to 14 seconds.                                                                                                                                                                                                                                                                                                                                  |
+| `mutate`                      | `src/**/*.ts`, minus tests                                                                                      | Every production file is under `src/`, and every source module is mutated. Tests mock Herdr's modules with `mock.module()`, so every module loads under `bun test`. See "Modules that import Herdr's packages".                                                                                                                                                                                                                             |
+| `patchedDependencies`         | `@hughescr/stryker-bun-runner@1.6.0` to a file under `patches/`                                                 | The runner imported every mutated file before any test ran, which failed for a module that imports Herdr's packages. The patch sets that list to empty. A runner upgrade must carry the patch forward: 1.6.1 still imports the files before the tests and has no option to turn it off.                                                                                                                                                     |
 | `tsconfigFile`                | `stryker-no-tsconfig.json` (does not exist)                                                                     | Stryker core rewrites `tsconfig.json` through the TypeScript JavaScript API, which TypeScript 7 does not have. A missing file skips the rewrite.                                                                                                                                                                                                                                                                                            |
-| `checkers`                    | `[]`                                                                                                            | A TypeScript checker needs the same API. The five runs had 0 invalid mutants, so no checker is needed.                                                                                                                                                                                                                                                                                                                                      |
+| `checkers`                    | `[]`                                                                                                            | A TypeScript checker needs the same API. The six runs had 0 invalid mutants, so no checker is needed.                                                                                                                                                                                                                                                                                                                                       |
 | `ignoreStatic`                | `true`, set by the package                                                                                      | A mutant in code that runs while a file loads is not a test gap.                                                                                                                                                                                                                                                                                                                                                                            |
 | `ignorers`                    | `tauMessageIgnorer`, added by the package                                                                       | It skips message text, as `AGENTS.md` asks not to test wording.                                                                                                                                                                                                                                                                                                                                                                             |
 | `concurrency`                 | `50%`, `100%` in CI                                                                                             | Half the cores leaves room for other local work. The CI job writes a copy of the config with every core.                                                                                                                                                                                                                                                                                                                                    |
-| `timeoutMS`, `timeoutFactor`  | `10000`, `4`                                                                                                    | Copied from Mergit. Runs had 0 to 2 timed-out mutants, and a timeout counts as a kill. The factor guards against slow 4-core CI runners.                                                                                                                                                                                                                                                                                                    |
+| `timeoutMS`, `timeoutFactor`  | `10000`, `4`                                                                                                    | Copied from Mergit. The older runs had 0 to 2 timed-out mutants and the `09c6ffb` run had 57, and a timeout counts as a kill. The factor guards against slow 4-core CI runners.                                                                                                                                                                                                                                                             |
 | `ignorePatterns`              | `.tau`, `docs`, `herdr`, `tests/*.test.ts`, `dist`, `CHANGELOG.md`, `src/mods/koja-picker/previewShell.test.ts` | Stryker does not copy these into the sandbox. `herdr` holds only declarations. `tests/*.test.ts` holds the build, install, and lint checks, which need a build and are not unit tests. `previewShell.test.ts` tests the `preview.sh` shell script and imports no TypeScript source, so it can kill no mutant. Its tests run concurrently under `bun test`, but the runner runs them one at a time, which cost 10 to 20 seconds per dry run. |
 | `tempDirName`, `cleanTempDir` | `.stryker-tmp`, `true`                                                                                          | A fixed folder in the repository, ignored by Git, removed after a run.                                                                                                                                                                                                                                                                                                                                                                      |
 | `thresholds.break`            | set to `null` by the package                                                                                    | The report decides the exit code, not a score.                                                                                                                                                                                                                                                                                                                                                                                              |
 
-## Left-out modules
+## Modules that import Herdr's packages
 
-Herdr's modules, such as `herdr`, `gpui-kit`, and `gpui-base`, exist only inside the Herdr app. A
-module that imports one at run time, directly or through another module, fails to load under
-`bun test`, so all its mutants would be `NoCoverage` noise. The `!` globs in `mutate` leave out
-every such source file. `src/kit/modName.ts` is left out too: it reads a global that only the build
-defines.
+Herdr's modules, such as `herdr`, `gpui-kit`, and `gpui-base`, exist only inside the Herdr app, so a
+module that imports one cannot load on its own. Every test that needs such a module calls
+`mock.module()` for the package first, and imports the module under test after that. So every source
+module loads under `bun test`, and `mutate` keeps all of them.
 
-To find them, compare the files that `bun test src --coverage` lists with all source files. Then try
-each missing file with `bun -e "await import('./<file>')"`. A file that loads but has no test stays
-in, because its `NoCoverage` mutants are real gaps. `src/kit/fileStatus.ts` is one.
-`src/kit/iconNames.ts` is another, and its module-level mutants are static, so `ignoreStatic` skips
-them.
+The Bun runner imports every mutated file before the tests run. That early import happened before
+the mocks and failed, for example with `Cannot find package 'gpui-kit'`, and the dry run then
+failed. `patches/@hughescr%2Fstryker-bun-runner@1.6.0.patch` sets that list to empty. Nothing is
+lost: `ignoreStatic` still skips the mutants in code that runs while a file loads.
 
-A module that a test loads only after it mocks Herdr's modules with `mock.module()` is left out too.
-Examples are `src/kit/overlayOpen.ts` and the `main.ts` of several mods, so `src/mods/*/main.ts` is
-left out as a whole. The Bun runner imports every mutated file before the tests run. That early
-import fails without the mocks, and the dry run then fails, for example with
-`Cannot find package 'gpui-kit'`. The runner's README lists this limitation for `mock.module()`. The
-first run of `189acd7` stopped this way.
-
-When you add a module that imports one of Herdr's modules at run time, add it to the `!` globs, even
-when a test loads it through `mock.module()`.
+A runner upgrade must carry the patch forward. Version 1.6.1 still imports the mutated files before
+the tests and has no option to turn it off.
 
 ## Advisory CI job
 
 The `Mutation` job runs on pull requests, lists survivors, and is not a required check.
-`timeout-minutes: 60` is far above the 14 seconds the runs above took, and it bounds a large
-refactor, because the package has no mutant cap by default.
+`timeout-minutes: 60` bounds a large refactor, because the package has no mutant cap by default.
 
 ## Accepted survivors
 
