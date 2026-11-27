@@ -37,7 +37,7 @@ import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import type { KeptNeed } from './gitFacts.ts';
 import { answeredPlaces, gitInfoAt, pullFailedAt } from './gitFacts.ts';
-import { inboxRows, selectSpace } from './inbox/inboxRows.ts';
+import { inboxRows } from './inbox/inboxRows.ts';
 import type { ListModel, RowModel } from './listModel.ts';
 import { listModelOf } from './listModel.ts';
 import { projectRows } from './projectRows.ts';
@@ -283,6 +283,12 @@ export default class Spaces extends View {
     return { run, get: shared, set: setShared, shown: activeSpaceId };
   }
 
+  private readonly selectSpace = (id: string, cx: Context): void => {
+    runSpaceCommand(this.selectionDeps(), { name: 'space.select', args: { id } });
+
+    cx.notify();
+  };
+
   private applyCommand(command: string, cx: Context): void {
     const action = listActionOf(command);
 
@@ -465,8 +471,7 @@ export default class Spaces extends View {
   ): Element {
     const interaction: RowInteraction = {
       kind: 'select',
-      select: selectSpace,
-      openMenu: openSpaceMenu,
+      select: this.selectSpace,
     };
 
     const state = this.rowState(model, cursor, now, interaction);
@@ -482,8 +487,14 @@ export default class Spaces extends View {
   ): Element {
     const interaction: RowInteraction = {
       kind: 'reorder',
-      attachDrag: (element, space, rowIds) => {
-        this.addDragHandlers(element, space, rowIds);
+      start: (space, rowIds) => {
+        this.drag = { kind: 'space', state: startDrag(rowIds, rowIds.indexOf(space.id)) };
+      },
+      move: (space, cx) => {
+        this.dragOver(space, cx);
+      },
+      drop: (space, rowIds, cx) => {
+        this.drop(space, rowIds, cx);
       },
     };
 
@@ -696,19 +707,6 @@ export default class Spaces extends View {
         openSpaceMenu(main.space);
       });
     }
-  }
-
-  private addDragHandlers(element: Element, space: SpaceInfo, ids: readonly string[]): void {
-    element
-      .on_mouse_down('left', () => {
-        this.drag = { kind: 'space', state: startDrag(ids, ids.indexOf(space.id)) };
-      })
-      .on_mouse_move((_event, cx) => {
-        this.dragOver(space, cx);
-      })
-      .on_mouse_up('left', (_event, cx) => {
-        this.drop(space, ids, cx);
-      });
   }
 
   private endDrag(): void {

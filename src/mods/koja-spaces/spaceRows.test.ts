@@ -33,15 +33,20 @@ interface BaseStateLike {
   age: string | null;
 }
 
+type ReorderStart = (space: SpaceInfo, ids: readonly string[]) => void;
+type ReorderMove = (space: SpaceInfo, cx: unknown) => void;
+type ReorderDrop = (space: SpaceInfo, ids: readonly string[], cx: unknown) => void;
+
 type InteractionLike =
   | {
       kind: 'reorder';
-      attachDrag: (element: unknown, space: SpaceInfo, ids: readonly string[]) => void;
+      start: ReorderStart;
+      move: ReorderMove;
+      drop: ReorderDrop;
     }
   | {
       kind: 'select';
       select: (id: string, cx: unknown) => void;
-      openMenu: (space: SpaceInfo) => void;
     };
 
 interface RowStateLike extends BaseStateLike {
@@ -75,7 +80,18 @@ await mock.module('gpui-kit', () =>
   gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
 );
 
-await mock.module('herdr', () => herdrFake({ theme: () => themeColors }));
+const overlays: unknown[] = [];
+
+await mock.module('herdr', () =>
+  herdrFake({
+    theme: () => themeColors,
+    openOverlay: (options: unknown) => {
+      overlays.push(options);
+
+      return null;
+    },
+  }),
+);
 
 const kitParts = [
   'age',
@@ -157,9 +173,10 @@ const baseState = (age: string | null = null): BaseStateLike => ({
 });
 
 const reorder = (
-  attachDrag: (element: unknown, space: SpaceInfo, ids: readonly string[]) => void = () =>
-    undefined,
-): InteractionLike => ({ kind: 'reorder', attachDrag });
+  start: ReorderStart = () => undefined,
+  move: ReorderMove = () => undefined,
+  drop: ReorderDrop = () => undefined,
+): InteractionLike => ({ kind: 'reorder', start, move, drop });
 
 const stateWith = (age: string | null = null, need: StackNeed | null = null): RowStateLike => ({
   ...baseState(age),
@@ -215,7 +232,8 @@ describe('row', () => {
 
   test('a row with a project name attaches no drag', () => {
     const selected: string[] = [];
-    const menus: string[] = [];
+
+    overlays.length = 0;
 
     const rowElement = loaded.row(
       listedSpace(true),
@@ -226,9 +244,6 @@ describe('row', () => {
           kind: 'select',
           select: (id) => {
             selected.push(id);
-          },
-          openMenu: (space) => {
-            menus.push(space.id);
           },
         },
       },
@@ -243,32 +258,59 @@ describe('row', () => {
     rowElement.mouseHandlers['on_mouse_down:right']?.[0]?.({}, {});
 
     expect(selected).toEqual(['a']);
-    expect(menus).toEqual(['a']);
+
+    expect(overlays).toEqual([
+      expect.objectContaining({
+        mod: 'koja-menu',
+        props: { tab: 'space', target: { id: 'a' } },
+      }),
+    ]);
   });
 
   test('a row with no project name attaches the drag with the ids it was given', () => {
-    const drags: unknown[] = [];
+    const starts: [SpaceInfo, readonly string[]][] = [];
+    const moves: SpaceInfo[] = [];
+    const drops: [SpaceInfo, readonly string[]][] = [];
 
-    loaded.row(
+    const rowElement = loaded.row(
       listedSpace(true),
       ['a', 'b'],
       {
         ...stateWith(),
-        interaction: reorder((...args) => {
-          drags.push(args);
-        }),
+        interaction: reorder(
+          (space, ids) => {
+            starts.push([space, ids]);
+          },
+          (space) => {
+            moves.push(space);
+          },
+          (space, ids) => {
+            drops.push([space, ids]);
+          },
+        ),
       },
       null,
       null,
       null,
     );
 
-    expect(drags).toHaveLength(1);
+    rowElement.mouseHandlers['on_mouse_down:left']?.[0]?.({}, {});
 
-    const [, draggedSpace, ids] = drags[0] as [unknown, SpaceInfo, readonly string[]];
+    const move = rowElement.styles['on_mouse_move']?.[0] as
+      | ((event: unknown, cx: unknown) => void)
+      | undefined;
 
-    expect(draggedSpace.id).toBe('a');
-    expect(ids).toEqual(['a', 'b']);
+    move?.({}, {});
+
+    rowElement.mouseHandlers['on_mouse_up:left']?.[0]?.({}, {});
+
+    expect(starts).toHaveLength(1);
+    expect(starts[0]?.[0].id).toBe('a');
+    expect(starts[0]?.[1]).toEqual(['a', 'b']);
+    expect(moves.map((space) => space.id)).toEqual(['a']);
+    expect(drops).toHaveLength(1);
+    expect(drops[0]?.[0].id).toBe('a');
+    expect(drops[0]?.[1]).toEqual(['a', 'b']);
   });
 });
 

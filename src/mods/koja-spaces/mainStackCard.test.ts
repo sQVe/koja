@@ -18,6 +18,7 @@ import {
 import { pullFacts, readyPull } from '../../../tests/pullFacts.ts';
 import { stacksOf } from '../../../tests/stackFixtures.ts';
 import { repositoryOf } from '../../data/gitIdentity.ts';
+import { overlaySize } from '../../kit/size.ts';
 import { sidebarViewKey } from './sidebarView.ts';
 
 await setupKojaSpaces();
@@ -148,6 +149,25 @@ describe('koja-spaces stack card', () => {
 
     expect(cardOf(view, 'w')).toBeNull();
   });
+
+  test('an Inbox row with a stack opens a card listing its pulls', async () => {
+    anotherOwner();
+    useSpaces(true);
+    state.store.set(sidebarViewKey, 'inbox');
+
+    const view = await loadView();
+    const card = cardOf(view, 'w');
+
+    if (card === null) {
+      throw new Error('The stack row draws no card.');
+    }
+
+    const texts = drawnTexts(card);
+
+    expect(texts).toContain('#503');
+    expect(texts).toContain('#504');
+    expect(texts).toContain('#505');
+  });
 });
 
 const useProjectRows = (): void => {
@@ -170,28 +190,31 @@ const useProjectRows = (): void => {
 
 describe('koja-spaces row interaction', () => {
   test('an Inbox row selects on click', async () => {
-    useProjectRows();
+    useSpaces(true);
     state.store.set(sidebarViewKey, 'inbox');
 
     const view = await loadView();
 
-    rowOf(view, 'alpha-2').clickHandlers[0]?.({}, context);
+    rowOf(view, 'w').clickHandlers[0]?.({}, context);
 
-    expect(selected()).toEqual(['alpha-2']);
+    expect(selected()).toEqual(['w']);
   });
 
   test('a right click on a row opens its space menu', async () => {
-    useProjectRows();
+    useSpaces(true);
     state.store.set(sidebarViewKey, 'inbox');
 
     const view = await loadView();
 
-    rowOf(view, 'alpha-2').mouseHandlers['on_mouse_down:right']?.[0]?.({}, context);
+    rowOf(view, 'w').mouseHandlers['on_mouse_down:right']?.[0]?.({}, context);
 
     expect(state.overlayCalls).toEqual([
       expect.objectContaining({
         mod: 'koja-menu',
-        props: { tab: 'space', target: { id: 'alpha-2' } },
+        kind: 'popup',
+        width: overlaySize.menuWidth,
+        height: overlaySize.menuHeight,
+        props: { tab: 'space', target: { id: 'w' } },
       }),
     ]);
   });

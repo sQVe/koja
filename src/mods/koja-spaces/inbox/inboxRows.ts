@@ -1,8 +1,6 @@
-import type { Context, Element } from 'gpui-kit';
-import { run, setShared, shared, spaces } from 'herdr';
+import type { Element } from 'gpui-kit';
 
 import { detailText, sectionHeader, sidebarSize } from '../../../kit/index.ts';
-import { runSpaceCommand } from '../../../kit/space/spaceSelection.ts';
 import { groupedList } from '../groupedList.ts';
 import type { InboxGroup } from '../inbox.ts';
 import type { ShownRow } from '../projects.ts';
@@ -13,17 +11,6 @@ export interface InboxRowsHost {
   loading: boolean;
   draw: (row: ListedSpace, project: string) => Element;
 }
-
-const activeSpaceId = (): string | null => spaces().find((space) => space.active)?.id ?? null;
-
-export const selectSpace = (id: string, cx: Context): void => {
-  runSpaceCommand(
-    { run, get: shared, set: setShared, shown: activeSpaceId },
-    { name: 'space.select', args: { id } },
-  );
-
-  cx.notify();
-};
 
 const groupHeader = (group: InboxGroup): Element =>
   sectionHeader({

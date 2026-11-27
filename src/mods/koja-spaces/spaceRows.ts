@@ -32,12 +32,13 @@ interface RowBaseState {
 export type RowInteraction =
   | {
       kind: 'reorder';
-      attachDrag: (element: Element, space: SpaceInfo, ids: readonly string[]) => void;
+      start: (space: SpaceInfo, ids: readonly string[]) => void;
+      move: (space: SpaceInfo, cx: Context) => void;
+      drop: (space: SpaceInfo, ids: readonly string[], cx: Context) => void;
     }
   | {
       kind: 'select';
       select: (id: string, cx: Context) => void;
-      openMenu: (space: SpaceInfo) => void;
     };
 
 export interface RowState extends RowBaseState {
@@ -66,22 +67,25 @@ const attachInteraction = (
   interaction: RowInteraction,
 ): void => {
   if (interaction.kind === 'reorder') {
-    interaction.attachDrag(element, space, ids);
-
-    element.on_mouse_down('right', () => {
-      openSpaceMenu(space);
+    element
+      .on_mouse_down('left', () => {
+        interaction.start(space, ids);
+      })
+      .on_mouse_move((_event, cx) => {
+        interaction.move(space, cx);
+      })
+      .on_mouse_up('left', (_event, cx) => {
+        interaction.drop(space, ids, cx);
+      });
+  } else {
+    element.on_click((_event, cx) => {
+      interaction.select(space.id, cx);
     });
-
-    return;
   }
 
-  element
-    .on_click((_event, cx) => {
-      interaction.select(space.id, cx);
-    })
-    .on_mouse_down('right', () => {
-      interaction.openMenu(space);
-    });
+  element.on_mouse_down('right', () => {
+    openSpaceMenu(space);
+  });
 };
 
 const cardWrap = (element: Element, space: SpaceInfo, card: StackCardModel | null): Element => {
