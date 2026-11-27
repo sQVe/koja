@@ -34,26 +34,22 @@ describe('the saved globals', () => {
     restoreGlobals(saved);
 
     expect(globalValue(presentName)).toBe('before');
-    expect(absentName in globalThis).toBe(false);
+    expect(Object.hasOwn(globalThis, absentName)).toBe(false);
   });
 
-  test('a restore leaves the saved map empty so a second setup saves again', () => {
-    setGlobal(presentName, 'first');
+  test('a restore empties the saved map so restoring it again changes nothing', () => {
+    setGlobal(presentName, 'before');
 
-    const first = saveGlobals([presentName]);
+    const saved = saveGlobals([presentName]);
 
-    setGlobal(presentName, 'changed');
-    restoreGlobals(first);
+    setGlobal(presentName, 'during');
+    restoreGlobals(saved);
 
-    expect(first.size).toBe(0);
+    expect(saved.size).toBe(0);
 
-    setGlobal(presentName, 'second');
+    setGlobal(presentName, 'after');
+    restoreGlobals(saved);
 
-    const second = saveGlobals([presentName]);
-
-    setGlobal(presentName, 'third');
-    restoreGlobals(second);
-
-    expect(globalValue(presentName)).toBe('second');
+    expect(globalValue(presentName)).toBe('after');
   });
 });
