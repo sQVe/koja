@@ -40,6 +40,7 @@ export interface Pull extends PullStatusNames {
   state: string;
   isDraft: boolean;
   title: string;
+  url: string;
   headRefName: string;
   checks: PullPart<PullChecks>;
   threads: PullPart<PullThreads>;
@@ -67,6 +68,8 @@ type RemoteChoice =
   | { kind: 'failed' }
   | { kind: 'dropped' };
 
+type PullBase = Pick<Pull, 'number' | 'state' | 'isDraft' | 'title' | 'headRefName'>;
+
 export const partValueOf = <T>(part: PullPart<T>): T | null => {
   if (part.kind === 'read') {
     return part.value;
@@ -79,7 +82,7 @@ export const partValueOf = <T>(part: PullPart<T>): T | null => {
   return null;
 };
 
-const pullFieldNames = ['number', 'state', 'isDraft', 'title', 'headRefName'];
+const pullFieldNames = ['number', 'state', 'isDraft', 'title', 'url', 'headRefName'];
 
 const needsFieldNames = ['mergeable', 'mergeState', 'review', 'checks', 'threads'];
 
@@ -113,7 +116,7 @@ export const unreadPullNeeds = (): PullNeedsFields => ({
   threads: { kind: 'unread' },
 });
 
-const decodePull = (fields: Record<string, unknown>): Pull | null => {
+export const decodePullBase = (fields: Record<string, unknown>): PullBase | null => {
   const number = numberOf(fields['number']);
 
   if (number === null) {
@@ -144,7 +147,23 @@ const decodePull = (fields: Record<string, unknown>): Pull | null => {
     return null;
   }
 
-  return { number, state, isDraft, title, headRefName, ...unreadPullNeeds() };
+  return { number, state, isDraft, title, headRefName };
+};
+
+const decodePull = (fields: Record<string, unknown>): Pull | null => {
+  const base = decodePullBase(fields);
+
+  if (base === null) {
+    return null;
+  }
+
+  const url = stringOf(fields['url']);
+
+  if (url === null || url === '') {
+    return null;
+  }
+
+  return { ...base, url, ...unreadPullNeeds() };
 };
 
 const decodePart = <T>(

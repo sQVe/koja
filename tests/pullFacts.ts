@@ -4,6 +4,7 @@ export const pullFacts = (fields: Pick<Pull, 'number' | 'headRefName'> & Partial
   state: 'OPEN',
   isDraft: false,
   title: '',
+  url: `https://github.com/example/example/pull/${fields.number}`,
   mergeable: 'unknown',
   mergeState: 'unknown',
   review: 'none',

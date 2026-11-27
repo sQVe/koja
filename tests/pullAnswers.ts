@@ -172,6 +172,7 @@ export const pullNodeOf = (pull: Pull): Record<string, unknown> => ({
   state: pull.state,
   isDraft: pull.isDraft,
   title: pull.title,
+  url: pull.url,
   headRefName: pull.headRefName,
   mergeable: mergeableNames[pull.mergeable],
   mergeStateStatus: mergeStateNames[pull.mergeState],

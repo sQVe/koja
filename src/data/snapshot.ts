@@ -3,7 +3,7 @@ import { isPositiveWholeNumber, withoutTrailingSlashes } from './fields.ts';
 import type { RepositoryIdentity } from './gitIdentity.ts';
 import { repositoryOf, worktreeOf } from './gitIdentity.ts';
 import type { Pull } from './pulls.ts';
-import { parseStoredPull, unreadPullNeeds } from './pulls.ts';
+import { decodePullBase, parseStoredPull, unreadPullNeeds } from './pulls.ts';
 import type { Stack, StackBranch } from './stacks.ts';
 
 type StoredPullParser = (stored: unknown) => Pull | null;
@@ -59,7 +59,7 @@ export interface Facts {
 
 type FactsShape = 'beforeStacks' | 'beforeBare' | 'current';
 
-export const snapshotVersion = 8;
+export const snapshotVersion = 9;
 
 const versionWithGitFactsOnly = 2;
 
@@ -72,6 +72,8 @@ const versionWithTicketFailures = 5;
 const versionWithoutStacks = 6;
 
 const versionWithoutBare = 7;
+
+const versionWithoutPullUrls = 8;
 
 export interface Snapshot {
   version: typeof snapshotVersion;
@@ -625,7 +627,7 @@ const parseStacksMap = (
 
 const parseGitAndPulls = (
   value: Record<string, unknown>,
-  parsePull: StoredPullParser,
+  parsePull: StoredPullParser | null,
   keys: readonly string[],
   shape: FactsShape,
 ): Pick<Facts, 'git' | 'pulls'> | null => {
@@ -639,6 +641,10 @@ const parseGitAndPulls = (
     return null;
   }
 
+  if (parsePull === null) {
+    return { git, pulls: {} };
+  }
+
   const pulls = parsePulls(value.pulls, git.worktrees, parsePull);
 
   if (pulls === null) {
@@ -650,7 +656,7 @@ const parseGitAndPulls = (
 
 const parseFacts = (
   value: unknown,
-  parsePull: StoredPullParser,
+  parsePull: StoredPullParser | null,
   parseTicket: (value: unknown) => TicketFacts | null,
   shape: FactsShape,
 ): Facts | null => {
@@ -684,7 +690,10 @@ const parseFacts = (
   return stacks === null ? null : { ...gitAndPulls, trackers, stacks };
 };
 
-const parseFactsWithoutTrackers = (value: unknown, parsePull: StoredPullParser): Facts | null => {
+const parseFactsWithoutTrackers = (
+  value: unknown,
+  parsePull: StoredPullParser | null,
+): Facts | null => {
   if (!isRecord(value)) {
     return null;
   }
@@ -716,6 +725,7 @@ const parseGitOnlyFacts = (value: unknown): Facts | null => {
   return { git, pulls: {}, trackers: {}, stacks: {} };
 };
 
+// A version 3 pull predates URLs, so it is read only to reject a malformed payload and then dropped.
 const parseVersion3Pull: StoredPullParser = (stored) => {
   if (!isRecord(stored)) {
     return null;
@@ -725,7 +735,9 @@ const parseVersion3Pull: StoredPullParser = (stored) => {
     return null;
   }
 
-  return parseStoredPull({ ...stored, ...unreadPullNeeds() });
+  const base = decodePullBase(stored);
+
+  return base === null ? null : { ...base, url: '', ...unreadPullNeeds() };
 };
 
 const snapshotOf = (fields: Record<string, unknown>, facts: Facts | null): Snapshot | null => {
@@ -743,29 +755,27 @@ const snapshotOf = (fields: Record<string, unknown>, facts: Facts | null): Snaps
 const parseVersion2Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(fields, parseGitOnlyFacts(fields.facts));
 
-const parseVersion3Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, parseVersion3Pull));
+const parseVersion3Snapshot = (fields: Record<string, unknown>): Snapshot | null => {
+  const facts = parseFactsWithoutTrackers(fields.facts, parseVersion3Pull);
+  const dropped = facts === null ? null : { ...facts, pulls: {} };
+
+  return snapshotOf(fields, dropped);
+};
 
 const parseVersion4Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, parseStoredPull));
+  snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, null));
 
 const parseVersion5Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(
-    fields,
-    parseFacts(fields.facts, parseStoredPull, parseVersion5TicketFacts, 'beforeStacks'),
-  );
+  snapshotOf(fields, parseFacts(fields.facts, null, parseVersion5TicketFacts, 'beforeStacks'));
 
 const parseVersion6Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(
-    fields,
-    parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, 'beforeStacks'),
-  );
+  snapshotOf(fields, parseFacts(fields.facts, null, parseCurrentTicketFacts, 'beforeStacks'));
 
 const parseVersion7Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(
-    fields,
-    parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, 'beforeBare'),
-  );
+  snapshotOf(fields, parseFacts(fields.facts, null, parseCurrentTicketFacts, 'beforeBare'));
+
+const parseVersion8Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
+  snapshotOf(fields, parseFacts(fields.facts, null, parseCurrentTicketFacts, 'current'));
 
 const parseCurrentSnapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(fields, parseFacts(fields.facts, parseStoredPull, parseCurrentTicketFacts, 'current'));
@@ -795,6 +805,10 @@ export const parseSnapshot = (value: unknown): Snapshot | null => {
 
   if (fields.version === versionWithoutBare) {
     return parseVersion7Snapshot(fields);
+  }
+
+  if (fields.version === versionWithoutPullUrls) {
+    return parseVersion8Snapshot(fields);
   }
 
   if (fields.version !== snapshotVersion) {

@@ -47,7 +47,7 @@ const malformedMessage = (): string => messageFor('malformed');
 
 const newerMessage = (): string => messageFor('newer');
 
-const snapshot = { version: 8, revision: 4, facts: emptyFacts() } satisfies Snapshot;
+const snapshot = { version: 9, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
 describe('readStoredSnapshot', () => {
   test('stays silent when no snapshot was written', () => {
@@ -115,7 +115,7 @@ describe('readStoredSnapshot', () => {
 
   test('reports a newer version once and keeps rejecting it', () => {
     const { messages, notices } = logged();
-    const read = memoryStore({ version: 9, revision: 4, facts: emptyFacts() });
+    const read = memoryStore({ version: 10, revision: 4, facts: emptyFacts() });
 
     expect(readStoredSnapshot(read, notices)).toBeNull();
     expect(readStoredSnapshot(read, notices)).toBeNull();
@@ -152,9 +152,9 @@ describe('readStoredSnapshot', () => {
     const { messages, notices } = logged();
 
     readStoredSnapshot(memoryStore({ version: 2 }), notices);
-    readStoredSnapshot(memoryStore({ version: 9 }), notices);
+    readStoredSnapshot(memoryStore({ version: 10 }), notices);
     readStoredSnapshot(memoryStore({ version: 2 }), notices);
-    readStoredSnapshot(memoryStore({ version: 9 }), notices);
+    readStoredSnapshot(memoryStore({ version: 10 }), notices);
 
     expect(messages).toEqual([malformedMessage(), newerMessage()]);
   });

@@ -131,7 +131,7 @@ describe('parseSnapshot tracker facts', () => {
     const tracker = parsed?.facts.trackers[fixtureRepositoryKey];
     const ticket: TicketFacts | undefined = tracker?.tickets['ME-1'];
 
-    expect(parsed?.version).toBe(8);
+    expect(parsed?.version).toBe(9);
 
     expect(ticket).toEqual(fixtureTicket());
 
@@ -163,7 +163,7 @@ describe('parseSnapshot tracker facts', () => {
     const tracker = parsed?.facts.trackers[fixtureRepositoryKey];
     const ticket: TicketFacts | undefined = tracker?.tickets['ME-1'];
 
-    expect(parsed?.version).toBe(8);
+    expect(parsed?.version).toBe(9);
     expect(tracker?.workspace).toBe('sqve');
     expect(tracker?.failed).toBe(false);
 

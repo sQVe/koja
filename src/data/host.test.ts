@@ -39,7 +39,7 @@ describe('startDataHost', () => {
     expect(dataHost.heartbeat()).toMatchObject({ generation: 1, at: start });
 
     expect(dataHost.sharedValues.get(snapshotKey)).toEqual({
-      version: 8,
+      version: 9,
       revision: 1,
       facts: emptyFacts(),
     });
@@ -328,7 +328,7 @@ describe('startDataHost', () => {
     expect(record.stages.map((stage) => stage.messageCount)).toEqual([0, 0, 1, 1, 2, 2]);
     expect(snapshotWrites).toHaveLength(2);
     expect(snapshotWrites.map((write) => write.messageCount)).toEqual([1, 2]);
-    expect(record.snapshot).toEqual({ version: 8, revision: 1, facts: emptyFacts() });
+    expect(record.snapshot).toEqual({ version: 9, revision: 1, facts: emptyFacts() });
   });
 
   test('logs again in a fresh loaded copy', async () => {

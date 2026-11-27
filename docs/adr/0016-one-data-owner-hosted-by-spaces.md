@@ -124,36 +124,40 @@ without suggesting an edit.
 ### Snapshot versions
 
 The snapshot is a saved record, so a field change bumps its `version`. The current reader accepts
-version 8, which holds Git facts, per-repository PR facts, per-repository tracker facts, and
+version 9, which holds Git facts, per-repository PR facts, per-repository tracker facts, and
 per-repository stacks, and rejects unknown fields. Each worktree carries its repository, its root,
 its branch or null, whether it is linked, and whether the identity read found it bare, so a record
 this version writes needs no path rule to tell a bare place from a checkout. Each PR carries its
-mergeability, merge state, review decision, checks, and threads, and each of the last two is a part
-that is read, failed with its last good value, or unread. Each tracker carries the workspace the
-repository names, or null, a map of ticket facts keyed by ticket id, and whether the last read of
-that repository failed; a failed read keeps the last good tickets and marks the whole repository,
-not one ticket. Each ticket fact carries its id, title, state, URL, and parent. Each repository's
-stacks carry the parsed stacks and whether the last read failed; a failed read keeps the last good
-stacks. A stack carries its trunk branch and its branches bottom to top, and each branch its name,
-its pull request number or null, and whether it needs a restack. Version 7 is the previous supported
-format: it held the same facts without the bare flag, so the reader infers bareness by comparing the
-worktree's root with its common directory, which is the folder itself or its `.bare`. The comparison
-is textual, so a link or a case change leaves the place a checkout until the first Git read of the
-repository writes the flag. Version 6 held the same facts without the stack map, so the reader
-returns a version 8 snapshot with no stacks. Version 5 held the same facts as version 6, and each
-ticket also carried a failure flag that stayed false, so the reader drops that retired field and
-returns a version 8 snapshot. Version 4 held Git facts and per-repository PR facts, so the reader
-parses them and returns a version 8 snapshot with no tracker or stack facts. Version 3 held only the
-PR list fields, so the reader parses them and gives each PR the unread parts, from which no need is
-derived. Version 2 held only Git facts, so the reader parses them and returns a version 8 snapshot
-with no PR, tracker, or stack facts. Version 1 carried no facts: its `facts` was
+GitHub URL, its mergeability, merge state, review decision, checks, and threads, and each of the
+last two is a part that is read, failed with its last good value, or unread. Each tracker carries
+the workspace the repository names, or null, a map of ticket facts keyed by ticket id, and whether
+the last read of that repository failed; a failed read keeps the last good tickets and marks the
+whole repository, not one ticket. Each ticket fact carries its id, title, state, URL, and parent.
+Each repository's stacks carry the parsed stacks and whether the last read failed; a failed read
+keeps the last good stacks. A stack carries its trunk branch and its branches bottom to top, and
+each branch its name, its pull request number or null, and whether it needs a restack. Version 8 is
+the previous supported format: it held the same facts without PR URLs, so the reader returns a
+version 9 snapshot with its pulls unread, and the next PR read fills them. Version 7 held the same
+facts without the bare flag and without PR URLs, so the reader infers bareness by comparing the
+worktree's root with its common directory, which is the folder itself or its `.bare`, and drops its
+pulls without validating them. The comparison is textual, so a link or a case change leaves the
+place a checkout until the first Git read of the repository writes the flag. Version 6 held the same
+facts without the stack map and without PR URLs, so the reader returns a version 9 snapshot with no
+stacks and drops its pulls without validating them. Version 5 held the same facts as version 6, and
+each ticket also carried a failure flag that stayed false, so the reader drops that retired field,
+drops its pulls without validating them, and returns a version 9 snapshot. Version 4 held Git facts
+and per-repository PR facts, so the reader drops its pulls without validating them and returns a
+version 9 snapshot with no tracker or stack facts. Version 3 held only the PR list fields, so the
+reader validates its old PR payload, drops the pulls, and returns a version 9 snapshot with no
+tracker or stack facts. Version 2 held only Git facts, so the reader parses them and returns a
+version 9 snapshot with no PR, tracker, or stack facts. Version 1 carried no facts: its `facts` was
 `Record<string, never>`, and the next owner publish rewrites it. A version 1 snapshot is therefore
 retired silently, because no user action applies. This is the one exception to the notices that
 [shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires for saved formats.
 
-A malformed version 8, 7, 6, 5, 4, 3, or 2 record, or a present record without a valid version, is
-logged once per mod copy with a message that the host rebuilds the snapshot on its next publish. A
-positive whole version above 8 is logged once per mod copy with a message that names the update.
+A malformed version 9, 8, 7, 6, 5, 4, 3, or 2 record, or a present record without a valid version,
+is logged once per mod copy with a message that the host rebuilds the snapshot on its next publish.
+A positive whole version above 9 is logged once per mod copy with a message that names the update.
 Each reason logs once per loaded mod copy, and later reads stay silent.
 
 PR read times carry their own version. Version 2 keeps, per repository, one list time and a time per

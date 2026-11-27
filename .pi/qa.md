@@ -176,14 +176,14 @@ git -C "$fixtureHome/pr-rows" remote add origin https://example.invalid/qa/pr-ro
 cat > "$fixtureHome/fake-gh" <<'SH'
 #!/bin/sh
 printf '%s\n' "$*" >> "$HOME/gh-calls"
-printf '%s\n' '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[{"number":7,"state":"OPEN","isDraft":false,"title":"Fixture pull request","headRefName":"fixture-branch","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]},"latest0":{"nodes":[]}}}}'
+printf '%s\n' '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[{"number":7,"state":"OPEN","isDraft":false,"title":"Fixture pull request","url":"https://example.invalid/qa/pr-rows/pull/7","headRefName":"fixture-branch","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]},"latest0":{"nodes":[]}}}}'
 SH
 chmod +x "$fixtureHome/fake-gh"
 ln -s "$fixtureHome/fake-gh" "/var/tmp/ruta-$RUTA_NAME/bin/gh"
 scripts/sandbox-machine up
 cat > "/var/tmp/ruta-$RUTA_NAME/machine/bin/gh" <<'SH'
 #!/bin/sh
-printf '%s\n' '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[{"number":8,"state":"OPEN","isDraft":false,"title":"Remote fixture pull request","headRefName":"remote-branch","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]},"latest0":{"nodes":[]}}}}'
+printf '%s\n' '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[{"number":8,"state":"OPEN","isDraft":false,"title":"Remote fixture pull request","url":"https://example.invalid/qa/remote-fixture/pull/8","headRefName":"remote-branch","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]},"latest0":{"nodes":[]}}}}'
 SH
 chmod +x "/var/tmp/ruta-$RUTA_NAME/machine/bin/gh"
 bun run sandbox hc exec --on qa-remote sh -c 'cd "$HOME/remote-fixture" && git remote add origin https://example.invalid/qa/remote-fixture.git && git checkout remote-branch'

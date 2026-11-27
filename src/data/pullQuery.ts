@@ -7,6 +7,7 @@ const openFields = [
   'state',
   'isDraft',
   'title',
+  'url',
   'headRefName',
   'mergeable',
   'mergeStateStatus',
@@ -15,7 +16,7 @@ const openFields = [
   'reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved } }',
 ].join(' ');
 
-const latestFields = ['number', 'state', 'isDraft', 'title', 'headRefName'].join(' ');
+const latestFields = ['number', 'state', 'isDraft', 'title', 'url', 'headRefName'].join(' ');
 
 const branchVariables = (branchCount: number): string[] =>
   Array.from({ length: branchCount }, (_, index) => `$branch${index}: String!`);

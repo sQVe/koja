@@ -44,7 +44,7 @@ export const withBareFalse = (git: unknown): unknown => {
 };
 
 export const snapshotOf = (git: unknown): unknown => ({
-  version: 8,
+  version: 9,
   revision: 4,
   facts: { git, pulls: {}, trackers: {}, stacks: {} },
 });
@@ -82,7 +82,7 @@ export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
   const key = placeOf(null, '/work').key;
 
   const snapshot: RawSnapshot = {
-    version: 8,
+    version: 9,
     revision: 4,
     facts: {
       git: {
