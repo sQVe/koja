@@ -62,7 +62,6 @@ const cardOf = (overrides: Partial<StackCardModel>): DrawnElement =>
     ...overrides,
   });
 
-// The outermost fixed-height element that holds the text, which is the row that draws it.
 const rowOf = (card: DrawnElement, text: string): DrawnElement => {
   const row = elementsWithStyle(card, 'h').find((element) => drawnTexts(element).includes(text));
 
