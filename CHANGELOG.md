@@ -1,5 +1,23 @@
 # koja
 
+## 0.3.0
+
+### Minor Changes
+
+- [#135](https://github.com/sQVe/koja/pull/135)
+  [`b7e5784`](https://github.com/sQVe/koja/commit/b7e57845e2eee9eb7d142eab3b48f99b2ca9da1c) Thanks
+  [@sQVe](https://github.com/sQVe)! - Find a space in the picker by any pull request number, ticket,
+  or branch in its stack, merged ones included. A space found that way draws why it matched at the
+  end of its row, such as `[#504](https://github.com/sqve/koja/issues/504) · PR 2 of 8 · merged`.
+
+### Patch Changes
+
+- [#135](https://github.com/sQVe/koja/pull/135)
+  [`b7e5784`](https://github.com/sQVe/koja/commit/b7e57845e2eee9eb7d142eab3b48f99b2ca9da1c) Thanks
+  [@sQVe](https://github.com/sQVe)! - Pull request reads that run on a timer or on a branch change
+  pause while the window is hidden, not while it is unfocused, so a sidebar on a second display
+  stays fresh.
+
 ## 0.2.0
 
 ### Minor Changes
