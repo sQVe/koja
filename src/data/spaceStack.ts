@@ -11,6 +11,7 @@ export interface StackPull {
   branch: string;
   ticket: string | null;
   number: number | null;
+  url: string | null;
   title: string | null;
   state: 'open' | 'draft' | 'merged' | 'closed' | 'unknown';
   checkedOut: boolean;
@@ -91,6 +92,7 @@ const stackPullOf = (
     branch: entry.branch,
     ticket: ticketIdOf(entry.branch, ''),
     number: pull?.number ?? recorded,
+    url: pull?.url ?? null,
     title: pull?.title ?? null,
     state: stateOf(pull),
     checkedOut: entry.branch === branch,

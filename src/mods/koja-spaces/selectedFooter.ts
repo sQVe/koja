@@ -1,11 +1,15 @@
 import type { Context, Element } from 'gpui-kit';
 
 import type { DataState } from '../../data/consumer.ts';
-import type { Pull } from '../../data/pulls.ts';
-import type { Facts, TicketFacts } from '../../data/snapshot.ts';
+import type { TicketFacts } from '../../data/snapshot.ts';
 import { linkText, spaceFooter } from '../../kit/index.ts';
 import type { ListModel, RowModel } from './listModel.ts';
 import { stackProgressOf } from './progress.ts';
+
+interface PullLink {
+  number: number;
+  url: string;
+}
 
 const linkOf = (text: string, url: string): Element =>
   linkText(text).on_click((_event, cx: Context) => {
@@ -20,26 +24,25 @@ const ticketLinksOf = (ticket: TicketFacts | null): Element[] => {
   return [linkOf(ticket.id, ticket.url)];
 };
 
-const pullOfNumber = (facts: Facts, repositoryKey: string, number: number): Pull | null =>
-  facts.pulls[repositoryKey]?.pulls.find((pull) => pull.number === number) ?? null;
-
-const footerPullOf = (facts: Facts, model: RowModel): Pull | null => {
+const footerPullOf = (model: RowModel): PullLink | null => {
   if (model.stack === null) {
     return model.pull;
   }
 
   const checkedOut = model.stack.pulls.find((pull) => pull.checkedOut);
-  const number = checkedOut?.number ?? null;
-  const repositoryKey = model.row.git?.repo.key;
 
-  if (number === null || repositoryKey === undefined) {
+  if (checkedOut === undefined) {
     return null;
   }
 
-  return pullOfNumber(facts, repositoryKey, number);
+  if (checkedOut.number === null || checkedOut.url === null) {
+    return null;
+  }
+
+  return { number: checkedOut.number, url: checkedOut.url };
 };
 
-const pullLinksOf = (pull: Pull | null): Element[] => {
+const pullLinksOf = (pull: PullLink | null): Element[] => {
   if (pull === null) {
     return [];
   }
@@ -63,7 +66,7 @@ export const selectedFooter = (
   }
 
   const progress = stackProgressOf(rowModel.stack);
-  const pull = footerPullOf(state.snapshot.facts, rowModel);
+  const pull = footerPullOf(rowModel);
 
   return spaceFooter({
     title: rowModel.title,

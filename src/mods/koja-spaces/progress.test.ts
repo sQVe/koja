@@ -8,6 +8,7 @@ const stack = (total: number): SpaceStack => ({
     branch: `me-${index + 1}-branch`,
     ticket: null,
     number: null,
+    url: null,
     title: null,
     state: 'open',
     checkedOut: index === total - 1,

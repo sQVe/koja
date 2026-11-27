@@ -51,6 +51,7 @@ const stackPull = (overrides: Partial<StackPull>): StackPull => ({
   branch: 'me-1-low',
   ticket: null,
   number: null,
+  url: null,
   title: null,
   state: 'open',
   checkedOut: false,

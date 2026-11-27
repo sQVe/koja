@@ -103,12 +103,13 @@ const modelOf = (rows: RowModel[]): ListModel => ({
   ids: rows.map((row) => row.row.space.id),
 });
 
-const checkedOutStack = (number: number | null): SpaceStack => ({
+const checkedOutStack = (number: number | null, url: string | null): SpaceStack => ({
   pulls: [
     {
       branch: 'me-11-eleven',
       ticket: 'ME-11',
       number,
+      url,
       title: 'The checked-out pull',
       state: 'open',
       checkedOut: true,
@@ -184,7 +185,7 @@ describe('selectedFooter', () => {
 
     const footer = selectedFooter(
       stateWithPulls([cardPull, branchPull]),
-      modelOf([rowModel({ id: 'w', pull: branchPull, stack: checkedOutStack(11) })]),
+      modelOf([rowModel({ id: 'w', pull: branchPull, stack: checkedOutStack(11, cardPull.url) })]),
       'w',
     );
 
@@ -196,6 +197,32 @@ describe('selectedFooter', () => {
     expect(clickablesWithText(footer, '#99')).toEqual([]);
   });
 
+  test('a stack footer links the pull the stack resolved when two pulls share its number', () => {
+    const cardPull = pullFacts({
+      number: 11,
+      headRefName: 'me-11-eleven',
+      url: 'https://example.invalid/koja/pull/11',
+    });
+
+    const otherPull = pullFacts({
+      number: 11,
+      headRefName: 'me-11-fork',
+      url: 'https://example.invalid/koja/fork/pull/11',
+    });
+
+    const footer = selectedFooter(
+      stateWithPulls([otherPull, cardPull]),
+      modelOf([rowModel({ id: 'w', pull: cardPull, stack: checkedOutStack(11, cardPull.url) })]),
+      'w',
+    );
+
+    if (footer === null) {
+      throw new Error('The selected space draws no footer.');
+    }
+
+    expect(openedBy(footer, '#11')).toEqual(['https://example.invalid/koja/pull/11']);
+  });
+
   test('a stack footer draws no PR link when its checked-out PR is not in the snapshot', () => {
     const branchPull = pullFacts({
       number: 99,
@@ -205,7 +232,7 @@ describe('selectedFooter', () => {
 
     const footer = selectedFooter(
       stateWithPulls([branchPull]),
-      modelOf([rowModel({ id: 'w', pull: branchPull, stack: checkedOutStack(11) })]),
+      modelOf([rowModel({ id: 'w', pull: branchPull, stack: checkedOutStack(11, null) })]),
       'w',
     );
 
