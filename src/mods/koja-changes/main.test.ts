@@ -553,6 +553,31 @@ describe('Changes view', () => {
     expect(commitCommands()).toBe(before);
   });
 
+  test('the Retry button asks for a redraw before its read finishes', async () => {
+    const view = await boot();
+
+    failStatus = true;
+    view.refresh(context);
+    await settle();
+    view.render(context);
+
+    expect(renderedList?.line?.kind).toBe('error');
+
+    failStatus = false;
+    blockNextStatusRead();
+    const before = notifications;
+
+    renderedList?.onRetry(context);
+    await settle();
+
+    expect(notifications).toBeGreaterThan(before);
+    expect(statusGate).not.toBeNull();
+
+    blockStatus = false;
+    statusGate?.();
+    await settle();
+  });
+
   test('a later good read for the same repository enables Commit again', async () => {
     const view = await boot();
 
@@ -997,6 +1022,18 @@ describe('Changes view', () => {
 
     expect(renderedList?.line).toBeNull();
     expect(renderedCommit?.enabled).toBe(true);
+  });
+
+  test('a watch event whose read cannot start asks for a redraw of its error line', async () => {
+    await boot();
+
+    const before = notifications;
+
+    failNextSpawn = true;
+    watchers[0]?.resolve(['/repo/a.ts']);
+    await settle();
+
+    expect(notifications).toBeGreaterThan(before);
   });
 
   test('a commit whose task cannot start clears busy and keeps Commit available', async () => {

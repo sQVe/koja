@@ -151,6 +151,17 @@ describe('afterScan', () => {
 
     expect(next.catchUp).toBe(false);
   });
+
+  test('keeps a catch-up raised while the scan was in flight', () => {
+    const next = afterScan(due({ catchUp: true }), timing, {
+      after: 901,
+      visiting: false,
+      urgent: true,
+      allowHidden: false,
+    });
+
+    expect(next.catchUp).toBe(true);
+  });
 });
 
 describe('skipDue', () => {

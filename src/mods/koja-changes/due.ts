@@ -92,14 +92,18 @@ export const readRequest = (
   };
 };
 
-export const afterScan = (due: DueState, scan: ScanTiming, request: ReadRequest): DueState => ({
-  ...due,
-  lastStatus: scan.started,
-  pollAt: scan.pollAt,
-  watchAt: scan.watchAt,
-  dirtyAt: due.dirtyAt <= scan.started ? 0 : due.dirtyAt,
-  catchUp: request.urgent && request.after > scan.started,
-});
+export const afterScan = (due: DueState, scan: ScanTiming, request: ReadRequest): DueState => {
+  const unanswered = request.urgent && request.after > scan.started;
+
+  return {
+    ...due,
+    lastStatus: scan.started,
+    pollAt: scan.pollAt,
+    watchAt: scan.watchAt,
+    dirtyAt: due.dirtyAt <= scan.started ? 0 : due.dirtyAt,
+    catchUp: due.catchUp || unanswered,
+  };
+};
 
 export const skipDue = (due: DueState, now: number): DueState => ({
   ...due,

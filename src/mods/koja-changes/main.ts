@@ -163,6 +163,7 @@ export default class Changes extends View {
         palette,
         onRetry: (retryCx) => {
           this.refresh(retryCx);
+          retryCx.notify();
         },
         onRetryWatch: (retryCx) => {
           this.retryWatch(retryCx);
@@ -219,9 +220,7 @@ export default class Changes extends View {
       return false;
     }
 
-    this.refresh(cx);
-
-    return this.loading;
+    return this.refresh(cx);
   }
 
   private isCurrent(key: string, visit: number): boolean {
@@ -238,9 +237,9 @@ export default class Changes extends View {
     };
   }
 
-  private refresh(cx: Context, force = false): void {
+  private refresh(cx: Context, force = false): boolean {
     if (checking()) {
-      return;
+      return false;
     }
 
     const key = locationKey();
@@ -264,7 +263,7 @@ export default class Changes extends View {
     const due = this.due;
 
     if (due === null) {
-      return;
+      return visiting;
     }
 
     const now = Date.now();
@@ -273,11 +272,11 @@ export default class Changes extends View {
     if (where.cwd === null) {
       this.due = skipDue(due, now);
 
-      return;
+      return visiting;
     }
 
     if (this.loading || this.busy) {
-      return;
+      return false;
     }
 
     const read = readRequest(due, now, visiting, force);
@@ -291,6 +290,8 @@ export default class Changes extends View {
       this.loading = false;
       this.state = applyRead(this.state, { failure: refusal.message }, nowSeconds());
     }
+
+    return true;
   }
 
   private spawnTask(cx: Context, body: (taskCx: AsyncContext) => unknown): Error | null {
