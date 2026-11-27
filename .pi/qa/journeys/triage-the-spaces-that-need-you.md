@@ -25,8 +25,8 @@ fixture from [Before a launch](../../qa.md#before-a-launch) and follow the
    row keep their names and marks.
 2. Take a shot, then click `Inbox` in the switch above the list, and take another shot. The list
    shows `Agent asks` with the count `1` and the blocked space's row, then `Quiet` with the count
-   `1` and the other space's row. No project header shows. Each row ends with the dim project name
-   `pr-fixture`.
+   `1` and the other space's row. No project header shows. Each row shows the dim project name
+   `pr-fixture` at its right, and a row that has waited shows its age after the name.
 3. Click the row under `Agent asks`, using coordinates from the shot, and take a shot. That space is
    selected and shown, and the sidebar stays in Inbox.
 
