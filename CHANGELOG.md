@@ -1,5 +1,21 @@
 # koja
 
+## 0.5.0
+
+### Minor Changes
+
+- [#140](https://github.com/sQVe/koja/pull/140)
+  [`b0beb74`](https://github.com/sQVe/koja/commit/b0beb74d18f8d223665af6eaa91193ff99c896f7) Thanks
+  [@sQVe](https://github.com/sQVe)! - Sidebar rows show what each space's pull requests need from
+  you.
+
+### Patch Changes
+
+- [#140](https://github.com/sQVe/koja/pull/140)
+  [`b0beb74`](https://github.com/sQVe/koja/commit/b0beb74d18f8d223665af6eaa91193ff99c896f7) Thanks
+  [@sQVe](https://github.com/sQVe)! - The picker's work icon covers every open PR in a space's
+  stack.
+
 ## 0.4.0
 
 ### Minor Changes
