@@ -24,4 +24,19 @@ describe('toastProps', () => {
 
     expect(toast.action).toBeNull();
   });
+
+  test('reads fitHeight only when it is true', () => {
+    expect(readToastProps({ fitHeight: true }).fitHeight).toBe(true);
+    expect(readToastProps({ fitHeight: 'true' }).fitHeight).toBe(false);
+  });
+
+  test('keeps the title of a plain toast', () => {
+    const toast = readToastProps({ title: 'Build failed', body: 'typecheck exited with code 1.' });
+
+    expect(toast.content).toEqual({
+      kind: 'plain',
+      title: 'Build failed',
+      body: 'typecheck exited with code 1.',
+    });
+  });
 });
