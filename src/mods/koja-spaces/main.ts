@@ -16,13 +16,9 @@ import {
 
 import type { DataState } from '../../data/consumer.ts';
 import { readDataState } from '../../data/consumer.ts';
-import { folderNameOf } from '../../data/fields.ts';
 import { startDataHost } from '../../data/host.ts';
-import { ticketIdOf } from '../../data/linearTickets.ts';
 import { placeOfSpace, placesOf } from '../../data/places.ts';
 import { createPullRetryClient } from '../../data/pullRetry/pullRetry.ts';
-import type { RepositoryPulls } from '../../data/snapshot.ts';
-import { stackTitleOf } from '../../data/spaceStack.ts';
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { StatusRollup } from '../../kit/index.ts';
@@ -51,18 +47,18 @@ import { closedSpaceCommand } from '../../kit/spaceOrder.ts';
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import type { KeptNeed } from './gitFacts.ts';
-import { answeredPlaces, gitInfoAt, needAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
-import { inboxGroupsOf, inboxIdsOf, inboxRows } from './inbox/inboxRows.ts';
+import { answeredPlaces, gitInfoAt, pullFailedAt } from './gitFacts.ts';
+import { inboxRows } from './inbox/inboxRows.ts';
+import type { ListModel, RowModel } from './listModel.ts';
+import { listModelOf } from './listModel.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
-import { groupProjects, noFolds, shownSpaces } from './projects.ts';
-import { pullOf } from './pulls.ts';
-import { showsTitle } from './rows.ts';
-import { sidebarViewKey, storedViewIsInbox } from './sidebarView.ts';
+import { groupProjects, noFolds } from './projects.ts';
+import { sidebarViewKey, readSidebarView } from './sidebarView.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
 import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
-import type { HeaderState, RowFacts, RowState } from './spaceRows.ts';
+import type { HeaderState, RowState } from './spaceRows.ts';
 import { headerRow, row as spaceRow } from './spaceRows.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import { viewBar } from './viewBar.ts';
@@ -94,9 +90,6 @@ const isSidebarMarked = (): boolean => readSection(shared) === 'sidebar';
 
 const liveSpaceIds = (): string[] => spaces().map((space) => space.id);
 
-const shownIdsOf = (projects: Project[]): string[] =>
-  shownSpaces(projects).map((row) => row.space.id);
-
 const activeSpaceId = (): string | null => spaces().find((space) => space.active)?.id ?? null;
 
 const topStripHeight = (): number =>
@@ -107,26 +100,6 @@ const storage = {
   set: (key: string, value: string): void => {
     localStorage.setItem(key, value);
   },
-};
-
-const ticketTitleAt = (state: DataState, row: ListedSpace): string | null => {
-  if (state.kind === 'unavailable' || row.git === null) {
-    return null;
-  }
-
-  const stackTitle = stackTitleOf(state.snapshot.facts, row.git.worktreeKey);
-
-  if (showsTitle(stackTitle)) {
-    return stackTitle;
-  }
-
-  const id = ticketIdOf(row.git.branch, folderNameOf(row.git.root));
-
-  if (id === null) {
-    return null;
-  }
-
-  return state.snapshot.facts.trackers[row.git.repo.key]?.tickets[id]?.title ?? null;
 };
 
 export default class Spaces extends View {
@@ -199,12 +172,21 @@ export default class Spaces extends View {
     this.statuses = rollupStatuses(spaces(), panes(), terminals());
     this.visibility = this.advance(state);
 
-    const projects = this.projects(state);
+    const listed = this.listedSpaces(state);
+    const projects = groupProjects(listed, this.foldedProjects);
     const ids = liveSpaceIds();
     const order = this.order.publish(projects, ids);
 
     this.followClose(order);
     this.followMark(isSidebarMarked());
+
+    const model = listModelOf({
+      state,
+      listed,
+      folds: this.foldedProjects,
+      view: readSidebarView(storage.get(sidebarViewKey)),
+      lastNeeds: this.lastNeeds,
+    });
 
     const topStrip = div().flex_none().h(topStripHeight());
 
@@ -238,7 +220,7 @@ export default class Spaces extends View {
         this.endDrag();
         cx.notify();
       })
-      .children(this.listRows(state, projects, ids));
+      .children(this.listRows(state, model, ids));
 
     return withTextRole(v_flex(), 'body')
       .size_full()
@@ -339,12 +321,12 @@ export default class Spaces extends View {
     cx.notify();
   }
 
-  private cursorRow(state: DataState): string | null {
+  private cursorAt(ids: readonly string[]): string | null {
     if (!isSidebarMarked()) {
       return null;
     }
 
-    return cursorRow(this.shownIds(state), this.cursor, activeSpaceId());
+    return cursorRow(ids, this.cursor, activeSpaceId());
   }
 
   private advance(state: DataState): VisibilityResult {
@@ -421,9 +403,13 @@ export default class Spaces extends View {
   }
 
   private shownIds(state: DataState): string[] {
-    return storedViewIsInbox(storage.get(sidebarViewKey))
-      ? inboxIdsOf(state, this.listedSpaces(state), this.lastNeeds)
-      : shownIdsOf(this.projects(state));
+    return listModelOf({
+      state,
+      listed: this.listedSpaces(state),
+      folds: this.foldedProjects,
+      view: readSidebarView(storage.get(sidebarViewKey)),
+      lastNeeds: this.lastNeeds,
+    }).ids;
   }
 
   private projectChildren(state: DataState): ProjectChildren[] {
@@ -460,32 +446,45 @@ export default class Spaces extends View {
     return spaces().some((space) => !this.visibility.shown.has(space.id));
   }
 
-  private draw(
-    row: ListedSpace,
-    ids: readonly string[],
-    cursor: string | null,
-    now: number,
-    pulls: Record<string, RepositoryPulls>,
-    facts: RowFacts,
-    projectName: string | null,
-  ): Element {
-    const waiting = { id: row.space.id, status: row.status, active: row.space.active };
-    const age = waitAge(this.waitTimes, waiting, now);
+  private rowState(model: RowModel, cursor: string | null, now: number): RowState {
+    const waiting = {
+      id: model.row.space.id,
+      status: model.row.status,
+      active: model.row.space.active,
+    };
 
-    const state: RowState = {
+    return {
       drag: this.dragFor('space'),
       refused: this.refused,
       cursor,
-      age,
-      need: facts.need,
+      age: waitAge(this.waitTimes, waiting, now),
+      need: model.need,
       attachDrag: (element, space, rowIds) => {
         this.addDragHandlers(element, space, rowIds);
       },
     };
+  }
 
-    const pull = pullOf(row.git, pulls);
+  private draw(
+    model: RowModel,
+    ids: readonly string[],
+    cursor: string | null,
+    now: number,
+  ): Element {
+    const state = this.rowState(model, cursor, now);
 
-    return spaceRow(row, ids, state, pull, facts.ticketTitle, projectName);
+    return spaceRow(model.row, ids, state, model.pull, model.ticketTitle, model.project);
+  }
+
+  private drawProjectRow(
+    model: RowModel,
+    ids: readonly string[],
+    cursor: string | null,
+    now: number,
+  ): Element {
+    const state = this.rowState(model, cursor, now);
+
+    return spaceRow(model.row, ids, state, model.pull, model.ticketTitle, null);
   }
 
   private drawMain(
@@ -529,11 +528,10 @@ export default class Spaces extends View {
     this.pullRetries.request(git.repo.key, Date.now());
   };
 
-  private listRows(state: DataState, projects: Project[], ids: readonly string[]): Element[] {
-    const cursor = this.cursorRow(state);
+  private listRows(state: DataState, model: ListModel, ids: readonly string[]): Element[] {
+    const cursor = this.cursorAt(model.ids);
     const active = activeSpaceId();
     const now = Date.now();
-    const pulls = pullFactsOf(state);
 
     let cursorElement: Element | null = null;
 
@@ -551,19 +549,21 @@ export default class Spaces extends View {
       return element;
     };
 
-    const keys = projects.map((project) => project.key);
+    const modelOf = (row: ListedSpace): RowModel => {
+      const found = model.rows.get(row.space.id);
 
-    const factsOf = (row: ListedSpace): RowFacts => ({
-      ticketTitle: ticketTitleAt(state, row),
-      need: needAt(state, row.git, this.lastNeeds),
-    });
+      if (found === undefined) {
+        throw new Error(`No row model for space ${row.space.id}`);
+      }
 
-    if (storedViewIsInbox(storage.get(sidebarViewKey))) {
+      return found;
+    };
+
+    if (model.view === 'inbox') {
       const elements = inboxRows({
-        groups: inboxGroupsOf(state, this.listedSpaces(state), this.lastNeeds),
+        groups: model.groups,
         loading: this.isWaiting(),
-        draw: (row, project) =>
-          keepRow(row, this.draw(row, ids, cursor, now, pulls, factsOf(row), project)),
+        draw: (row) => keepRow(row, this.draw(modelOf(row), ids, cursor, now)),
       });
 
       this.showRows(elements, cursorElement, activeElement, active);
@@ -571,17 +571,12 @@ export default class Spaces extends View {
       return elements;
     }
 
-    const elements = projectRows({
-      projects,
-      loading: this.isWaiting(),
-      draw: (row) => {
-        const facts = {
-          ticketTitle: ticketTitleAt(state, row),
-          need: needAt(state, row.git, this.lastNeeds),
-        };
+    const keys = model.projects.map((project) => project.key);
 
-        return keepRow(row, this.draw(row, ids, cursor, now, pulls, facts, null));
-      },
+    const elements = projectRows({
+      projects: model.projects,
+      loading: this.isWaiting(),
+      draw: (row) => keepRow(row, this.drawProjectRow(modelOf(row), ids, cursor, now)),
       drawMain: (project, main) =>
         keepRow(main, this.drawMain(project, main, ids, keys, cursor, now)),
       foldDrag: (project) => {

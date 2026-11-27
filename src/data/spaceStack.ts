@@ -30,6 +30,12 @@ interface WorktreeStack {
   repositoryKey: string;
 }
 
+export interface WorktreeStackFacts {
+  stack: SpaceStack | null;
+  title: string | null;
+  need: StackNeed | null;
+}
+
 const stateOf = (pull: Pull | null): StackPull['state'] => {
   if (pull === null) {
     return 'unknown';
@@ -99,13 +105,7 @@ const stackPullOf = (
   };
 };
 
-export const spaceStackOf = (facts: Facts, worktreeKey: string): SpaceStack | null => {
-  const found = worktreeStackOf(facts, worktreeKey);
-
-  if (found === null) {
-    return null;
-  }
-
+const stackIn = (facts: Facts, found: WorktreeStack): SpaceStack => {
   const pulls = found.stack.branches.map((entry) =>
     stackPullOf(facts, found.repositoryKey, entry, found.branch),
   );
@@ -125,22 +125,6 @@ export const branchNeedOf = (
   const pull = pullOfBranch(facts.pulls[repositoryKey] ?? null, branch);
 
   return pullStackNeed(pull, 'none');
-};
-
-export const spaceNeedOf = (facts: Facts, worktreeKey: string): StackNeed | null => {
-  const worktree = facts.git.worktrees[worktreeKey];
-
-  if (worktree === undefined) {
-    return null;
-  }
-
-  const stack = spaceStackOf(facts, worktreeKey);
-
-  if (stack !== null) {
-    return mostBlockingNeed(stack.pulls.map((pull) => pull.need));
-  }
-
-  return branchNeedOf(facts, worktree.repository.key, worktree.branch);
 };
 
 const parentOf = (tickets: Record<string, TicketFacts>, branch: string): string | null => {
@@ -172,15 +156,44 @@ const sharedParentOf = (
 
 // A stack takes its shared parent's title only when every branch names a ticket, those tickets all
 // name the same parent, and that parent's facts were read.
-export const stackTitleOf = (facts: Facts, worktreeKey: string): string | null => {
-  const found = worktreeStackOf(facts, worktreeKey);
-
-  if (found === null) {
-    return null;
-  }
-
+const stackTitleIn = (facts: Facts, found: WorktreeStack): string | null => {
   const tickets = facts.trackers[found.repositoryKey]?.tickets ?? {};
   const parent = sharedParentOf(found.stack.branches, tickets);
 
   return parent === null ? null : (tickets[parent]?.title ?? null);
 };
+
+export const worktreeStackFactsOf = (
+  facts: Facts,
+  worktreeKey: string,
+): WorktreeStackFacts | null => {
+  const worktree = facts.git.worktrees[worktreeKey];
+
+  if (worktree === undefined) {
+    return null;
+  }
+
+  const found = worktreeStackOf(facts, worktreeKey);
+
+  if (found === null) {
+    return {
+      stack: null,
+      title: null,
+      need: branchNeedOf(facts, worktree.repository.key, worktree.branch),
+    };
+  }
+
+  const stack = stackIn(facts, found);
+
+  return {
+    stack,
+    title: stackTitleIn(facts, found),
+    need: mostBlockingNeed(stack.pulls.map((pull) => pull.need)),
+  };
+};
+
+export const spaceStackOf = (facts: Facts, worktreeKey: string): SpaceStack | null =>
+  worktreeStackFactsOf(facts, worktreeKey)?.stack ?? null;
+
+export const spaceNeedOf = (facts: Facts, worktreeKey: string): StackNeed | null =>
+  worktreeStackFactsOf(facts, worktreeKey)?.need ?? null;

@@ -2,16 +2,11 @@ import type { Context, Element } from 'gpui-kit';
 import { openOverlay, run, setShared, shared, spaces } from 'herdr';
 import type { SpaceInfo } from 'herdr';
 
-import type { DataState } from '../../../data/consumer.ts';
 import { detailText, overlaySize, sectionHeader, sidebarSize } from '../../../kit/index.ts';
 import { runSpaceCommand } from '../../../kit/space/spaceSelection.ts';
-import type { KeptNeed } from '../gitFacts.ts';
-import { needAt } from '../gitFacts.ts';
 import { groupedList } from '../groupedList.ts';
 import type { InboxGroup } from '../inbox.ts';
-import { inboxGroups, inboxIds } from '../inbox.ts';
 import type { ShownRow } from '../projects.ts';
-import { groupProjects, noFolds, shownRows } from '../projects.ts';
 import type { ListedSpace } from '../tree.ts';
 
 export interface InboxRowsHost {
@@ -19,22 +14,6 @@ export interface InboxRowsHost {
   loading: boolean;
   draw: (row: ListedSpace, project: string) => Element;
 }
-
-export const inboxGroupsOf = (
-  state: DataState,
-  rows: ListedSpace[],
-  lastNeeds: Map<string, KeptNeed>,
-): InboxGroup[] => {
-  const projects = groupProjects(rows, noFolds);
-
-  return inboxGroups(shownRows(projects), (row) => needAt(state, row.git, lastNeeds));
-};
-
-export const inboxIdsOf = (
-  state: DataState,
-  rows: ListedSpace[],
-  lastNeeds: Map<string, KeptNeed>,
-): string[] => inboxIds(inboxGroupsOf(state, rows, lastNeeds));
 
 const activeSpaceId = (): string | null => spaces().find((space) => space.active)?.id ?? null;
 

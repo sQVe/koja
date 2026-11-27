@@ -5,7 +5,7 @@ import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import { ticketIdOf } from './linearTickets.ts';
 import type { Pull } from './pulls.ts';
 import type { Facts, TicketFacts } from './snapshot.ts';
-import { spaceNeedOf, spaceStackOf, stackTitleOf } from './spaceStack.ts';
+import { spaceNeedOf, spaceStackOf, worktreeStackFactsOf } from './spaceStack.ts';
 import type { StackBranch } from './stacks.ts';
 
 interface Fixture {
@@ -334,7 +334,7 @@ describe('spaceNeedOf', () => {
   });
 });
 
-describe('stackTitleOf', () => {
+describe('worktreeStackFactsOf', () => {
   test('a stack whose tickets share a parent takes the parent title', () => {
     const facts = factsOf({
       stack: ['me-1-one', 'me-2-two'],
@@ -342,7 +342,7 @@ describe('stackTitleOf', () => {
       parents: { 'ME-1': 'ME-9', 'ME-2': 'ME-9' },
     });
 
-    expect(stackTitleOf(facts, worktree.key)).toBe('Title of ME-9');
+    expect(worktreeStackFactsOf(facts, worktree.key)?.title).toBe('Title of ME-9');
   });
 
   test('a stack with mixed parents keeps the ticket title', () => {
@@ -352,7 +352,7 @@ describe('stackTitleOf', () => {
       parents: { 'ME-1': 'ME-9', 'ME-2': 'ME-8' },
     });
 
-    expect(stackTitleOf(facts, worktree.key)).toBeNull();
+    expect(worktreeStackFactsOf(facts, worktree.key)?.title).toBeNull();
   });
 
   test('a parent whose facts were not read keeps the ticket title', () => {
@@ -363,6 +363,20 @@ describe('stackTitleOf', () => {
       readParent: false,
     });
 
-    expect(stackTitleOf(facts, worktree.key)).toBeNull();
+    expect(worktreeStackFactsOf(facts, worktree.key)?.title).toBeNull();
+  });
+
+  test('gives the branch need for a worktree outside any stack', () => {
+    const facts = factsOf({
+      stack: [],
+      branch: 'me-1-one',
+      pulls: [pullFacts({ number: 11, headRefName: 'me-1-one', review: 'changesRequested' })],
+    });
+
+    expect(worktreeStackFactsOf(facts, worktree.key)).toEqual({
+      stack: null,
+      title: null,
+      need: 'review',
+    });
   });
 });

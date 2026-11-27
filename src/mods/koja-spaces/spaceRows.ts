@@ -27,11 +27,6 @@ interface RowBaseState {
   attachDrag: (element: Element, space: SpaceInfo, ids: readonly string[]) => void;
 }
 
-export interface RowFacts {
-  ticketTitle: string | null;
-  need: StackNeed | null;
-}
-
 export interface RowState extends RowBaseState {
   need: StackNeed | null;
 }

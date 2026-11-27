@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import type { DataState } from '../../data/consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
+import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type {
   Facts,
@@ -13,8 +14,15 @@ import type {
   WorktreeGit,
 } from '../../data/snapshot.ts';
 import { emptyFacts, snapshotVersion } from '../../data/snapshot.ts';
+import { worktreeStackFactsOf } from '../../data/spaceStack.ts';
 import type { KeptNeed } from './gitFacts.ts';
-import { answeredPlaces, gitInfoAt, needAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
+import {
+  answeredPlaces,
+  gitInfoAt,
+  needAt as needAtWithFresh,
+  pullFailedAt,
+  pullFactsOf,
+} from './gitFacts.ts';
 import type { GitInfo } from './tree.ts';
 
 interface Checkout {
@@ -130,6 +138,21 @@ const kojaGit: GitInfo = {
   repo: repositoryOf(null, '/code/koja/.git'),
   root: '/code/koja',
   linked: false,
+};
+
+const needAt = (
+  state: DataState,
+  git: GitInfo | null,
+  lastNeeds: Map<string, KeptNeed>,
+): StackNeed | null => {
+  const facts = state.kind === 'unavailable' ? null : state.snapshot.facts;
+
+  const fresh =
+    git === null || facts === null
+      ? null
+      : (worktreeStackFactsOf(facts, git.worktreeKey)?.need ?? null);
+
+  return needAtWithFresh(state, git, fresh, lastNeeds);
 };
 
 describe('needAt', () => {
