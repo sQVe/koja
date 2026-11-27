@@ -18,7 +18,7 @@ interface DescendantContribution {
   owner: PaneInfo;
 }
 
-// A null owner means a pane in that tab or space itself holds the rolled-up status.
+// A null owner means the status comes from the tab or space itself, or that it has no status at all.
 export interface StatusOwners {
   spaces: Record<string, PaneInfo | null>;
   tabs: Record<string, PaneInfo | null>;

@@ -32,15 +32,28 @@ const rowWithText = (element: DrawnElement, text: string): DrawnElement => {
   return row;
 };
 
+const rowWithExactText = (element: DrawnElement, text: string): DrawnElement => {
+  const row = element.kids.find(
+    (kid) => drawnTexts(kid).length === 1 && drawnTexts(kid)[0] === text,
+  );
+
+  if (row === undefined) {
+    throw new Error(`no row with only ${text}`);
+  }
+
+  return row;
+};
+
 describe('list layout under a status filter', () => {
   test('a filtered pane without a tab row aligns with other direct children', () => {
     const data = compoundFilterFixture();
     const drawn = listOf('', data, ['done', 'blocked']);
 
     const pane = rowWithText(drawn, 'zsh · title p1');
-    const tab = rowWithText(drawn, 'zsh');
+    const tabRow = rowWithExactText(drawn, 'zsh');
 
-    expect(numberStyle(pane, 'pl')).toBe(numberStyle(tab, 'pl'));
+    expect(tabRow).not.toBe(pane);
+    expect(numberStyle(pane, 'pl')).toBe(numberStyle(tabRow, 'pl'));
   });
 });
 
@@ -50,8 +63,9 @@ describe('list layout without a status filter', () => {
     const drawn = listOf('', data);
 
     const pane = rowWithText(drawn, 'zsh · title p1');
-    const tab = rowWithText(drawn, 'zsh');
+    const tabRow = rowWithExactText(drawn, 'zsh');
 
-    expect(numberStyle(pane, 'pl')).toBeGreaterThan(numberStyle(tab, 'pl'));
+    expect(tabRow).not.toBe(pane);
+    expect(numberStyle(pane, 'pl')).toBeGreaterThan(numberStyle(tabRow, 'pl'));
   });
 });

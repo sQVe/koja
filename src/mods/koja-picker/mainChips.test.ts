@@ -224,6 +224,20 @@ describe('filter chips', () => {
     press('shift-tab');
 
     expect(chipScrollCalls).toEqual([1, 0]);
+  });
+
+  test('a keyboard filter change returns the list to the first row', async () => {
+    focusedValue = { space: 's1' };
+    spaceValues = [spaceOf('s1', 1), spaceOf('s2', 2)];
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    press('tab');
+    press('shift-tab');
+
     expect(listScrollCalls).toEqual([0, 0]);
   });
 });

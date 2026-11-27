@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { seededRandom } from '../../../tests/seeded.ts';
+import { pick, seededRandom } from '../../../tests/seeded.ts';
 
 interface SearchFocusInput {
   focus: () => void;
@@ -38,9 +38,10 @@ interface TimerEntry {
 
 interface FakeTimer {
   delays: number[];
-  runs: (() => void)[];
+  queued: TimerEntry[];
   after: (delay: number, handler: (cx: Context) => void) => FakeTask;
   pending: () => number;
+  live: () => TimerEntry[];
 }
 
 interface Harness {
@@ -58,6 +59,10 @@ const loaded = (await import(modulePath)) as {
 };
 
 const keepSearchFocused = loaded.keepSearchFocused;
+
+const runPending = (timer: FakeTimer): void => {
+  timer.live()[0]?.run();
+};
 
 const setup = (): Harness => {
   const handlers: Record<string, (() => void) | undefined> = {};
@@ -89,12 +94,13 @@ const setup = (): Harness => {
   };
 
   const delays: number[] = [];
-  const runs: (() => void)[] = [];
   const queued: TimerEntry[] = [];
+
+  const live = (): TimerEntry[] => queued.filter((entry) => !entry.cancelled && !entry.done);
 
   const timer: FakeTimer = {
     delays,
-    runs,
+    queued,
     after: (delay, handler) => {
       delays.push(delay);
 
@@ -111,7 +117,6 @@ const setup = (): Harness => {
         },
       };
 
-      runs.push(entry.run);
       queued.push(entry);
 
       return {
@@ -121,7 +126,8 @@ const setup = (): Harness => {
         is_done: () => entry.done,
       };
     },
-    pending: () => queued.filter((entry) => !entry.cancelled && !entry.done).length,
+    pending: () => live().length,
+    live,
   };
 
   const context = { timer } as unknown as Context;
@@ -143,10 +149,10 @@ describe('keepSearchFocused', () => {
     const { host, input, timer, context } = setup();
 
     keepSearchFocused(host, context);
-    timer.runs[0]?.();
+    runPending(timer);
 
     expect(input.focusCalls).toBe(2);
-    expect(timer.runs).toHaveLength(2);
+    expect(timer.delays).toHaveLength(2);
   });
 
   test('sets the focused state on a focus event', () => {
@@ -163,10 +169,10 @@ describe('keepSearchFocused', () => {
 
     keepSearchFocused(host, context);
     input.emit('focus');
-    timer.runs[0]?.();
+    runPending(timer);
 
     expect(input.focusCalls).toBe(1);
-    expect(timer.runs).toHaveLength(1);
+    expect(timer.delays).toHaveLength(1);
   });
 
   test('stops retrying when the picker is leaving', () => {
@@ -174,10 +180,10 @@ describe('keepSearchFocused', () => {
 
     keepSearchFocused(host, context);
     state.leaving = true;
-    timer.runs[0]?.();
+    runPending(timer);
 
     expect(input.focusCalls).toBe(1);
-    expect(timer.runs).toHaveLength(1);
+    expect(timer.delays).toHaveLength(1);
   });
 
   test('gives up after 40 focus attempts', () => {
@@ -186,11 +192,11 @@ describe('keepSearchFocused', () => {
     keepSearchFocused(host, context);
 
     for (let index = 0; index < 41; index += 1) {
-      timer.runs[index]?.();
+      runPending(timer);
     }
 
     expect(input.focusCalls).toBe(40);
-    expect(timer.runs).toHaveLength(40);
+    expect(timer.delays).toHaveLength(40);
   });
 
   test('clears the focused state and starts a fresh round on blur', () => {
@@ -202,7 +208,7 @@ describe('keepSearchFocused', () => {
 
     expect(state.focused).toBe(false);
     expect(input.focusCalls).toBe(2);
-    expect(timer.runs).toHaveLength(2);
+    expect(timer.delays).toHaveLength(2);
   });
 
   test('a blur supersedes retries still pending from an earlier focus attempt', () => {
@@ -213,32 +219,44 @@ describe('keepSearchFocused', () => {
 
     expect(timer.pending()).toBe(1);
 
-    timer.runs[0]?.();
-    timer.runs[1]?.();
+    const [superseded, live] = timer.queued;
 
+    superseded?.run();
+    expect(input.focusCalls).toBe(2);
+    expect(timer.pending()).toBe(1);
+
+    live?.run();
     expect(input.focusCalls).toBe(3);
     expect(timer.pending()).toBe(1);
   });
 
   test('random focus, blur, and timer runs leave at most one retry pending', () => {
+    const actions = [0, 1, 2] as const;
+
     for (let seed = 1; seed <= 50; seed += 1) {
       const { host, input, timer, context } = setup();
       const random = seededRandom(seed);
 
       keepSearchFocused(host, context);
 
+      let sawRetry = timer.pending() > 0;
+
       for (let step = 0; step < 30; step += 1) {
-        const action = Math.floor(random() * 3);
+        const action = pick(actions, random);
 
         if (action === 0) {
           input.emit('focus');
         } else if (action === 1) {
           input.emit('blur');
         } else {
-          const index = Math.floor(random() * timer.runs.length);
+          const entries = timer.live();
 
-          timer.runs[index]?.();
+          if (entries.length > 0) {
+            pick(entries, random).run();
+          }
         }
+
+        sawRetry = sawRetry || timer.pending() > 0;
 
         expect(timer.pending(), `seed ${seed}: more than one retry waits`).toBeLessThanOrEqual(1);
 
@@ -246,6 +264,8 @@ describe('keepSearchFocused', () => {
           expect(timer.pending(), `seed ${seed}: a retry waits while focused`).toBe(0);
         }
       }
+
+      expect(sawRetry, `seed ${seed}: no retry was ever pending`).toBe(true);
     }
   });
 });
