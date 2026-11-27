@@ -17,11 +17,6 @@ export interface ListedSpace {
   place: Place;
 }
 
-export interface RowList {
-  ids: string[];
-  active: string | null;
-}
-
 export interface FoldedKeys {
   has: (key: string) => boolean;
 }

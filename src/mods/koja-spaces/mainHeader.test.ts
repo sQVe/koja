@@ -4,6 +4,7 @@ import { drawnTexts, elementsWithMouseHandlers, press } from '../../../tests/dra
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
   cursorNames,
+  listChildren,
   loadView,
   pressable,
   resetKojaSpaces,
@@ -53,7 +54,9 @@ describe('koja-spaces main space header', () => {
 
     expect(spaceNames(view)).toEqual(['name-w']);
 
-    const kojaTexts = drawnTexts(view.render()).filter((text) => text === 'koja');
+    const kojaTexts = listChildren(view)
+      .flatMap(drawnTexts)
+      .filter((text) => text === 'koja');
 
     expect(kojaTexts).toHaveLength(1);
   });

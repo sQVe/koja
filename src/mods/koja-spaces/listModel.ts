@@ -13,13 +13,14 @@ import { inboxGroups, inboxIds } from './inbox.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, noFolds, shownRows, shownSpaces } from './projects.ts';
 import { pullOf } from './pulls.ts';
-import { showsTitle } from './rows.ts';
+import { rowTitleOf, showsTitle } from './rows.ts';
 import type { SidebarView } from './sidebarView.ts';
 import type { FoldedKeys, GitInfo, ListedSpace } from './tree.ts';
 
 export interface RowModel {
   row: ListedSpace;
   project: string;
+  title: string;
   pull: Pull | null;
   ticket: TicketFacts | null;
   ticketTitle: string | null;
@@ -75,21 +76,39 @@ const rowModelOf = (
   state: DataState,
   row: ListedSpace,
   project: string,
+  headerTitle: string | null,
   lastNeeds: Map<string, KeptNeed>,
 ): RowModel => {
   const readable = readableRowOf(state, row);
   const stackFacts = readable === null ? null : stackFactsOf(readable);
   const ticket = ticketOf(state, row);
+  const pull = pullOf(row.git, pullFactsOf(state));
+  const ticketTitle = ticketTitleOf(ticket, stackFacts?.title ?? null);
+
+  const title = headerTitle ?? rowTitleOf(row.space.named, row.space.name, pull, ticketTitle);
 
   return {
     row,
     project,
-    pull: pullOf(row.git, pullFactsOf(state)),
+    title,
+    pull,
     ticket,
-    ticketTitle: ticketTitleOf(ticket, stackFacts?.title ?? null),
+    ticketTitle,
     need: needAt(state, row.git, stackFacts?.need ?? null, lastNeeds),
     stack: stackFacts?.stack ?? null,
   };
+};
+
+const headerTitlesOf = (projects: Project[]): Map<string, string> => {
+  const titles = new Map<string, string>();
+
+  for (const project of projects) {
+    if (project.main !== null) {
+      titles.set(project.main.space.id, project.name);
+    }
+  }
+
+  return titles;
 };
 
 const needOf = (rows: ReadonlyMap<string, RowModel>, row: ListedSpace): StackNeed | null =>
@@ -106,9 +125,12 @@ export const listModelOf = (input: {
   const all = groupProjects(listed, noFolds);
   const shown = shownRows(all);
   const rows = new Map<string, RowModel>();
+  const headerTitles = view === 'projects' ? headerTitlesOf(all) : new Map<string, string>();
 
   for (const { row, project } of shown) {
-    rows.set(row.space.id, rowModelOf(state, row, project, lastNeeds));
+    const headerTitle = headerTitles.get(row.space.id) ?? null;
+
+    rows.set(row.space.id, rowModelOf(state, row, project, headerTitle, lastNeeds));
   }
 
   if (view === 'inbox') {

@@ -39,6 +39,7 @@ const listed: ListedSpace = {
 const rowModel = (stack: SpaceStack | null): RowModel => ({
   row: listed,
   project: 'koja',
+  title: 'The stack',
   pull: null,
   ticket: null,
   ticketTitle: null,

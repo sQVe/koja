@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { clickablesWithText, drawnTexts, elementsWithMouseHandlers } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
+  listChildren,
   loadView,
   pressable,
   resetKojaSpaces,
@@ -138,7 +139,10 @@ describe('koja-spaces drag and drop', () => {
     applyMoves();
 
     const labels = new Set(['alpha', 'beta', 'name-beta-1', 'name-alpha-1', 'name-alpha-2']);
-    const drawnOrder = drawnTexts(view.render()).filter((text) => labels.has(text));
+
+    const drawnOrder = listChildren(view)
+      .flatMap(drawnTexts)
+      .filter((text) => labels.has(text));
 
     expect(drawnOrder).toEqual(['beta', 'name-beta-1', 'alpha', 'name-alpha-1', 'name-alpha-2']);
 
@@ -252,7 +256,9 @@ describe('koja-spaces drag and drop', () => {
       'name-gamma-1',
     ]);
 
-    const drawnOrder = drawnTexts(view.render()).filter((text) => labels.has(text));
+    const drawnOrder = listChildren(view)
+      .flatMap(drawnTexts)
+      .filter((text) => labels.has(text));
 
     expect(drawnOrder).toEqual([
       'beta',

@@ -44,7 +44,6 @@ import { stackProgressOf } from './progress.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, noFolds } from './projects.ts';
-import { rowTitleOf } from './rows.ts';
 import { selectedFooter } from './selectedFooter.ts';
 import { sidebarViewKey, readSidebarView } from './sidebarView.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
@@ -53,7 +52,7 @@ import { createOrderPublisher } from './spaceOrder.ts';
 import type { HeaderState, ReorderCallbacks, RowInteraction, RowState } from './spaceRows.ts';
 import { attachReorder, headerRow, row as spaceRow } from './spaceRows.ts';
 import { stackCardOf } from './stackCard.ts';
-import type { GitInfo, ListedSpace, RowList } from './tree.ts';
+import type { GitInfo, ListedSpace } from './tree.ts';
 import { viewBar } from './viewBar.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
@@ -209,7 +208,7 @@ export default class Spaces extends View {
         this.endDrag();
         cx.notify();
       })
-      .children(this.listRows(state, model, { ids, active }));
+      .children(this.listRows(state, model, ids, active));
 
     return withTextRole(v_flex(), 'body')
       .size_full()
@@ -317,12 +316,12 @@ export default class Spaces extends View {
     cx.notify();
   }
 
-  private cursorAt(ids: readonly string[]): string | null {
+  private cursorAt(ids: readonly string[], active: string | null): string | null {
     if (!isSidebarMarked()) {
       return null;
     }
 
-    return cursorRow(ids, this.cursor, activeSpaceId());
+    return cursorRow(ids, this.cursor, active);
   }
 
   private advance(state: DataState): VisibilityResult {
@@ -447,12 +446,7 @@ export default class Spaces extends View {
       active: model.row.space.active,
     };
 
-    const title = rowTitleOf(
-      model.row.space.named,
-      model.row.space.name,
-      model.pull,
-      model.ticketTitle,
-    );
+    const title = model.title;
 
     return {
       title,
@@ -546,9 +540,13 @@ export default class Spaces extends View {
     this.pullRetries.request(git.repo.key, Date.now());
   };
 
-  private listRows(state: DataState, model: ListModel, rows: RowList): Element[] {
-    const cursor = this.cursorAt(model.ids);
-    const { ids, active } = rows;
+  private listRows(
+    state: DataState,
+    model: ListModel,
+    ids: readonly string[],
+    active: string | null,
+  ): Element[] {
+    const cursor = this.cursorAt(model.ids, active);
     const now = Date.now();
 
     let cursorElement: Element | null = null;

@@ -1,9 +1,8 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
 
-import type { DrawnElement } from '../../../tests/drawn.ts';
 import { click, clickablesWithText, drawnTexts } from '../../../tests/drawn.ts';
+import type { DrawnElement } from '../../../tests/drawn.ts';
 import { restoreKojaSpaces, setupKojaSpaces } from '../../../tests/kojaSpacesView.ts';
-import { kitIndexFake } from '../../../tests/moduleFakes.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import type { DataState } from '../../data/consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
@@ -15,16 +14,6 @@ import type { ListModel, RowModel } from './listModel.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 
 await setupKojaSpaces();
-
-const { linkText } = (await import('../../kit/text.ts')) as unknown as {
-  linkText: (text: string) => DrawnElement;
-};
-
-const { spaceFooter } = (await import('../../kit/spaceFooter.ts')) as unknown as {
-  spaceFooter: (options: { title: string; links: DrawnElement[] }) => DrawnElement;
-};
-
-await mock.module('../../kit/index.ts', () => ({ ...kitIndexFake(), linkText, spaceFooter }));
 
 const { selectedFooter } = (await import('./selectedFooter.ts')) as unknown as {
   selectedFooter: (
@@ -48,6 +37,18 @@ const liveState: DataState = {
   heartbeatAt: 0,
   staleAt: 30_000,
 };
+
+const stateWithPulls = (pulls: Pull[]): DataState => ({
+  ...liveState,
+  snapshot: {
+    version: snapshotVersion,
+    revision: 1,
+    facts: {
+      ...emptyFacts(),
+      pulls: { [repository.key]: { pulls, failed: false } },
+    },
+  },
+});
 
 const listedSpace = (id: string, linked: boolean): ListedSpace => {
   const folder = `/code/${id}`;
@@ -78,6 +79,7 @@ const listedSpace = (id: string, linked: boolean): ListedSpace => {
 
 const rowModel = (options: {
   id: string;
+  title?: string;
   pull?: Pull | null;
   ticket?: TicketFacts | null;
   stack?: SpaceStack | null;
@@ -86,6 +88,7 @@ const rowModel = (options: {
 }): RowModel => ({
   row: listedSpace(options.id, options.linked ?? true),
   project: options.project ?? 'koja',
+  title: options.title ?? `name-${options.id}`,
   pull: options.pull ?? null,
   ticket: options.ticket ?? null,
   ticketTitle: options.ticket?.title ?? null,
@@ -99,6 +102,37 @@ const modelOf = (rows: RowModel[]): ListModel => ({
   rows: new Map(rows.map((row) => [row.row.space.id, row])),
   ids: rows.map((row) => row.row.space.id),
 });
+
+const checkedOutStack = (number: number | null): SpaceStack => ({
+  pulls: [
+    {
+      branch: 'me-11-eleven',
+      ticket: 'ME-11',
+      number,
+      title: 'The checked-out pull',
+      state: 'open',
+      checkedOut: true,
+      restack: 'none',
+      need: null,
+    },
+  ],
+  merged: 0,
+  total: 1,
+});
+
+const openedBy = (footer: DrawnElement, text: string): string[] => {
+  const [link] = clickablesWithText(footer, text);
+
+  if (link === undefined) {
+    throw new Error(`The footer draws no ${text} link.`);
+  }
+
+  const opened: string[] = [];
+
+  click(link, { open_url: (url: string) => opened.push(url) });
+
+  return opened;
+};
 
 describe('selectedFooter', () => {
   test("clicking the footer's PR link opens the pull's URL", () => {
@@ -114,17 +148,7 @@ describe('selectedFooter', () => {
       throw new Error('The selected space draws no footer.');
     }
 
-    const [link] = clickablesWithText(footer, '#505');
-
-    if (link === undefined) {
-      throw new Error('The footer draws no pull link.');
-    }
-
-    const opened: string[] = [];
-
-    click(link, { open_url: (url: string) => opened.push(url) });
-
-    expect(opened).toEqual(['https://example.invalid/koja/pull/505']);
+    expect(openedBy(footer, '#505')).toEqual(['https://example.invalid/koja/pull/505']);
   });
 
   test("clicking the footer's ticket link opens the ticket's URL", () => {
@@ -142,17 +166,55 @@ describe('selectedFooter', () => {
       throw new Error('The selected space draws no footer.');
     }
 
-    const [link] = clickablesWithText(footer, 'ME-1180');
+    expect(openedBy(footer, 'ME-1180')).toEqual(['https://linear.app/sqve/issue/ME-1180']);
+  });
 
-    if (link === undefined) {
-      throw new Error('The footer draws no ticket link.');
+  test("a stack footer links the PR its card shows, not the branch's other pull", () => {
+    const cardPull = pullFacts({
+      number: 11,
+      headRefName: 'me-11-eleven',
+      url: 'https://example.invalid/koja/pull/11',
+    });
+
+    const branchPull = pullFacts({
+      number: 99,
+      headRefName: 'me-11-eleven',
+      url: 'https://example.invalid/koja/pull/99',
+    });
+
+    const footer = selectedFooter(
+      stateWithPulls([cardPull, branchPull]),
+      modelOf([rowModel({ id: 'w', pull: branchPull, stack: checkedOutStack(11) })]),
+      'w',
+    );
+
+    if (footer === null) {
+      throw new Error('The selected space draws no footer.');
     }
 
-    const opened: string[] = [];
+    expect(openedBy(footer, '#11')).toEqual(['https://example.invalid/koja/pull/11']);
+    expect(clickablesWithText(footer, '#99')).toEqual([]);
+  });
 
-    click(link, { open_url: (url: string) => opened.push(url) });
+  test('a stack footer draws no PR link when its checked-out PR is not in the snapshot', () => {
+    const branchPull = pullFacts({
+      number: 99,
+      headRefName: 'me-11-eleven',
+      url: 'https://example.invalid/koja/pull/99',
+    });
 
-    expect(opened).toEqual(['https://linear.app/sqve/issue/ME-1180']);
+    const footer = selectedFooter(
+      stateWithPulls([branchPull]),
+      modelOf([rowModel({ id: 'w', pull: branchPull, stack: checkedOutStack(11) })]),
+      'w',
+    );
+
+    if (footer === null) {
+      throw new Error('The selected space draws no footer.');
+    }
+
+    expect(clickablesWithText(footer, '#11')).toEqual([]);
+    expect(clickablesWithText(footer, '#99')).toEqual([]);
   });
 
   test("a selected stack space's footer shows merged over total merged", () => {
@@ -191,7 +253,7 @@ describe('selectedFooter', () => {
   test('a selected project main space shows the project name', () => {
     const footer = selectedFooter(
       liveState,
-      modelOf([rowModel({ id: 'w', linked: false, project: 'koja' })]),
+      modelOf([rowModel({ id: 'w', linked: false, project: 'koja', title: 'koja' })]),
       'w',
     );
 

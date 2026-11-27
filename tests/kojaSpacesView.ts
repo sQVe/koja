@@ -310,7 +310,7 @@ const mockHostModules = async (): Promise<void> => {
   );
 };
 
-export const kitParts = [
+const kitParts = [
   'button',
   'hoverTarget',
   'icon',
@@ -320,6 +320,7 @@ export const kitParts = [
   'section',
   'sectionHeader',
   'size',
+  'spaceFooter',
   'stackCard',
   'stackProgress',
   'stateLine',
@@ -336,7 +337,7 @@ export const kitParts = [
 const mockKit = async (): Promise<void> => {
   const kitFake = await realKitIndexFake(kitParts);
 
-  await mock.module('../src/kit/index.ts', () => ({ ...kitFake, spaceFooter: () => drawn() }));
+  await mock.module('../src/kit/index.ts', () => kitFake);
 };
 
 export const setupKojaSpaces = async (): Promise<void> => {
@@ -464,12 +465,14 @@ export const selected = (): unknown[] =>
 export const cursorNames = (view: FakeView): string[] =>
   elementsWithBorder(view.render(), themeColors.accent).flatMap(drawnTexts);
 
-export const spaceNames = (view: FakeView): string[] =>
-  drawnTexts(view.render()).filter((text) => text.startsWith('name-'));
-
 // The direct children of the scrolling list.
 export const listChildren = (view: FakeView): DrawnElement[] =>
   elementsWithSizeHandler(view.render())[0]?.kids ?? [];
+
+export const spaceNames = (view: FakeView): string[] =>
+  listChildren(view)
+    .flatMap(drawnTexts)
+    .filter((text) => text.startsWith('name-'));
 
 // The place of the outlined row among the direct children of the scrolling list.
 export const cursorChildIndex = (view: FakeView): number =>

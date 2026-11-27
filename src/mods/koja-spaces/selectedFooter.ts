@@ -1,22 +1,11 @@
 import type { Context, Element } from 'gpui-kit';
 
 import type { DataState } from '../../data/consumer.ts';
-import type { TicketFacts } from '../../data/snapshot.ts';
+import type { Pull } from '../../data/pulls.ts';
+import type { Facts, TicketFacts } from '../../data/snapshot.ts';
 import { linkText, spaceFooter } from '../../kit/index.ts';
 import type { ListModel, RowModel } from './listModel.ts';
 import { stackProgressOf } from './progress.ts';
-import { isMain } from './projects.ts';
-import { rowTitleOf } from './rows.ts';
-
-const titleOf = (model: RowModel): string => {
-  if (isMain(model.row)) {
-    return model.project;
-  }
-
-  const { space } = model.row;
-
-  return rowTitleOf(space.named, space.name, model.pull, model.ticketTitle);
-};
 
 const linkOf = (text: string, url: string): Element =>
   linkText(text).on_click((_event, cx: Context) => {
@@ -31,12 +20,31 @@ const ticketLinksOf = (ticket: TicketFacts | null): Element[] => {
   return [linkOf(ticket.id, ticket.url)];
 };
 
-const pullLinksOf = (model: RowModel): Element[] => {
-  if (model.pull === null) {
+const pullOfNumber = (facts: Facts, repositoryKey: string, number: number): Pull | null =>
+  facts.pulls[repositoryKey]?.pulls.find((pull) => pull.number === number) ?? null;
+
+const footerPullOf = (facts: Facts, model: RowModel): Pull | null => {
+  if (model.stack === null) {
+    return model.pull;
+  }
+
+  const checkedOut = model.stack.pulls.find((pull) => pull.checkedOut);
+  const number = checkedOut?.number ?? null;
+  const repositoryKey = model.row.git?.repo.key;
+
+  if (number === null || repositoryKey === undefined) {
+    return null;
+  }
+
+  return pullOfNumber(facts, repositoryKey, number);
+};
+
+const pullLinksOf = (pull: Pull | null): Element[] => {
+  if (pull === null) {
     return [];
   }
 
-  return [linkOf(`#${model.pull.number}`, model.pull.url)];
+  return [linkOf(`#${pull.number}`, pull.url)];
 };
 
 export const selectedFooter = (
@@ -55,10 +63,11 @@ export const selectedFooter = (
   }
 
   const progress = stackProgressOf(rowModel.stack);
+  const pull = footerPullOf(state.snapshot.facts, rowModel);
 
   return spaceFooter({
-    title: titleOf(rowModel),
+    title: rowModel.title,
     ...(progress === null ? {} : { progress }),
-    links: [...ticketLinksOf(rowModel.ticket), ...pullLinksOf(rowModel)],
+    links: [...ticketLinksOf(rowModel.ticket), ...pullLinksOf(pull)],
   });
 };

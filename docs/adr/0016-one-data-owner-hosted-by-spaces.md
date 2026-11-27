@@ -136,8 +136,8 @@ whole repository, not one ticket. Each ticket fact carries its id, title, state,
 Each repository's stacks carry the parsed stacks and whether the last read failed; a failed read
 keeps the last good stacks. A stack carries its trunk branch and its branches bottom to top, and
 each branch its name, its pull request number or null, and whether it needs a restack. Version 8 is
-the previous supported format: it held the same facts without PR URLs, so the reader returns a
-version 9 snapshot with its pulls unread, and the next PR read fills them. Version 7 held the same
+the previous supported format: it held the same facts without PR URLs, so the reader validates its
+pre-URL pulls, drops them, and returns a version 9 snapshot with no pulls. Version 7 held the same
 facts without the bare flag and without PR URLs, so the reader infers bareness by comparing the
 worktree's root with its common directory, which is the folder itself or its `.bare`, and drops its
 pulls without validating them. The comparison is textual, so a link or a case change leaves the

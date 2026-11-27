@@ -9,14 +9,9 @@ import {
   resetKojaSpaces,
   restoreKojaSpaces,
   setupKojaSpaces,
-  showFacts,
-  space,
   state,
-  storedFacts,
 } from '../../../tests/kojaSpacesView.ts';
-import { pullFacts, readyPull } from '../../../tests/pullFacts.ts';
-import { stacksOf } from '../../../tests/stackFixtures.ts';
-import { repositoryOf } from '../../data/gitIdentity.ts';
+import { rowOf, useStackSpaces } from '../../../tests/stackViewFixtures.ts';
 import { overlaySize } from '../../kit/size.ts';
 import { sidebarViewKey } from './sidebarView.ts';
 
@@ -32,46 +27,6 @@ afterAll(() => {
 
 const context = { notify: () => undefined, stop_propagation: () => undefined };
 
-const repository = repositoryOf(null, '/code/koja/.git');
-
-const stackBranches = ['me-1-low', 'me-2-mid', 'me-3-top'];
-
-const stackCheckouts = [
-  { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
-  {
-    folder: '/code/koja-top',
-    commonDirectory: '/code/koja/.git',
-    linked: true,
-    branch: 'me-3-top',
-  },
-];
-
-const stackPulls = () => [
-  pullFacts({
-    number: 503,
-    headRefName: 'me-1-low',
-    checks: { kind: 'read', value: 'failing' },
-  }),
-  pullFacts({ number: 504, headRefName: 'me-2-mid', state: 'MERGED' }),
-  readyPull({ number: 505, headRefName: 'me-3-top' }),
-];
-
-const useSpaces = (withStack: boolean): void => {
-  const pulls = withStack ? stackPulls() : [];
-
-  const facts = storedFacts(stackCheckouts, {
-    [repository.key]: { pulls, failed: false },
-  });
-
-  if (withStack) {
-    facts.stacks = stacksOf(repository, stackBranches);
-  }
-
-  showFacts(facts);
-
-  state.spaceList = [space('m', true, '/code/koja'), space('w', false, '/code/koja-top')];
-};
-
 const cardOf = (view: FakeView, id: string): DrawnElement | null => {
   const wrappers = elementsWithStyle(view.render(), 'content');
 
@@ -81,20 +36,10 @@ const cardOf = (view: FakeView, id: string): DrawnElement | null => {
   return card === undefined ? null : (card as DrawnElement);
 };
 
-const rowOf = (view: FakeView, id: string): DrawnElement => {
-  const [row] = elementsWithId(view.render(), `space-${id}`);
-
-  if (row === undefined) {
-    throw new Error(`No drawn row with id ${id}`);
-  }
-
-  return row;
-};
-
 describe('koja-spaces stack card', () => {
   test("a stack space's row opens a card listing its pulls", async () => {
     anotherOwner();
-    useSpaces(true);
+    useStackSpaces(true);
 
     const view = await loadView();
     const card = cardOf(view, 'w');
@@ -112,7 +57,7 @@ describe('koja-spaces stack card', () => {
 
   test("a stack space's row wraps its card with the space's id and a left anchor", async () => {
     anotherOwner();
-    useSpaces(true);
+    useStackSpaces(true);
 
     const view = await loadView();
 
@@ -126,7 +71,7 @@ describe('koja-spaces stack card', () => {
 
   test('a space without a stack gets no card', async () => {
     anotherOwner();
-    useSpaces(false);
+    useStackSpaces(false);
 
     const view = await loadView();
 
@@ -135,7 +80,7 @@ describe('koja-spaces stack card', () => {
 
   test('an Inbox row with a stack opens a card listing its pulls', async () => {
     anotherOwner();
-    useSpaces(true);
+    useStackSpaces(true);
     state.store.set(sidebarViewKey, 'inbox');
 
     const view = await loadView();
@@ -155,7 +100,7 @@ describe('koja-spaces stack card', () => {
 
 describe('koja-spaces row interaction', () => {
   test('a right click on a row opens its space menu', async () => {
-    useSpaces(true);
+    useStackSpaces(true);
     state.store.set(sidebarViewKey, 'inbox');
 
     const view = await loadView();
