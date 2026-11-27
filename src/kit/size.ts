@@ -175,6 +175,10 @@ export const markSize = {
   quietDot: 4,
 } as const;
 
+export const toastSize = {
+  minHeight: 70,
+} as const;
+
 export const factSize = {
   labelWidth: 64,
   pairGap: 24,

@@ -24,6 +24,7 @@ import { splitButtons } from './splitButton.ts';
 import { states } from './states.ts';
 import { tabs } from './tabs.ts';
 import { textSizes } from './textSizes.ts';
+import { toasts } from './toasts.ts';
 
 interface StaleDeadline {
   staleAt: number;
@@ -131,6 +132,7 @@ export default class Gallery extends View {
       .child(section('Dialogs', dialogs(this.renameField)))
       .child(section('Tabs', tabs()))
       .child(section('Popup surface', popupSurfaces()))
+      .child(section('Toasts', toasts()))
       .child(
         section(
           'Content',

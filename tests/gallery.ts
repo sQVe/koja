@@ -51,6 +51,7 @@ const galleryKitParts = [
   'textField',
   'textRole',
   'theme',
+  'toast',
   'viewSwitch',
   'workIcon',
 ] as const;
@@ -65,7 +66,11 @@ export const mockGalleryModules = async (herdr: ModuleFake = {}): Promise<Module
   );
 
   await mock.module('gpui-kit', () =>
-    gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
+    gpuiKitFake({
+      div: () => drawn(),
+      image: (path: string) => drawn(path),
+      svg: (path: string) => drawn(path),
+    }),
   );
 
   await mock.module('herdr', () => herdrFake(herdr));

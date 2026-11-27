@@ -96,6 +96,13 @@ export { projectHeader } from './projectHeader.ts';
 
 export { popupSurface } from './popupSurface.ts';
 
+export { toastCard } from './toast.ts';
+
+/** @public */
+export type { ToastCardOptions } from './toast.ts';
+
+export type { ToastLevel } from './toast.ts';
+
 export type { DropMark, RowState } from './listRow.ts';
 
 export { searchField } from './searchField.ts';
@@ -145,6 +152,9 @@ export {
   sidebarSize,
   spacing,
 } from './size.ts';
+
+/** @public */
+export { toastSize } from './size.ts';
 
 export type { AttentionStatus } from './attentionStatus.ts';
 

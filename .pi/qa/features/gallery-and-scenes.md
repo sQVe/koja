@@ -29,6 +29,10 @@ first.
 ## Observable results
 
 - The palette entry `Kit gallery` opens the gallery.
+- The gallery's `Toasts` section shows the four level samples, a two-line body sample, and a
+  machine-login sample with a `Copy` button.
+- The gallery's `Post a notification` button posts a notification, which closes by itself after
+  about 4 seconds.
 - `bun run sandbox do mod.open --name koja-mocks` opens the scene picker.
 - After one second, a scene name from `src/mods/koja-mocks/catalog.ts` and `Return` open that scene.
 - An unknown name shows an error.
