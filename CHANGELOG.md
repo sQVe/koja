@@ -1,5 +1,14 @@
 # koja
 
+## 0.7.0
+
+### Minor Changes
+
+- [#146](https://github.com/sQVe/koja/pull/146)
+  [`428a5ca`](https://github.com/sQVe/koja/commit/428a5cae2255dbf0f43ecafc06d4c6c3020ef42b) Thanks
+  [@sQVe](https://github.com/sQVe)! - Hovering a space with a stack shows its pull requests in a
+  card.
+
 ## 0.6.0
 
 ### Minor Changes
