@@ -244,6 +244,8 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   trafficLightsPadding: noop,
   takeNormalKeys: () => null,
   terminalFont: () => 'JetBrains Mono',
+  terminalFontSize: () => 14,
+  terminalFontStyle: (element: unknown) => element,
   textField: chainable,
   textRoleNames: [],
   textRoles: {},

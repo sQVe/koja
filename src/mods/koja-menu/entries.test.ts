@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 
 import type { GitIdentity } from '../../data/gitIdentity.ts';
 import type {
@@ -23,7 +23,8 @@ import {
 
 let bindings: Record<string, string> = {};
 let terminalList: unknown[] = [];
-let themes: { name: string; label: string }[] = [];
+let paneList: { pane: string }[] = [];
+let themes: { name: string; label: string; light: boolean }[] = [];
 let runCalls: { command: string; args: Record<string, unknown> }[] = [];
 let dialogCalls: { action: string; space: string | null }[] = [];
 let groveCalls: { action: string; space: string | null }[] = [];
@@ -39,6 +40,7 @@ const host: MenuHost = {
     groveCalls.push({ action, space });
   },
   terminals: () => terminalList,
+  panes: () => paneList,
   themes: () => themes,
 };
 
@@ -83,6 +85,10 @@ const hintOf = (menu: MenuProps, checkout: Checkout, label: string): string | nu
 
   return actions.map((action) => bindings[action]).find((key) => key !== undefined) ?? null;
 };
+
+beforeEach(() => {
+  paneList = [];
+});
 
 describe('menu entries', () => {
   test('read a terminal right-click label', () => {
@@ -148,8 +154,8 @@ describe('menu entries', () => {
     bindings = { 'app.theme:catppuccin-latte-muted': 'ctrl-alt-t' };
 
     themes = [
-      { name: 'graphite', label: 'Theme: graphite' },
-      { name: 'catppuccin-latte-muted', label: 'Theme: catppuccin latte muted' },
+      { name: 'graphite', label: 'Theme: graphite', light: false },
+      { name: 'catppuccin-latte-muted', label: 'Theme: catppuccin latte muted', light: true },
     ];
 
     const menu: MenuProps = { kind: 'global', target: target({}) };
@@ -253,6 +259,8 @@ describe('menu commands', () => {
   });
 
   test('list the pane details before the pane actions', () => {
+    paneList = [{ pane: 'pane-1' }];
+
     const menu: MenuProps = {
       kind: 'pane',
       target: target({ pane: 'pane-1' }),
@@ -270,7 +278,49 @@ describe('menu commands', () => {
       '~/code/koja',
     ]);
 
-    expect(actions.slice(0, 4)).toEqual(['Split right', 'Split down', 'Zoom', 'Close pane']);
+    expect(actions.slice(0, 5)).toEqual([
+      'Rename',
+      'Split right',
+      'Split down',
+      'Zoom',
+      'Close pane',
+    ]);
+  });
+
+  test('offers no pane commands for a terminal outside a tab', () => {
+    paneList = [];
+    terminalList = [{ address: 'terminal-1', labels: {} }];
+
+    const menu: MenuProps = {
+      kind: 'pane',
+      target: target({ pane: 'block-1', terminal: 'terminal-1' }),
+    };
+
+    expect(rowLabels(menu, null)).toEqual(['Send right-clicks to pane']);
+  });
+
+  test('offers no pane commands for a block beside a live pane', () => {
+    paneList = [{ pane: 'pane-1' }];
+    terminalList = [{ address: 'terminal-1', labels: {} }];
+
+    const menu: MenuProps = {
+      kind: 'pane',
+      target: target({ pane: 'block-1', terminal: 'terminal-1' }),
+    };
+
+    expect(rowLabels(menu, null)).toEqual(['Send right-clicks to pane']);
+  });
+
+  test('names the pane first inside a tab', () => {
+    paneList = [{ pane: 'pane-1' }];
+    terminalList = [];
+    runCalls = [];
+
+    const menu: MenuProps = { kind: 'pane', target: target({ pane: 'pane-1' }) };
+
+    runEntries(menu, null);
+
+    expect(runCalls[0]).toEqual({ command: 'pane.rename', args: { pane: 'pane-1' } });
   });
 
   test('the compact menu lists only the pane actions', () => {
@@ -320,6 +370,8 @@ describe('menu commands', () => {
   });
 
   test('run the pane commands with the focused pane and terminal', () => {
+    paneList = [{ pane: 'pane-1' }];
+
     terminalList = [
       { address: 'terminal-0', name: 'Parent', labels: { 'herdr.right-click': 'menu' } },
       { address: 'terminal-1', parent: 'terminal-0', labels: { 'herdr.right-click': 'program' } },
@@ -335,6 +387,7 @@ describe('menu commands', () => {
     const entries = actionsOf(menu, null);
 
     expect(rowLabels(menu, null)).toEqual([
+      'Rename',
       'Split right',
       'Split down',
       'Zoom',
@@ -348,6 +401,7 @@ describe('menu commands', () => {
     }
 
     expect(runCalls).toStrictEqual([
+      { command: 'pane.rename', args: { pane: 'pane-1' } },
       { command: 'pane.split', args: { direction: 'right', pane: 'pane-1' } },
       { command: 'pane.split', args: { direction: 'down', pane: 'pane-1' } },
       { command: 'pane.zoom', args: { pane: 'pane-1' } },
@@ -361,34 +415,50 @@ describe('menu commands', () => {
   });
 
   test('omit the terminal rows when no terminal matches the target', () => {
+    paneList = [{ pane: 'pane-1' }];
     terminalList = [{ address: 'terminal-9', labels: {} }];
     runCalls = [];
 
-    const menu: MenuProps = { kind: 'pane', target: target({ terminal: 'missing' }) };
+    const menu: MenuProps = {
+      kind: 'pane',
+      target: target({ pane: 'pane-1', terminal: 'missing' }),
+    };
+
     const entries = actionsOf(menu, null);
 
-    expect(rowLabels(menu, null)).toEqual(['Split right', 'Split down', 'Zoom', 'Close pane']);
+    expect(rowLabels(menu, null)).toEqual([
+      'Rename',
+      'Split right',
+      'Split down',
+      'Zoom',
+      'Close pane',
+    ]);
 
     for (const item of entries) {
       item.action();
     }
 
     expect(runCalls).toStrictEqual([
-      { command: 'pane.split', args: { direction: 'right', pane: undefined } },
-      { command: 'pane.split', args: { direction: 'down', pane: undefined } },
-      { command: 'pane.zoom', args: { pane: undefined } },
-      { command: 'pane.close', args: { pane: undefined } },
+      { command: 'pane.rename', args: { pane: 'pane-1' } },
+      { command: 'pane.split', args: { direction: 'right', pane: 'pane-1' } },
+      { command: 'pane.split', args: { direction: 'down', pane: 'pane-1' } },
+      { command: 'pane.zoom', args: { pane: 'pane-1' } },
+      { command: 'pane.close', args: { pane: 'pane-1' } },
     ]);
   });
 
   test('send right-clicks to the program when the terminal does not use the menu', () => {
+    paneList = [];
     terminalList = [{ address: 'terminal-1', labels: {} }];
     runCalls = [];
 
     const menu: MenuProps = { kind: 'pane', target: target({ terminal: 'terminal-1' }) };
-    const entries = actionsOf(menu, null);
 
-    entries[3]?.action();
+    const entry = actionsOf(menu, null).find(
+      (candidate) => candidate.label === 'Send right-clicks to pane',
+    );
+
+    entry?.action();
 
     expect(runCalls).toStrictEqual([
       { command: 'terminal.right_click', args: { to: 'program', terminal: 'terminal-1' } },
@@ -515,8 +585,8 @@ describe('menu commands', () => {
     terminalList = [];
 
     themes = [
-      { name: 'graphite', label: 'Theme: graphite' },
-      { name: 'latte', label: 'Theme: latte' },
+      { name: 'graphite', label: 'Theme: graphite', light: false },
+      { name: 'latte', label: 'Theme: latte', light: true },
     ];
 
     runCalls = [];

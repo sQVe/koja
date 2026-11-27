@@ -2,20 +2,25 @@ import { InputState as InputStates, v_flex } from 'gpui-base';
 import type { InputState } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle } from 'gpui-kit';
 import { View } from 'gpui-kit';
-import { checking, exec, watchFolder } from 'herdr';
+import { checking, exec, watchFolder, window } from 'herdr';
+import type { ExecResult } from 'herdr';
 
 import { watchFolderChanges } from '../../data/folderWatch.ts';
 import type { FolderWatchHandle } from '../../data/folderWatch.ts';
-import { colors, repeat, withTextRole } from '../../kit/index.ts';
+import { colors, repeat, terminalFontSize, withTextRole } from '../../kit/index.ts';
 import { canCommit, canQueueCommit, hasText } from './commit.ts';
 import type { CommitRequest } from './commit.ts';
 import { DiffPreview } from './diffPreview.ts';
-import { commitAll, readChanges } from './git.ts';
+import type { DueState, DueWorld, ReadRequest } from './due.ts';
+import { emptyDue, markDirty, readDue, readRequest, skipDue, tickDue, afterScan } from './due.ts';
+import { changeSnapshot, commitAll, readRepository, statusCommand } from './git.ts';
 import type { ChangesSnapshot } from './git.ts';
 import { location, locationKey } from './location.ts';
 import { applyRead, emptyReadState, isStale, readStateLine, watchStateLine } from './readState.ts';
 import type { ReadState } from './readState.ts';
 import { commitBar, diffArea, fileList, headerRow, limitedNotice, noteRow } from './rows.ts';
+import type { RepoScan } from './scans.ts';
+import { repoStatus } from './scans.ts';
 import type { ChangeFile } from './status.ts';
 
 interface WatchedRoot {
@@ -23,22 +28,32 @@ interface WatchedRoot {
   handle: FolderWatchHandle;
 }
 
-const refreshMilliseconds = 10000;
+const tickMilliseconds = 500;
 
 const millisecondsPerSecond = 1000;
 
 const nowSeconds = (): number => Math.floor(Date.now() / millisecondsPerSecond);
 
+const oneLine = (detail: string): string => detail.replace(/\s+/g, ' ').trim();
+
 const previewFailureNote = (error: unknown): string => {
   const detail = error instanceof Error ? error.message : String(error);
-  const oneLine = detail.replace(/\s+/g, ' ').trim();
+  const collapsed = oneLine(detail);
 
-  if (oneLine === '') {
+  if (collapsed === '') {
     return 'Cannot preview this diff';
   }
 
-  return `Cannot preview this diff: ${oneLine}`;
+  return `Cannot preview this diff: ${collapsed}`;
 };
+
+const statusFailure = (result: ExecResult | null): string => {
+  const detail = oneLine(result?.stderr ?? '');
+
+  return detail === '' ? 'git status failed' : detail;
+};
+
+const windowVisible = (): boolean => window()?.visible !== false;
 
 export default class Changes extends View {
   private state: ReadState = emptyReadState();
@@ -53,15 +68,17 @@ export default class Changes extends View {
 
   private input!: InputState;
 
-  private context: string | null = null;
+  private due: DueState | null = null;
+
+  private visit = 0;
+
+  private windowWasVisible = true;
 
   private watched: WatchedRoot | null = null;
 
   private open: string | null = null;
 
   private loading = false;
-
-  private pendingRefresh = false;
 
   private pendingCommit = false;
 
@@ -107,12 +124,10 @@ export default class Changes extends View {
 
     this.refresh(cx);
 
-    repeat(cx, refreshMilliseconds, (timerCx) => {
-      if (this.loading) {
-        return;
+    repeat(cx, tickMilliseconds, (timerCx) => {
+      if (this.tick(timerCx)) {
+        timerCx.notify();
       }
-
-      this.refresh(timerCx);
     });
   }
 
@@ -121,8 +136,10 @@ export default class Changes extends View {
   }
 
   override render(cx: Context): Element {
-    if (locationKey() !== this.context) {
-      this.startRead(cx);
+    if (this.due === null || locationKey() !== this.due.key) {
+      this.refresh(cx);
+    } else {
+      this.tick(cx);
     }
 
     const palette = colors();
@@ -155,6 +172,7 @@ export default class Changes extends View {
         palette,
         onRetry: (retryCx) => {
           this.refresh(retryCx);
+          retryCx.notify();
         },
         onRetryWatch: (retryCx) => {
           this.retryWatch(retryCx);
@@ -169,7 +187,14 @@ export default class Changes extends View {
       root.child(limitedNotice());
     }
 
-    root.child(diffArea(this.preview.rows, this.preview.diffWidth, this.open, this.files.length));
+    root.child(
+      diffArea({
+        document: this.preview.document,
+        open: this.open,
+        fileCount: this.files.length,
+        fontSize: terminalFontSize(),
+      }),
+    );
 
     if (this.note !== null) {
       root.child(noteRow(this.note));
@@ -184,48 +209,58 @@ export default class Changes extends View {
     return this.handle === null ? root : root.track_focus(this.handle);
   }
 
+  private world(): DueWorld {
+    const visible = windowVisible();
+    const shownAgain = visible && !this.windowWasVisible;
+
+    this.windowWasVisible = visible;
+
+    return { visible, shownAgain, loading: this.loading, busy: this.busy, now: Date.now() };
+  }
+
+  private tick(cx: Context): boolean {
+    const world = this.world();
+
+    if (this.due === null) {
+      return this.refresh(cx);
+    }
+
+    this.due = tickDue(this.due, world, this.watched !== null);
+
+    if (!readDue(this.due, world)) {
+      return false;
+    }
+
+    return this.refresh(cx);
+  }
+
+  private isCurrent(key: string, visit: number): boolean {
+    return this.visit === visit && this.due?.key === key && locationKey() === key;
+  }
+
   private commitRequest(): CommitRequest {
     return {
       message: this.message,
       busy: this.busy,
       loading: this.loading,
-      contextCurrent: this.context === locationKey(),
+      contextCurrent: this.due !== null && this.due.key === locationKey(),
       stale: isStale(this.state),
     };
   }
 
-  private refresh(cx: Context): void {
-    if (this.startRead(cx)) {
-      cx.notify();
-    }
-  }
-
-  private startRead(cx: Context): boolean {
+  private refresh(cx: Context, force = false): boolean {
     if (checking()) {
       return false;
     }
 
-    const context = locationKey();
-    const moved = context !== this.context;
+    const key = locationKey();
+    const visiting = this.due === null || key !== this.due.key;
 
-    if (moved) {
+    if (visiting) {
+      this.visit += 1;
+      this.pendingCommit = false;
       this.stopWatch();
-    }
-
-    if (this.loading) {
-      this.pendingRefresh = true;
-
-      return false;
-    }
-
-    if (this.busy) {
-      return false;
-    }
-
-    const where = location();
-
-    if (moved) {
-      this.context = context;
+      this.due = emptyDue(key);
       this.state = emptyReadState();
       this.open = null;
       this.preview.setLines([]);
@@ -234,17 +269,34 @@ export default class Changes extends View {
       this.note = null;
       this.closed = false;
       this.limited = false;
+      this.loading = false;
     }
 
+    const due = this.due;
+
+    if (due === null) {
+      return visiting;
+    }
+
+    const now = Date.now();
+    const where = location();
+
     if (where.cwd === null) {
+      this.due = skipDue(due, now);
+
+      return visiting;
+    }
+
+    if (this.loading || this.busy) {
       return false;
     }
 
-    const cwd = where.cwd;
+    const read = readRequest(due, now, visiting, force);
 
+    this.due = read.due;
     this.loading = true;
 
-    const refusal = this.spawnRead(cx, cwd, where.on, context);
+    const refusal = this.spawnRead(cx, where.cwd, where.on, key, this.visit, read.request);
 
     if (refusal !== null) {
       this.loading = false;
@@ -264,35 +316,66 @@ export default class Changes extends View {
     }
   }
 
-  private spawnRead(cx: Context, cwd: string, on: string | null, context: string): Error | null {
+  private spawnRead(
+    cx: Context,
+    cwd: string,
+    on: string | null,
+    key: string,
+    visit: number,
+    request: ReadRequest,
+  ): Error | null {
     return this.spawnTask(cx, async (taskCx) => {
       try {
-        const result = await readChanges(exec, cwd, on, () => locationKey() === context);
+        const repository = await readRepository(exec, cwd, on);
 
-        if (result === null || locationKey() !== context) {
+        if (!this.isCurrent(key, visit)) {
           return;
         }
 
-        if ('failure' in result) {
-          this.state = applyRead(this.state, result, nowSeconds());
-        } else {
-          await this.applySnapshot(result.snapshot, context, taskCx);
+        if (repository.kind === 'failed') {
+          throw new Error(repository.error);
         }
+
+        if (repository.kind === 'missing') {
+          this.state = applyRead(this.state, { failure: 'Not a git repository' }, nowSeconds());
+
+          return;
+        }
+
+        const root = repository.root;
+
+        this.watch(root, on, key, taskCx);
+
+        const scan = await repoStatus(
+          {
+            now: () => Date.now(),
+            visible: windowVisible,
+            status: (scanRoot, scanOn) => statusCommand(exec, scanRoot, scanOn),
+          },
+          root,
+          on,
+          request,
+          taskCx,
+          () => this.isCurrent(key, visit),
+        );
+
+        if (scan === null || !this.isCurrent(key, visit)) {
+          return;
+        }
+
+        await this.applyScan(scan, root, on, key, visit, request);
       } catch (error) {
-        if (locationKey() === context) {
+        if (this.isCurrent(key, visit)) {
           this.state = applyRead(this.state, { failure: String(error) }, nowSeconds());
         }
       } finally {
-        this.loading = false;
+        if (this.due?.key === key && this.visit === visit) {
+          this.loading = false;
+        }
 
         if (this.pendingCommit) {
           this.pendingCommit = false;
           this.commit(taskCx);
-        }
-
-        if (this.pendingRefresh) {
-          this.pendingRefresh = false;
-          this.refresh(taskCx);
         }
 
         taskCx.notify();
@@ -300,14 +383,46 @@ export default class Changes extends View {
     });
   }
 
+  private async applyScan(
+    scan: RepoScan,
+    root: string,
+    on: string | null,
+    key: string,
+    visit: number,
+    request: ReadRequest,
+  ): Promise<void> {
+    if (this.due !== null) {
+      this.due = afterScan(this.due, scan, request);
+    }
+
+    if (scan.error instanceof Error) {
+      throw scan.error;
+    }
+
+    if (scan.error !== null && scan.error !== undefined) {
+      throw new Error('git status failed');
+    }
+
+    if (scan.status?.code !== 0) {
+      throw new Error(statusFailure(scan.status));
+    }
+
+    const snapshot = await changeSnapshot(exec, root, on, scan.status.stdout);
+
+    if (!this.isCurrent(key, visit)) {
+      return;
+    }
+
+    await this.applySnapshot(snapshot, key, visit);
+  }
+
   private async applySnapshot(
     snapshot: ChangesSnapshot,
-    context: string,
-    cx: Context,
+    key: string,
+    visit: number,
   ): Promise<void> {
     this.state = applyRead(this.state, { snapshot }, nowSeconds());
     this.limited = snapshot.limited;
-    this.watch(snapshot, cx);
 
     if (this.open !== null && !this.files.some((file) => file.path === this.open)) {
       this.open = null;
@@ -325,10 +440,10 @@ export default class Changes extends View {
         await this.preview.load(
           openPath,
           () => this.state.lastGood?.snapshot ?? null,
-          () => locationKey() === context && this.open === openPath,
+          () => this.isCurrent(key, visit) && this.open === openPath,
         );
       } catch (error) {
-        if (locationKey() === context && this.open === openPath) {
+        if (this.isCurrent(key, visit) && this.open === openPath) {
           this.preview.setLines([previewFailureNote(error)]);
         }
       }
@@ -340,18 +455,24 @@ export default class Changes extends View {
     this.watched = null;
   }
 
-  private watch(snapshot: ChangesSnapshot, cx: Context): void {
-    const root = snapshot.root;
-
-    if (this.state.watchFailed || snapshot.on !== null || this.watched?.root === root) {
+  private watch(root: string, on: string | null, key: string, cx: Context): void {
+    if (this.state.watchFailed || on !== null || this.watched?.root === root) {
       return;
     }
 
     this.stopWatch();
 
     const handle = watchFolderChanges(watchFolder, root, cx, {
-      onChange: (taskCx) => {
-        this.refresh(taskCx);
+      onChange: (taskCx, paths) => {
+        if (paths.length === 0 || this.due === null || this.due.key !== key) {
+          return;
+        }
+
+        this.due = markDirty(this.due, Date.now());
+
+        if (this.tick(taskCx)) {
+          taskCx.notify();
+        }
       },
       onError: (taskCx) => {
         this.watched = null;
@@ -361,34 +482,30 @@ export default class Changes extends View {
     });
 
     this.watched = { root, handle };
-
-    if (this.loading) {
-      this.pendingRefresh = true;
-    }
   }
 
   private retryWatch(cx: Context): void {
     const snapshot = this.state.lastGood?.snapshot ?? null;
 
-    if (snapshot === null || this.context === null) {
+    if (snapshot === null || this.due === null) {
       return;
     }
 
     this.state = { ...this.state, watchFailed: false };
-    this.watch(snapshot, cx);
+    this.watch(snapshot.root, snapshot.on, this.due.key, cx);
     this.refresh(cx);
     cx.notify();
   }
 
   private pick(path: string, cx: Context): void {
     const openPath = this.open === path ? null : path;
-    const context = this.context;
+    const key = this.due?.key ?? null;
+    const visit = this.visit;
 
     const previous = {
       open: this.open,
       closed: this.closed,
-      rows: this.preview.rows,
-      width: this.preview.diffWidth,
+      document: this.preview.document,
     };
 
     this.open = openPath;
@@ -396,7 +513,7 @@ export default class Changes extends View {
     this.note = null;
     this.closed = openPath === null;
 
-    if (openPath === null || context === null) {
+    if (openPath === null || key === null) {
       cx.notify();
 
       return;
@@ -407,10 +524,10 @@ export default class Changes extends View {
         await this.preview.load(
           openPath,
           () => this.state.lastGood?.snapshot ?? null,
-          () => locationKey() === context && this.open === openPath,
+          () => this.isCurrent(key, visit) && this.open === openPath,
         );
       } catch (error) {
-        if (locationKey() === context && this.open === openPath) {
+        if (this.isCurrent(key, visit) && this.open === openPath) {
           this.note = previewFailureNote(error);
         }
       }
@@ -421,8 +538,7 @@ export default class Changes extends View {
     if (refusal !== null) {
       this.open = previous.open;
       this.closed = previous.closed;
-      this.preview.rows = previous.rows;
-      this.preview.diffWidth = previous.width;
+      this.preview.document = previous.document;
       this.note = previewFailureNote(refusal);
     }
 
@@ -446,7 +562,8 @@ export default class Changes extends View {
 
     const message = this.message.trim();
     const { root, on } = snapshot;
-    const context = this.context;
+    const key = this.due?.key ?? null;
+    const visit = this.visit;
 
     this.busy = true;
     this.note = null;
@@ -455,17 +572,17 @@ export default class Changes extends View {
       try {
         await commitAll(exec, root, on, message);
 
-        if (locationKey() === context) {
+        if (key !== null && this.isCurrent(key, visit)) {
           this.message = '';
           this.input.set_value('');
         }
       } catch (error) {
-        if (locationKey() === context) {
+        if (key !== null && this.isCurrent(key, visit)) {
           this.note = `Commit failed: ${String(error)}`;
         }
       } finally {
         this.busy = false;
-        this.refresh(taskCx);
+        this.refresh(taskCx, true);
         taskCx.notify();
       }
     });

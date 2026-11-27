@@ -8,6 +8,7 @@ import {
   mark,
   redrawsOf,
   reportHeight,
+  reportSize,
   resetKojaSpaces,
   restoreKojaSpaces,
   rowHeightSmall,
@@ -15,6 +16,7 @@ import {
   send,
   setupKojaSpaces,
   space,
+  spaceChildIndex,
   spaceNames,
   state,
 } from '../../../tests/kojaSpacesView.ts';
@@ -210,14 +212,63 @@ describe('koja-spaces list cursor', () => {
     expect(state.scrollCalls).toEqual([]);
   });
 
+  test('a draw in which another space became active asks the list to show it', async () => {
+    const view = await loadView();
+
+    state.spaceList = state.spaceList.map((candidate) => space(candidate.id, candidate.id === 'h'));
+    view.render();
+
+    expect(state.scrollCalls).toEqual([spaceChildIndex(view, 'h')]);
+  });
+
+  test('a draw in which a project above the active space folded asks the list to show it again', async () => {
+    state.spaceList = [space('a', false, '/code/app'), space('b', true), space('c', false)];
+
+    const view = await loadView();
+    const plain = spaceChildIndex(view, 'b');
+    const header = clickablesWithText(view.render(), 'app')[0];
+
+    header?.clickHandlers[0]?.({}, { notify: () => undefined });
+
+    expect(spaceChildIndex(view, 'b')).toBeLessThan(plain);
+    expect(state.scrollCalls).toEqual([spaceChildIndex(view, 'b')]);
+  });
+
   test('a draw with no list command asks for no scroll', async () => {
     const view = await loadView();
 
     view.render();
-    state.spaceList = state.spaceList.map((candidate) => space(candidate.id, candidate.id === 'h'));
     view.render();
 
     expect(state.scrollCalls).toEqual([]);
+  });
+
+  test('a list that reports a new size asks the list to show the active space again', async () => {
+    const view = await loadView();
+
+    reportHeight(view, rowHeightSmall * 4);
+
+    expect(state.scrollCalls).toEqual([spaceChildIndex(view, 'b')]);
+  });
+
+  test('a list that reports only a new width keeps the offset it had', async () => {
+    const view = await loadView();
+
+    reportHeight(view, rowHeightSmall * 4);
+    state.scrollCalls = [];
+
+    reportSize(view, 260, rowHeightSmall * 4);
+
+    expect(state.scrollCalls).toEqual([]);
+  });
+
+  test('a draw reveals the space spaces() reports active when two rows claim it', async () => {
+    const view = await loadView();
+
+    state.spaceList = [space('h', true), space('a', true)];
+    view.render();
+
+    expect(state.scrollCalls).toEqual([spaceChildIndex(view, 'h')]);
   });
 
   test('a list command on a sidebar that is not marked asks for no scroll', async () => {

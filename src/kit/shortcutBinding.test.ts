@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { bindingAction } from './binding.ts';
+import { commandIdentity } from './commandTitles.ts';
 import { bindingFor, hintFor } from './shortcutBinding.ts';
 
 describe('hintFor', () => {
@@ -46,6 +47,14 @@ describe('hintFor', () => {
       insert: ['Ctrl+Alt+O'],
     });
   });
+
+  test('draws no hint for a JSON action that names no command', () => {
+    const bindings = [{ section: 'global', keys: 'ctrl-alt-y', action: '{"args":{"px":240}}' }];
+
+    expect(hintFor(bindings, 'linux', commandIdentity('layout.resize', { px: 240 }))).toEqual({
+      normal: [],
+    });
+  });
 });
 
 describe('bindingFor', () => {
@@ -56,5 +65,75 @@ describe('bindingFor', () => {
 
   test('finds the normal-mode key of a command with a string argument', () => {
     expect(bindingFor([], bindingAction('pane.split', { direction: 'right' }))).toBe('w v');
+  });
+
+  test('finds a key whose JSON action runs the same command and arguments', () => {
+    const bindings = [
+      {
+        section: 'global',
+        keys: 'ctrl-alt-r',
+        action: '{"command":"layout.resize","args":{"px":240,"id":"sidebar"}}',
+      },
+    ];
+
+    expect(bindingFor(bindings, commandIdentity('layout.resize', { id: 'sidebar', px: 240 }))).toBe(
+      'ctrl-alt-r',
+    );
+  });
+
+  test('finds a key whose JSON action runs the same command and arguments in another key order', () => {
+    const bindings = [
+      {
+        section: 'global',
+        keys: 'ctrl-alt-r',
+        action: '{"command":"layout.resize","args":{"place":{"row":1,"column":2}}}',
+      },
+    ];
+
+    const identity = commandIdentity('layout.resize', { place: { column: 2, row: 1 } });
+
+    expect(bindingFor(bindings, identity)).toBe('ctrl-alt-r');
+  });
+
+  test('leaves a JSON action with other arguments to its own command', () => {
+    const bindings = [
+      {
+        section: 'global',
+        keys: 'ctrl-alt-r',
+        action: '{"command":"layout.resize","args":{"px":240}}',
+      },
+    ];
+
+    expect(bindingFor(bindings, commandIdentity('layout.resize', { px: 320 }))).toBeNull();
+    expect(bindingFor(bindings, commandIdentity('tab.new', { px: 240 }))).toBeNull();
+  });
+
+  test('ignores a JSON action that does not parse', () => {
+    const bindings = [{ section: 'global', keys: 'ctrl-alt-x', action: '{"command":' }];
+
+    expect(bindingFor(bindings, commandIdentity('layout.resize', { px: 240 }))).toBeNull();
+  });
+
+  test('ignores a JSON action that names no command', () => {
+    const bindings = [{ section: 'global', keys: 'ctrl-alt-y', action: '{"args":{"px":240}}' }];
+
+    expect(bindingFor(bindings, commandIdentity('layout.resize', { px: 240 }))).toBeNull();
+  });
+
+  test('draws the key of a JSON action in the row hint', () => {
+    const bindings = [
+      {
+        section: 'global',
+        keys: 'ctrl-alt-r',
+        action: '{"command":"layout.resize","args":{"id":"sidebar","px":240}}',
+      },
+    ];
+
+    expect(
+      hintFor(bindings, 'linux', commandIdentity('layout.resize', { px: 240, id: 'sidebar' })),
+    ).toEqual({
+      normal: [],
+      insert: ['Ctrl+Alt+R'],
+    });
   });
 });

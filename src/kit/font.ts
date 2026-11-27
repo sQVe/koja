@@ -1,8 +1,11 @@
+import type { Element } from 'gpui-kit';
 import { settings } from 'herdr';
 
 import { stringOf } from './fields.ts';
 
 const defaultTerminalFont = 'JetBrains Mono';
+
+const defaultTerminalFontSize = 14;
 
 // settings() is a host call. The cache avoids one read per document line within a turn.
 // The job below clears the cache on either outcome, and the host runs queued jobs between renders,
@@ -23,3 +26,12 @@ export const terminalFont = (): string => {
 
   return turnFont;
 };
+
+export const terminalFontSize = (): number => {
+  const size = settings()['font_size'];
+
+  return typeof size === 'number' && Number.isFinite(size) ? size : defaultTerminalFontSize;
+};
+
+export const terminalFontStyle = (element: Element, fontSize: number): Element =>
+  element.font_family(terminalFont()).text_size(fontSize);

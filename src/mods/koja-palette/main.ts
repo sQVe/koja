@@ -9,7 +9,7 @@ import type {
   ScrollWheelEvent,
 } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
-import { commands, layouts, shared } from 'herdr';
+import { appHome, commands, layouts, settings, shared } from 'herdr';
 
 import type { MainColumnInsets } from '../../kit/index.ts';
 import {
@@ -48,6 +48,8 @@ import {
   paletteCount,
   paletteRows,
 } from './entries.ts';
+import type { ModPalette } from './modPalette.ts';
+import { readModPalettes } from './modPalette.ts';
 import type { RowPlace } from './viewport.ts';
 import {
   clampIndex,
@@ -70,16 +72,30 @@ const refocusMilliseconds = 600;
 
 const recentStorageKey = 'recent';
 
+const emptyArgsSuffix = /:{}$/;
+
 const readRecent = (): string[] => {
   const stored: unknown = parsedJson(localStorage.getItem(recentStorageKey));
 
-  return Array.isArray(stored)
-    ? stored.filter((item): item is string => typeof item === 'string')
-    : [];
+  if (!Array.isArray(stored)) {
+    return [];
+  }
+
+  return stored
+    .filter((item): item is string => typeof item === 'string')
+    .map((id) => id.replace(emptyArgsSuffix, ''));
 };
 
 const plural = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`;
+
+const hasName = (entry: Entry): boolean => {
+  const name = entry.args['name'];
+
+  return typeof name === 'string' && name.trim() !== '';
+};
+
+const shownLayout = (): string => stringOf(shared('layout')) ?? 'main';
 
 export default class Palette extends View {
   private query = '';
@@ -95,6 +111,8 @@ export default class Palette extends View {
   private insets: MainColumnInsets = { left: 0, top: 0 };
 
   private readonly input: InputState = InputStates.new({ placeholder: 'Type a command' });
+
+  private mods: ModPalette[] = [];
 
   private handle: FocusHandle | null = null;
 
@@ -114,6 +132,22 @@ export default class Palette extends View {
     });
 
     this.input.focus();
+
+    cx.spawn(async (taskCx) => {
+      try {
+        const mods = await readModPalettes(appHome());
+
+        if (mods.length === 0) {
+          return;
+        }
+
+        this.mods = mods;
+      } catch {
+        // An unreadable mod palette must not hide the built-in commands.
+      }
+
+      taskCx.notify();
+    });
 
     cx.timer.after(refocusMilliseconds, () => {
       this.input.focus();
@@ -193,20 +227,20 @@ export default class Palette extends View {
     localStorage.setItem(recentStorageKey, JSON.stringify(this.recent));
     this.closePalette();
 
-    if (entry.name === 'mod.clone') {
+    if (entry.name === 'mod.clone' && !hasName(entry)) {
       openPrompt({
         title: 'Duplicate mod',
         value: '',
         hint: 'Mod to copy; creates <name>-copy',
-        command: { name: 'mod.clone', args: {} },
+        command: { name: 'mod.clone', args: entry.args },
       });
 
       return;
     }
 
-    const layoutName = stringOf(shared('layout')) ?? 'main';
-
-    const args = entry.name === 'layout.clone' ? { name: layoutName } : entry.args;
+    const layoutName = shownLayout();
+    const clone = entry.name === 'layout.clone' && !hasName(entry);
+    const args = clone ? { ...entry.args, name: layoutName } : entry.args;
 
     askFirst(entry.name, args);
   }
@@ -222,9 +256,11 @@ export default class Palette extends View {
       layouts,
       platform: currentWindow()?.platform ?? null,
       themes: themeChoices,
+      dark: settings()['appearance'] === 'dark',
+      layout: shownLayout(),
     };
 
-    return allEntries(host);
+    return allEntries(host, this.mods);
   }
 
   private rows(all: Entry[]): Row[] {

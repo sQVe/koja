@@ -27,6 +27,12 @@ const fallbackName = (pane: PaneInfo, program: Program | null): string => {
 };
 
 export const paneName = (pane: PaneInfo): string => {
+  const given = (pane.name ?? '').trim();
+
+  if (given !== '') {
+    return given;
+  }
+
   const program = paneProgram(pane);
 
   return programName(program) || fallbackName(pane, program);

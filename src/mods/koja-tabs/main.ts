@@ -1,4 +1,4 @@
-import { h_flex } from 'gpui-base';
+import { ScrollHandle, h_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element, MouseButtonEvent } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { SpaceInfo, Status, TabInfo } from 'herdr';
@@ -39,6 +39,8 @@ import { parsedJson } from '../../kit/parsedJson.ts';
 import type { PanelMemory } from './panelMemory.ts';
 import { initialPanelMemory, panelMemory } from './panelMemory.ts';
 import { tabDropAction } from './tabDrop.ts';
+import type { WheelGesture } from './wheel.ts';
+import { noWheelGesture, wheelTurn } from './wheel.ts';
 
 interface Panel {
   id: string;
@@ -163,6 +165,14 @@ export default class Tabs extends View {
 
   private plusBox: WindowBox | null = null;
 
+  private wheel: WheelGesture = noWheelGesture;
+
+  private readonly scroll = ScrollHandle.new();
+
+  private revealedIndex = -1;
+
+  private revealedTab: string | null = null;
+
   override init(_props: unknown, _cx: AsyncContext): void {
     // A session that ended with the new menu open leaves its flag set, and the `+` would draw
     // pressed with no menu over it. No popup survives a start, so a flag read here is always stale.
@@ -185,9 +195,26 @@ export default class Tabs extends View {
     const startSpacer = div().w(startPadding).flex_none();
     const endSpacer = div().flex_1().min_w(0);
 
-    const tabItems = shown.map((tabInfo, index) =>
-      this.tabItem(space, tabInfo, statuses.tabs[tabInfo.id] ?? null, index),
-    );
+    const active = shown.find((tabInfo) => tabInfo.active);
+    const activeId = active?.id ?? null;
+    const activeIndex = active === undefined ? -1 : shown.indexOf(active);
+
+    const tabItems = shown.map((tabInfo, index) => {
+      const item = this.tabItem(space, tabInfo, statuses.tabs[tabInfo.id] ?? null, index);
+
+      return index <= activeIndex
+        ? item.on_size_change((_size, cx) => {
+            this.revealTab(activeIndex);
+            cx.notify();
+          })
+        : item;
+    });
+
+    if (activeIndex !== this.revealedIndex || activeId !== this.revealedTab) {
+      this.revealedIndex = activeIndex;
+      this.revealedTab = activeId;
+      this.revealTab(activeIndex);
+    }
 
     const scroller = h_flex()
       .id('tab-scroll')
@@ -197,6 +224,11 @@ export default class Tabs extends View {
       .items_center()
       .gap(spacing.xxsmall)
       .overflow_x_scrollbar()
+      .track_scroll(this.scroll)
+      .on_size_change((_size, cx) => {
+        this.revealTab(this.revealedIndex);
+        cx.notify();
+      })
       .children(tabItems)
       .child(endSpacer);
 
@@ -210,15 +242,25 @@ export default class Tabs extends View {
         this.drag = noDrag;
       })
       .on_scroll_wheel((event) => {
-        if (Math.abs(event.delta.y) >= 1) {
-          const scrollCommand = event.delta.y > 0 ? 'tab.prev' : 'tab.next';
+        const turn = wheelTurn(this.wheel, event, Date.now());
 
-          run(scrollCommand);
+        this.wheel = turn.gesture;
+
+        if (turn.step !== null) {
+          const command = turn.step === 'prev' ? 'tab.prev' : 'tab.next';
+
+          run(command);
         }
       })
       .child(startSpacer)
       .child(scroller)
       .child(this.controls(enabled, root));
+  }
+
+  private revealTab(index: number): void {
+    if (index >= 0) {
+      this.scroll.scroll_to_item(index);
+    }
   }
 
   private syncPanel(space: SpaceInfo | undefined, enabled: string[], root: LayoutNode): void {

@@ -3,17 +3,19 @@ import { describe, expect, test } from 'bun:test';
 import type { SpaceInfo } from 'herdr';
 
 import type { Agent } from './agents.ts';
-import { agentLaunch, agentState, installedAgents, menuActions, menuTarget } from './agents.ts';
+import {
+  agentLaunch,
+  agentState,
+  cachedAgents,
+  installedAgents,
+  menuActions,
+  menuTarget,
+  rememberAgents,
+} from './agents.ts';
 
 const agent = (name: string, installed: boolean): Agent => ({
   key: name,
   name,
-  icon: null,
-  tint: false,
-  tile: null,
-  color: null,
-  shell: false,
-  agent: true,
   run: [name],
   installed,
 });
@@ -24,7 +26,8 @@ describe('agentState', () => {
   });
 
   test('says it could not load after a failure', () => {
-    expect(agentState({ status: 'failed' })?.kind).toBe('error');
+    expect(agentState({ status: 'failed', agents: [] })?.kind).toBe('error');
+    expect(agentState({ status: 'failed', agents: [agent('pi', true)] })?.kind).toBe('error');
   });
 
   test('says no agent is installed when the list holds none', () => {
@@ -43,8 +46,61 @@ describe('installedAgents', () => {
     const claude = agent('claude', false);
 
     expect(installedAgents({ status: 'loaded', agents: [pi, claude] })).toEqual([pi]);
+    expect(installedAgents({ status: 'failed', agents: [pi, claude] })).toEqual([pi]);
     expect(installedAgents({ status: 'pending' })).toEqual([]);
-    expect(installedAgents({ status: 'failed' })).toEqual([]);
+  });
+});
+
+describe('cachedAgents', () => {
+  test('answers the agents the store holds for a machine', () => {
+    const store = { '': [agent('pi', true)], remote: [agent('claude', false)] };
+
+    expect(cachedAgents(store, null)).toEqual([agent('pi', true)]);
+    expect(cachedAgents(store, 'remote')).toEqual([agent('claude', false)]);
+  });
+
+  test('answers no agents for a machine the store has never seen', () => {
+    expect(cachedAgents(undefined, null)).toEqual([]);
+    expect(cachedAgents({ remote: [agent('pi', true)] }, null)).toEqual([]);
+  });
+
+  test('drops a stored entry that is not an agent', () => {
+    const stored = [
+      { key: 'pi' },
+      { key: 'pi', name: 'Pi', run: ['pi'], installed: 'yes' },
+      { name: 'Pi', run: ['pi'], installed: true },
+      { key: 'pi', run: ['pi'], installed: true },
+      { key: 'pi', name: 'Pi', run: ['pi'] },
+      agent('pi', true),
+    ];
+
+    expect(cachedAgents({ '': stored }, null)).toEqual([agent('pi', true)]);
+  });
+
+  test('drops a stored entry whose launch command is missing or malformed', () => {
+    const stored = [
+      { key: 'pi', name: 'Pi', installed: true },
+      { key: 'pi', name: 'Pi', run: [], installed: true },
+      { key: 'pi', name: 'Pi', run: 'pi', installed: true },
+      { key: 'pi', name: 'Pi', run: ['pi', 1], installed: true },
+    ];
+
+    expect(cachedAgents({ '': stored }, null)).toEqual([]);
+  });
+});
+
+describe('rememberAgents', () => {
+  test('keeps the agents the other machines reported', () => {
+    expect(rememberAgents({ remote: [agent('claude', true)] }, null, [agent('pi', true)])).toEqual({
+      remote: [agent('claude', true)],
+      '': [agent('pi', true)],
+    });
+  });
+
+  test('starts a store that holds nothing yet', () => {
+    expect(rememberAgents(undefined, 'remote', [agent('pi', true)])).toEqual({
+      remote: [agent('pi', true)],
+    });
   });
 });
 

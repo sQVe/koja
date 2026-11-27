@@ -481,8 +481,20 @@ describe('tabRowDisplay', () => {
   const tuicr: Program = { ...shell, key: 'tuicr', name: 'tuicr', shell: false, agent: true };
   const tuicrPane = { ...paneOf('p1', 'k1'), program: tuicr, title: 'review' };
 
+  test('labels an unnamed tab of an agent by its live title', () => {
+    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane], []).label).toBe('review');
+  });
+
   test('labels an unnamed tab by the program it runs', () => {
-    expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane], []).label).toBe('tuicr');
+    const pathTitled = { ...tuicrPane, title: '~/code/koja' };
+
+    expect(tabRowDisplay(tabOf('k1', 1), [pathTitled], []).label).toBe('tuicr');
+  });
+
+  test('labels an unnamed tab whose pane is titled after its program', () => {
+    const titledAfterProgram = { ...tuicrPane, title: 'tuicr' };
+
+    expect(tabRowDisplay(tabOf('k1', 1), [titledAfterProgram], []).label).toBe('tuicr');
   });
 
   test('takes the icon program from the same program as the label', () => {
@@ -498,7 +510,7 @@ describe('tabRowDisplay', () => {
   test('adds the zoom marker to a zoomed tab', () => {
     const zoomed = { ...tabOf('k1', 1), zoomed: true };
 
-    expect(tabRowDisplay(zoomed, [tuicrPane], []).label).toBe('tuicr Z');
+    expect(tabRowDisplay(zoomed, [tuicrPane], []).label).toBe('review Z');
   });
 
   test('leaves the pane title out of the label', () => {

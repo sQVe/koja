@@ -1,24 +1,17 @@
-import { diffSize } from '../../kit/index.ts';
-import type { DiffRow } from './diffRows.ts';
+import type { DiffDocument } from './diffLayout.ts';
+import { measureDiff } from './diffLayout.ts';
 import { diffRows } from './diffRows.ts';
 import type { ChangesSnapshot } from './git.ts';
 import { loadFilePreview } from './preview.ts';
 import type { FilePreview } from './preview.ts';
 
 export class DiffPreview {
-  rows: DiffRow[] = [];
-
-  diffWidth: number = diffSize.minimumWidth;
+  document: DiffDocument = measureDiff([]);
 
   private previewRequest = 0;
 
   setLines(lines: string[]): void {
-    this.rows = diffRows(lines);
-
-    this.diffWidth = Math.max(
-      diffSize.minimumWidth,
-      ...lines.map((line) => line.length * diffSize.characterWidth + diffSize.widthPadding),
-    );
+    this.document = measureDiff(diffRows(lines));
   }
 
   async load(

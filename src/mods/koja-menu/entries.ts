@@ -58,6 +58,7 @@ export interface MenuHost {
   openWorktreeDialog: (action: WorktreeAction, space: string | null) => void;
   openGroveDialog: (action: GroveAction, space: string | null) => void;
   terminals: () => unknown[];
+  panes: () => { pane: string }[];
   themes: () => ThemeChoice[];
 }
 
@@ -218,18 +219,24 @@ const overflowEntries = (host: MenuHost, target: MenuTarget, zoomed: boolean): M
   });
 };
 
+const tabPaneEntries = (host: MenuHost, pane: string | undefined): MenuEntry[] => [
+  commandEntry(host, 'Rename', 'square-pen', 'pane.rename', { pane }),
+  commandEntry(host, 'Split right', 'panel-right', 'pane.split', { direction: 'right', pane }),
+  commandEntry(host, 'Split down', 'panel-bottom', 'pane.split', { direction: 'down', pane }),
+  commandEntry(host, 'Zoom', 'maximize-2', 'pane.zoom', { pane }),
+];
+
 const paneEntries = (host: MenuHost, target: MenuTarget): MenuEntry[] => {
   const all = host.terminals().map(readTerminal);
   const terminal = all.find((candidate) => candidate.address === target.terminal) ?? null;
   const pane = target.pane ?? undefined;
+  const inTab = host.panes().some((candidate) => candidate.pane === target.pane);
 
   return [
-    commandEntry(host, 'Split right', 'panel-right', 'pane.split', { direction: 'right', pane }),
-    commandEntry(host, 'Split down', 'panel-bottom', 'pane.split', { direction: 'down', pane }),
-    commandEntry(host, 'Zoom', 'maximize-2', 'pane.zoom', { pane }),
+    ...(inTab ? tabPaneEntries(host, pane) : []),
     ...(terminal === null ? [] : [rightClickEntry(host, terminal)]),
     ...sendBackEntries(host, terminal, all),
-    commandEntry(host, 'Close pane', 'x', 'pane.close', { pane }, true),
+    ...(inTab ? [commandEntry(host, 'Close pane', 'x', 'pane.close', { pane }, true)] : []),
   ];
 };
 

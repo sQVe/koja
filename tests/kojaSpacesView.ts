@@ -8,7 +8,13 @@ import type { Facts, PlaceGit, RepositoryPulls, WorktreeGit } from '../src/data/
 import { emptyFacts, snapshotKey, snapshotVersion } from '../src/data/snapshot.ts';
 import { writeSection } from '../src/kit/section.ts';
 import { rowHeight } from '../src/kit/size.ts';
-import { drawn, drawnTexts, elementsWithBorder, elementsWithSizeHandler } from './drawn.ts';
+import {
+  drawn,
+  drawnTexts,
+  elementsWithBorder,
+  elementsWithId,
+  elementsWithSizeHandler,
+} from './drawn.ts';
 import type { DrawnElement } from './drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, realKitIndexFake } from './moduleFakes.ts';
 
@@ -425,10 +431,20 @@ export const cursorChildIndex = (view: FakeView): number => {
   );
 };
 
-export const reportHeight = (view: FakeView, height: number): void => {
+export const spaceChildIndex = (view: FakeView, id: string): number => {
+  const list = elementsWithSizeHandler(view.render())[0];
+
+  return (list?.kids ?? []).findIndex((child) => elementsWithId(child, `space-${id}`).length > 0);
+};
+
+export const reportSize = (view: FakeView, width: number, height: number): void => {
   for (const element of elementsWithSizeHandler(view.render())) {
-    element.sizeHandlers[0]?.({ width: 200, height }, {});
+    element.sizeHandlers[0]?.({ width, height }, {});
   }
+};
+
+export const reportHeight = (view: FakeView, height: number): void => {
+  reportSize(view, 200, height);
 };
 
 export const pressable = (element: DrawnElement): boolean =>

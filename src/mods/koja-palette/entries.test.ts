@@ -1,8 +1,11 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 
+import { commandIdentity } from '../../kit/commandTitles.ts';
 import type { OverlayHint } from '../../kit/shortcutBinding.ts';
+import type { ThemeChoice } from '../../kit/themes.ts';
 import type { Entry, PaletteHost } from './entries.ts';
 import { allEntries, entryHint, headingOf, paletteCount, paletteRows } from './entries.ts';
+import type { ModPalette } from './modPalette.ts';
 
 interface Command {
   name: string;
@@ -13,7 +16,9 @@ interface Command {
 let commandList: Command[] = [];
 let layoutList: string[] = ['main'];
 let platform: string | null = 'linux';
-let themeList: { name: string; label: string }[] = [];
+let themeList: ThemeChoice[] = [];
+let darkWindow = true;
+let currentLayout: string | null = 'main';
 
 const hintIn =
   (bindings: Record<string, OverlayHint>) =>
@@ -34,6 +39,23 @@ const host = (): PaletteHost => ({
   layouts: () => layoutList,
   platform,
   themes: () => themeList,
+  dark: darkWindow,
+  layout: currentLayout,
+});
+
+const themeOf = (name: string, light: boolean): ThemeChoice => ({
+  name,
+  label: `Theme: ${name}`,
+  light,
+});
+
+beforeEach(() => {
+  commandList = [];
+  layoutList = ['main'];
+  platform = 'linux';
+  themeList = [];
+  darkWindow = true;
+  currentLayout = 'main';
 });
 
 const commandOf = (name: string): Command => ({ name, args: [], about: '' });
@@ -81,8 +103,8 @@ describe('allEntries', () => {
     commandList = [commandOf('app.theme')];
 
     themeList = [
-      { name: 'graphite', label: 'Theme: graphite' },
-      { name: 'catppuccin-latte-muted', label: 'Theme: catppuccin latte muted' },
+      { name: 'graphite', label: 'Theme: graphite', light: false },
+      { name: 'catppuccin-latte-muted', label: 'Theme: catppuccin latte muted', light: false },
     ];
 
     const titles = allEntries(host())
@@ -92,9 +114,44 @@ describe('allEntries', () => {
     expect(titles).toEqual(['Theme: graphite', 'Theme: catppuccin latte muted']);
   });
 
+  test("offers only the themes of the window's lightness", () => {
+    commandList = [commandOf('app.theme')];
+    themeList = [themeOf('graphite', false), themeOf('catppuccin-latte', true)];
+
+    const darkTitles = allEntries(host())
+      .filter((item) => item.name === 'app.theme')
+      .map((item) => item.title);
+
+    expect(darkTitles).toEqual(['Theme: graphite']);
+
+    darkWindow = false;
+
+    const lightTitles = allEntries(host())
+      .filter((item) => item.name === 'app.theme')
+      .map((item) => item.title);
+
+    expect(lightTitles).toEqual(['Theme: catppuccin-latte']);
+  });
+
+  test('offers a theme named like a layout only for that layout', () => {
+    commandList = [commandOf('app.theme')];
+    layoutList = ['main', 'graphite'];
+    themeList = [themeOf('graphite', false)];
+
+    const beforeSwitch = allEntries(host()).some((item) => item.name === 'app.theme');
+
+    expect(beforeSwitch).toBe(false);
+
+    currentLayout = 'graphite';
+
+    const afterSwitch = allEntries(host()).some((item) => item.name === 'app.theme');
+
+    expect(afterSwitch).toBe(true);
+  });
+
   test('shows no theme choices when the app does not know app.theme', () => {
     commandList = [commandOf('tab.new')];
-    themeList = [{ name: 'graphite', label: 'Theme: graphite' }];
+    themeList = [themeOf('graphite', false)];
 
     const hasThemeEntry = allEntries(host()).some((item) => item.name === 'app.theme');
 
@@ -135,7 +192,7 @@ describe('allEntries', () => {
 
     const item = allEntries(host()).find((entryItem) => entryItem.name === 'tab.new');
 
-    expect(item?.id).toBe('tab.new:{}');
+    expect(item?.id).toBe('tab.new');
   });
 
   test('keeps each entry id as its command and arguments, which Recent saves', () => {
@@ -147,9 +204,7 @@ describe('allEntries', () => {
     expect(ids).toContain('pane.split:{"direction":"right"}');
     expect(ids).toContain('mod.open:{"name":"koja-picker"}');
 
-    expect(entries.every((item) => item.id === `${item.name}:${JSON.stringify(item.args)}`)).toBe(
-      true,
-    );
+    expect(entries.every((item) => item.id === commandIdentity(item.name, item.args))).toBe(true);
 
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -248,7 +303,7 @@ describe('allEntries', () => {
 
   test('carries the theme name in each theme row', () => {
     commandList = [commandOf('app.theme')];
-    themeList = [{ name: 'graphite', label: 'Theme: graphite' }];
+    themeList = [themeOf('graphite', false)];
 
     const item = allEntries(host()).find((entryItem) => entryItem.name === 'app.theme');
 
@@ -259,6 +314,221 @@ describe('allEntries', () => {
     const themeEntries = item === undefined ? [] : [item];
 
     expect(paletteRows(themeEntries, 'colors look', [])).toHaveLength(1);
+  });
+});
+
+const palette = (mod: string, entries: unknown[]): ModPalette => ({ mod, entries });
+
+describe('mod entries', () => {
+  const entriesOf = (entries: unknown[], mod = 'koja-gallery'): Entry[] =>
+    allEntries(host(), [palette(mod, entries)]);
+
+  const added = (value: unknown): boolean =>
+    entriesOf([value]).some((item) => item.title === 'Do the thing');
+
+  test('adds an entry for a command the app knows, in the Mod group', () => {
+    commandList = [{ name: 'tab.new', args: [{ name: 'name', required: false }], about: '' }];
+
+    const item = entriesOf([
+      { title: 'Do the thing', command: 'tab.new', args: { name: 'api' }, words: 'start' },
+    ]).find((found) => found.title === 'Do the thing');
+
+    expect(item?.group).toBe('Mod');
+    expect(item?.args).toEqual({ name: 'api' });
+    expect(item?.words).toBe('start koja-gallery');
+    expect(item?.id).toBe('tab.new:{"name":"api"}');
+  });
+
+  test('keeps a group the entry declares, but not Recent', () => {
+    commandList = [];
+
+    const groupOf = (group: string): string | undefined =>
+      entriesOf([{ title: 'Do the thing', command: 'koja-gallery.open', group }]).find(
+        (item) => item.title === 'Do the thing',
+      )?.group;
+
+    expect(groupOf('Work')).toBe('Work');
+    expect(groupOf('Recent')).toBe('Mod');
+  });
+
+  test('rejects an entry with no title, a blank title, or no command', () => {
+    commandList = [];
+
+    const withoutEntry = entriesOf([]).length;
+
+    expect(entriesOf([{ command: 'koja-gallery.open' }])).toHaveLength(withoutEntry);
+    expect(entriesOf([{ title: '  ', command: 'koja-gallery.open' }])).toHaveLength(withoutEntry);
+    expect(entriesOf([{ title: 'Do the thing' }])).toHaveLength(withoutEntry);
+  });
+
+  test('rejects an argument the command does not take', () => {
+    commandList = [{ name: 'tab.new', args: [], about: '' }];
+
+    expect(added({ title: 'Do the thing', command: 'tab.new', args: { bogus: 'x' } })).toBe(false);
+  });
+
+  test('rejects a missing required argument and accepts a given one', () => {
+    commandList = [{ name: 'tab.new', args: [{ name: 'name', required: true }], about: '' }];
+
+    expect(added({ title: 'Do the thing', command: 'tab.new' })).toBe(false);
+    expect(added({ title: 'Do the thing', command: 'tab.new', args: { name: 'api' } })).toBe(true);
+  });
+
+  test('lets a rename leave its name out for the prompt to ask', () => {
+    commandList = [{ name: 'tab.rename', args: [{ name: 'name', required: true }], about: '' }];
+
+    expect(added({ title: 'Do the thing', command: 'tab.rename', args: { name: null } })).toBe(
+      true,
+    );
+  });
+
+  test('lets a rename leave its required name out entirely', () => {
+    commandList = [
+      {
+        name: 'tab.rename',
+        args: [
+          { name: 'id', required: false },
+          { name: 'name', required: true },
+        ],
+        about: '',
+      },
+    ];
+
+    expect(added({ title: 'Do the thing', command: 'tab.rename', args: { id: null } })).toBe(true);
+  });
+
+  test('lets a clone leave its required name null for the palette to fill in', () => {
+    commandList = [
+      { name: 'layout.clone', args: [{ name: 'name', required: true }], about: '' },
+      { name: 'mod.clone', args: [{ name: 'name', required: true }], about: '' },
+    ];
+
+    const offered = (command: string, title: string): boolean =>
+      entriesOf([{ title, command, args: { name: null } }]).some((item) => item.title === title);
+
+    expect(offered('layout.clone', 'Duplicate the layout')).toBe(true);
+    expect(offered('mod.clone', 'Duplicate the mod')).toBe(true);
+  });
+
+  test('rejects a rename that leaves another required argument out', () => {
+    commandList = [
+      {
+        name: 'tab.rename',
+        args: [
+          { name: 'id', required: true },
+          { name: 'name', required: true },
+        ],
+        about: '',
+      },
+    ];
+
+    expect(added({ title: 'Do the thing', command: 'tab.rename', args: { name: 'api' } })).toBe(
+      false,
+    );
+  });
+
+  test('rejects a rename whose name is empty', () => {
+    commandList = [{ name: 'tab.rename', args: [{ name: 'name', required: true }], about: '' }];
+
+    expect(added({ title: 'Do the thing', command: 'tab.rename', args: { name: '' } })).toBe(false);
+  });
+
+  test('rejects a rename whose name is not a string', () => {
+    commandList = [{ name: 'tab.rename', args: [{ name: 'name', required: true }], about: '' }];
+
+    expect(added({ title: 'Do the thing', command: 'tab.rename', args: { name: 42 } })).toBe(false);
+  });
+
+  test('lets only a rename leave its required name out', () => {
+    commandList = [
+      { name: 'tab.new', args: [{ name: 'name', required: true }], about: '' },
+      { name: 'pane.rename', args: [{ name: 'name', required: true }], about: '' },
+    ];
+
+    expect(added({ title: 'Do the thing', command: 'tab.new', args: { name: null } })).toBe(false);
+
+    expect(added({ title: 'Do the thing', command: 'pane.rename', args: { name: null } })).toBe(
+      true,
+    );
+  });
+
+  test('rejects a target argument that is not a string', () => {
+    commandList = [{ name: 'pane.split', args: [{ name: 'pane', required: false }], about: '' }];
+
+    expect(added({ title: 'Do the thing', command: 'pane.split', args: { pane: 3 } })).toBe(false);
+
+    expect(added({ title: 'Do the thing', command: 'pane.split', args: { pane: 'pane-1' } })).toBe(
+      true,
+    );
+
+    expect(added({ title: 'Do the thing', command: 'pane.split', args: { pane: null } })).toBe(
+      true,
+    );
+  });
+
+  test('accepts a null required target argument as the live focus', () => {
+    commandList = [{ name: 'pane.split', args: [{ name: 'pane', required: true }], about: '' }];
+
+    expect(added({ title: 'Do the thing', command: 'pane.split', args: { pane: null } })).toBe(
+      true,
+    );
+  });
+
+  test("accepts a mod's own command only with no arguments and its own name", () => {
+    commandList = [];
+
+    expect(added({ title: 'Do the thing', command: 'koja-gallery.open' })).toBe(true);
+
+    expect(added({ title: 'Do the thing', command: 'koja-gallery.open', args: { x: 1 } })).toBe(
+      false,
+    );
+
+    expect(added({ title: 'Do the thing', command: 'koja-picker.open' })).toBe(false);
+    expect(added({ title: 'Do the thing', command: 'koja-gallery.' })).toBe(false);
+  });
+
+  test('lists an entry the palette already offers once', () => {
+    commandList = [commandOf('tab.new')];
+
+    const duplicates = entriesOf([{ title: 'Do the thing', command: 'tab.new' }]).filter(
+      (item) => item.name === 'tab.new',
+    );
+
+    expect(duplicates).toHaveLength(1);
+  });
+
+  test('sorts the argument keys in the entry identity', () => {
+    commandList = [
+      {
+        name: 'layout.resize',
+        args: [
+          { name: 'id', required: true },
+          { name: 'px', required: true },
+        ],
+        about: '',
+      },
+    ];
+
+    const item = entriesOf([
+      { title: 'Do the thing', command: 'layout.resize', args: { px: 240, id: 'sidebar' } },
+    ]).find((found) => found.title === 'Do the thing');
+
+    expect(item?.id).toBe('layout.resize:{"id":"sidebar","px":240}');
+  });
+
+  test('lists a mod entry after the window group and before the app group', () => {
+    commandList = [commandOf('window.close'), commandOf('app.help')];
+
+    const rows = paletteRows(
+      entriesOf([{ title: 'Do the thing', command: 'koja-gallery.open' }]),
+      '',
+      [],
+    );
+
+    const heads = rows.map((row) => row.head);
+
+    expect(heads.indexOf('Mod')).toBeGreaterThan(heads.indexOf('Window'));
+    expect(heads.indexOf('Mod')).toBeLessThan(heads.indexOf('App'));
   });
 });
 

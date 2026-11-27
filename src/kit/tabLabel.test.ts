@@ -64,6 +64,12 @@ const terminalRecord = (pane: string, task: string): unknown => ({
   labels: { 'tau.task': task },
 });
 
+const liveAgentPane = (pane: string, title: string): PaneInfo => ({
+  ...terminalPane(pane),
+  title,
+  program: { ...shell, key: 'claude', name: 'Claude Code', shell: false, agent: true },
+});
+
 const labelOf = (tabInfo: TabInfo, paneList: PaneInfo[], terminalRecords: unknown[] = []): string =>
   tabLabel(tabInfo, tabProgram(tabInfo, paneList), paneList, terminalRecords);
 
@@ -172,5 +178,68 @@ describe('tabLabel', () => {
     const records = [terminalRecord('p1', 'Fix status counts')];
 
     expect(labelOf(zoomed, [terminalPane('p1')], records)).toBe('Fix status counts Z');
+  });
+});
+
+describe('tabLabel live agent titles', () => {
+  test('names an unnamed tab of an agent by the work in its live title', () => {
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', 'Review the diff')])).toBe('Review the diff');
+  });
+
+  test('drops a status glyph before the work', () => {
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', '✳ Review the diff')])).toBe('Review the diff');
+  });
+
+  test('drops a blinking mark before the work', () => {
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', '[ ! ] Review the diff')])).toBe(
+      'Review the diff',
+    );
+  });
+
+  test('keeps a live title that starts with a bracket', () => {
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', '[web] login')])).toBe('[web] login');
+  });
+
+  test('rejects a live title that holds only a bracket mark', () => {
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', '[ ! ]')])).toBe('Claude Code');
+  });
+
+  test('follows the live title of a tab named after its program', () => {
+    const named = { ...tab, name: 'Claude Code' };
+
+    expect(labelOf(named, [liveAgentPane('p1', 'Review the diff')])).toBe('Review the diff');
+  });
+
+  test('keeps the name someone gave a tab over the live title', () => {
+    expect(labelOf(tab, [liveAgentPane('p1', 'Review the diff')])).toBe('Board');
+  });
+
+  test('keeps the worker task over the live title', () => {
+    const records = [terminalRecord('p1', 'Fix status counts')];
+
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', 'Review the diff')], records)).toBe(
+      'Fix status counts',
+    );
+  });
+
+  test('rejects a live title that names only the terminal, the program key, or nothing', () => {
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', 't-p1')])).toBe('Claude Code');
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', 'claude')])).toBe('Claude Code');
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', '')])).toBe('Claude Code');
+  });
+
+  test('rejects a live title that is a path', () => {
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', '~/code/koja')])).toBe('Claude Code');
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', 'C:\\code')])).toBe('Claude Code');
+  });
+
+  test('rejects a live title that holds an at sign', () => {
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', 'pi@host')])).toBe('Claude Code');
+  });
+
+  test('keeps the program name for a program that is not an agent', () => {
+    const pane = { ...terminalPane('p1'), title: 'vim notes.md' };
+
+    expect(labelOf(unnamedTab, [pane])).toBe('zsh');
   });
 });

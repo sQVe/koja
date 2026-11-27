@@ -15,14 +15,23 @@ import {
   rowHeight,
   spacing,
   stateLine,
-  terminalFont,
+  terminalFontStyle,
   textField,
   toggleButton,
   withTextRole,
 } from '../../kit/index.ts';
+import type { DiffDocument, DiffLayout } from './diffLayout.ts';
+import { diffLayout } from './diffLayout.ts';
 import type { DiffRow } from './diffRows.ts';
 import { showsSelectionHint } from './selection.ts';
 import type { ChangeFile } from './status.ts';
+
+export interface DiffAreaOptions {
+  document: DiffDocument;
+  open: string | null;
+  fileCount: number;
+  fontSize: number;
+}
 
 export interface FileListOptions {
   files: ChangeFile[];
@@ -132,18 +141,28 @@ export const fileList = (options: FileListOptions): Element => {
 
   const count = options.files.length + lines.length;
 
-  return v_flex()
+  // The list scrolls inside a box of its own height, so the panel's layout sees that height.
+  const rows = v_flex()
     .id('changes-list')
-    .flex_none()
-    .h(fileListHeight(count))
-    .overflow_y_scrollbar()
+    .absolute()
+    .inset_0()
+    .overflow_y_scroll()
     .p(spacing.xsmall)
-    .border_b(spacing.hairline)
-    .border_color(options.palette.border)
     .children(lines)
     .children(
       options.files.map((file) => fileRow(file, options.open === file.path, options.onPick)),
     );
+
+  const scrollbar = Scrollbar.vertical('changes-list').absolute().inset_0();
+
+  return div()
+    .flex_none()
+    .h(fileListHeight(count))
+    .relative()
+    .border_b(spacing.hairline)
+    .border_color(options.palette.border)
+    .child(rows)
+    .child(scrollbar);
 };
 
 export const commitBar = (
@@ -185,12 +204,12 @@ export const noteRow = (note: string): Element => {
   return withTextRole(box, 'detail', 'ansi1').child(note);
 };
 
-const diffRow = (row: DiffRow, palette: Palette): Element => {
+const diffRow = (row: DiffRow, palette: Palette, layout: DiffLayout): Element => {
   if (row.kind === '@') {
     return div()
       .w_full()
       .px(spacing.large)
-      .h(diffSize.rowHeight)
+      .h(layout.rowHeight)
       .flex_none()
       .truncate()
       .bg(palette.raised)
@@ -200,14 +219,14 @@ const diffRow = (row: DiffRow, palette: Palette): Element => {
 
   const tints = diffTints(palette);
 
-  const numberBox = div().w(diffSize.lineNumberWidth).flex_none().text_right();
+  const numberBox = div().w(layout.gutterWidth).flex_none().text_right();
   const numberText = row.number === undefined ? '' : String(row.number);
   const lineNumber = withTextRole(numberBox, 'detail', 'muted').child(numberText);
   const textBox = div().flex_1().min_w(0).truncate().child(row.text);
 
   return h_flex()
     .w_full()
-    .h(diffSize.rowHeight)
+    .h(layout.rowHeight)
     .flex_none()
     .gap(spacing.large)
     .when(row.kind === '+', (element) => element.bg(tints.added))
@@ -216,34 +235,34 @@ const diffRow = (row: DiffRow, palette: Palette): Element => {
     .child(textBox);
 };
 
-export const diffArea = (
-  rows: DiffRow[],
-  diffWidth: number,
-  open: string | null,
-  fileCount: number,
-): Element => {
+export const diffArea = (options: DiffAreaOptions): Element => {
   const palette = colors();
+  const layout = diffLayout(options.document, options.fontSize);
+  const rows = options.document.rows;
 
   const virtualList = v_virtual_list(
     'changes-diff',
     rows.length,
-    diffSize.rowHeight,
+    layout.rowHeight,
     (index) => String(index),
-    (range) => rows.slice(range.start, range.end).map((row) => diffRow(row, palette)),
+    (range) => rows.slice(range.start, range.end).map((row) => diffRow(row, palette, layout)),
   ).size_full();
 
-  const listColumn = div().w_full().min_w(diffWidth).h_full().child(virtualList);
+  const listColumn = div().w_full().min_w(layout.width).h_full().child(virtualList);
   const scroller = div().id('changes-diff-x').size_full().overflow_x_scrollbar().child(listColumn);
   const scrollbar = Scrollbar.vertical('changes-diff').viewport_from_layout().absolute().inset_0();
-  const areaBox = div().flex_1().min_h(0).relative().font_family(terminalFont());
-  const area = withTextRole(areaBox, 'detail', 'foreground').child(scroller).child(scrollbar);
+  const areaBox = div().flex_1().min_h(0).relative();
 
-  if (showsSelectionHint(open, fileCount)) {
+  const area = terminalFontStyle(withTextRole(areaBox, 'detail', 'foreground'), options.fontSize);
+
+  const areaWithDiff = area.child(scroller).child(scrollbar);
+
+  if (showsSelectionHint(options.open, options.fileCount)) {
     const hintBox = div().absolute().top(spacing.small).px(spacing.large);
     const hint = withTextRole(hintBox, 'detail').child('Select a file to view its changes');
 
-    area.child(hint);
+    areaWithDiff.child(hint);
   }
 
-  return area;
+  return areaWithDiff;
 };

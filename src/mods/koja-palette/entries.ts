@@ -6,11 +6,13 @@ import {
   focusPaneTitles,
   swapPaneTitles,
 } from '../../kit/commandTitles.ts';
+import { isRecord, recordOf, stringOf } from '../../kit/fields.ts';
 import type { IconName } from '../../kit/iconNames.ts';
 import type { OverlayHint } from '../../kit/shortcutBinding.ts';
 import type { ThemeChoice } from '../../kit/themes.ts';
 import type { FuzzyMatch } from './fuzzy.ts';
 import { fuzzyMatch } from './fuzzy.ts';
+import type { ModPalette } from './modPalette.ts';
 
 interface Command {
   name: string;
@@ -18,11 +20,21 @@ interface Command {
   about: string;
 }
 
+interface DeclaredEntry {
+  title: string;
+  command: string;
+  args: Record<string, unknown>;
+  group: string;
+  words: string;
+}
+
 export interface PaletteHost {
   commands: () => Command[];
   layouts: () => string[];
   platform: string | null;
   themes: () => ThemeChoice[];
+  dark: boolean;
+  layout: string | null;
 }
 
 export interface Entry {
@@ -66,7 +78,20 @@ interface NamedEntry {
   icon: IconName;
 }
 
-const groups = ['Recent', 'Tab', 'Pane', 'Space', 'Layout', 'Terminal', 'Agent', 'Window', 'App'];
+const targetArgs = new Set(['id', 'pane', 'space', 'terminal', 'target']);
+
+const groups = [
+  'Recent',
+  'Tab',
+  'Pane',
+  'Space',
+  'Layout',
+  'Terminal',
+  'Agent',
+  'Window',
+  'Mod',
+  'App',
+];
 
 // The part letters are fixed, so they are listed here rather than read from the key table, whose
 // shortest form for a pane is `h`.
@@ -79,6 +104,7 @@ const headings: Record<string, GroupHeading> = {
   Terminal: { label: 'Terminals', letter: null },
   Agent: { label: 'Agents', letter: null },
   Window: { label: 'Window', letter: null },
+  Mod: { label: 'Mods', letter: null },
   App: { label: 'App', letter: null },
 };
 
@@ -336,25 +362,170 @@ const otherEntries = (host: PaletteHost): Entry[] =>
       };
     });
 
-const themeEntries = (known: ReadonlySet<string>, host: PaletteHost): Entry[] => {
+const themeShows = (theme: ThemeChoice, host: PaletteHost, layouts: readonly string[]): boolean => {
+  const lightnessMatchesAppearance = theme.light !== host.dark;
+  const ownLayout = theme.name === host.layout || !layouts.includes(theme.name);
+
+  return lightnessMatchesAppearance && ownLayout;
+};
+
+const themeEntries = (known: ReadonlyMap<string, Command>, host: PaletteHost): Entry[] => {
   if (!known.has('app.theme')) {
     return [];
   }
 
-  return host.themes().map((theme) => ({
-    id: commandIdentity('app.theme', { name: theme.name }),
-    name: 'app.theme',
-    args: { name: theme.name },
-    group: 'App',
-    title: theme.label,
-    words: 'colors look',
-    icon: 'palette',
-  }));
+  const layouts = host.layouts();
+
+  return host
+    .themes()
+    .filter((theme) => themeShows(theme, host, layouts))
+    .map((theme) => ({
+      id: commandIdentity('app.theme', { name: theme.name }),
+      name: 'app.theme',
+      args: { name: theme.name },
+      group: 'App',
+      title: theme.label,
+      words: 'colors look',
+      icon: 'palette',
+    }));
 };
 
-export const allEntries = (host: PaletteHost): Entry[] => {
-  const commandNames = host.commands().map((command) => command.name);
-  const known = new Set(commandNames);
+// A target names a pane, a space, or a terminal; a null one means the live focus.
+const isTargetValue = (value: unknown): boolean => value === null || typeof value === 'string';
+
+const fillsInName = (command: string): boolean =>
+  command.endsWith('.rename') || command === 'layout.clone' || command === 'mod.clone';
+
+const hasRequiredArg = (command: string, args: Record<string, unknown>, name: string): boolean => {
+  const value = args[name];
+  const fillsName = name === 'name' && fillsInName(command);
+
+  if (value === undefined) {
+    return fillsName;
+  }
+
+  if (value === null) {
+    return targetArgs.has(name) || fillsName;
+  }
+
+  if (typeof value === 'string') {
+    return value.trim() !== '';
+  }
+
+  return name !== 'name';
+};
+
+const argsFit = (args: Record<string, unknown>, command: Command): boolean => {
+  const names = new Set(command.args.map((arg) => arg.name));
+
+  for (const [key, value] of Object.entries(args)) {
+    const badTarget = targetArgs.has(key) && !isTargetValue(value);
+
+    if (!names.has(key) || badTarget) {
+      return false;
+    }
+  }
+
+  return command.args
+    .filter((arg) => arg.required)
+    .every((arg) => hasRequiredArg(command.name, args, arg.name));
+};
+
+const isOwnCommand = (command: string, mod: string, args: Record<string, unknown>): boolean => {
+  const dot = command.indexOf('.');
+  const named = dot >= 1 && command.slice(0, dot) === mod;
+  const verb = command.slice(dot + 1);
+
+  return named && verb.trim() !== '' && Object.keys(args).length === 0;
+};
+
+const declaredEntry = (value: unknown): DeclaredEntry | null => {
+  const entry = recordOf(value);
+  const title = stringOf(entry['title']);
+  const command = stringOf(entry['command']);
+  const rawArgs = entry['args'] ?? {};
+  const args = isRecord(rawArgs) ? rawArgs : null;
+
+  if (title === null || title.trim() === '' || command === null) {
+    return null;
+  }
+
+  if (args === null) {
+    return null;
+  }
+
+  const group = stringOf(entry['group'])?.trim() ?? '';
+
+  return {
+    title,
+    command,
+    args,
+    group: group === '' || group === 'Recent' ? 'Mod' : group,
+    words: stringOf(entry['words']) ?? '',
+  };
+};
+
+const modEntry = (
+  value: unknown,
+  mod: string,
+  known: ReadonlyMap<string, Command>,
+): Entry | null => {
+  const declared = declaredEntry(value);
+
+  if (declared === null) {
+    return null;
+  }
+
+  const knownCommand = known.get(declared.command);
+
+  const fits =
+    knownCommand === undefined
+      ? isOwnCommand(declared.command, mod, declared.args)
+      : argsFit(declared.args, knownCommand);
+
+  if (!fits) {
+    return null;
+  }
+
+  return {
+    id: commandIdentity(declared.command, declared.args),
+    name: declared.command,
+    args: declared.args,
+    group: declared.group,
+    title: declared.title,
+    words: `${declared.words} ${mod}`.trim(),
+    icon: 'command',
+  };
+};
+
+const modEntries = (
+  all: readonly Entry[],
+  mods: readonly ModPalette[],
+  known: ReadonlyMap<string, Command>,
+): Entry[] => {
+  const have = new Set(all.map((entry) => entry.id));
+  const added: Entry[] = [];
+
+  for (const palette of mods) {
+    for (const value of palette.entries) {
+      const entry = modEntry(value, palette.mod, known);
+
+      if (entry === null || have.has(entry.id)) {
+        continue;
+      }
+
+      have.add(entry.id);
+      added.push(entry);
+    }
+  }
+
+  return added;
+};
+
+export const allEntries = (host: PaletteHost, mods: readonly ModPalette[] = []): Entry[] => {
+  const commands = host.commands();
+  const pairs = commands.map((command): [string, Command] => [command.name, command]);
+  const known = new Map(pairs);
   const onMacos = host.platform === 'macos';
 
   const named = namedEntries
@@ -370,16 +541,18 @@ export const allEntries = (host: PaletteHost): Entry[] => {
       icon: entry.icon,
     }));
 
-  return [
+  const all = [
     ...named,
     ...themeEntries(known, host),
     ...host.layouts().map(layoutEntry),
     ...otherEntries(host),
   ];
+
+  return [...all, ...modEntries(all, mods, known)];
 };
 
 export const entryHint = (entry: Entry, hint: HintLookup): OverlayHint =>
-  hint(bindingAction(entry.name, entry.args));
+  hint(bindingAction(entry.name, entry.args), commandIdentity(entry.name, entry.args));
 
 export const headingOf = (group: string): GroupHeading =>
   headings[group] ?? { label: group, letter: null };

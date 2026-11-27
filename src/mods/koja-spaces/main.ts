@@ -160,9 +160,15 @@ export default class Spaces extends View {
 
   private halfPage = 1;
 
+  private lastHeight: number | null = null;
+
   private readonly scroll = ScrollHandle.new();
 
   private revealCursor = false;
+
+  private revealedActive: string | null = null;
+
+  private revealedIndex = -1;
 
   private marked = false;
 
@@ -209,6 +215,14 @@ export default class Spaces extends View {
       .mode('always')
       .on_size_change((size) => {
         this.halfPage = halfPageOf(size.height, rowHeight.small);
+
+        const heightChanged = this.lastHeight !== size.height;
+
+        this.lastHeight = size.height;
+
+        if (heightChanged && this.revealedIndex >= 0) {
+          this.scroll.scroll_to_item(this.revealedIndex);
+        }
       })
       .on_mouse_up('left', (_event, cx) => {
         this.endDrag();
@@ -498,14 +512,21 @@ export default class Spaces extends View {
 
   private listRows(state: DataState, projects: Project[], ids: readonly string[]): Element[] {
     const cursor = this.cursorRow(projects);
+    const active = activeSpaceId();
     const now = Date.now();
     const pulls = pullFactsOf(state);
 
     let cursorElement: Element | null = null;
 
-    const keepCursor = (row: ListedSpace, element: Element): Element => {
+    let activeElement: Element | null = null;
+
+    const keepRow = (row: ListedSpace, element: Element): Element => {
       if (row.space.id === cursor) {
         cursorElement = element;
+      }
+
+      if (row.space.id === active) {
+        activeElement = element;
       }
 
       return element;
@@ -519,10 +540,10 @@ export default class Spaces extends View {
       draw: (row) => {
         const ticketTitle = ticketTitleAt(state, row);
 
-        return keepCursor(row, this.draw(row, ids, cursor, now, pulls, ticketTitle));
+        return keepRow(row, this.draw(row, ids, cursor, now, pulls, ticketTitle));
       },
       drawMain: (project, main) =>
-        keepCursor(main, this.drawMain(project, main, ids, keys, cursor, now)),
+        keepRow(main, this.drawMain(project, main, ids, keys, cursor, now)),
       foldDrag: (project) => {
         const drag = this.dragFor('project');
 
@@ -543,20 +564,38 @@ export default class Spaces extends View {
       onHover: this.setHovered,
     });
 
-    this.showCursor(elements, cursorElement);
+    this.showRows(elements, cursorElement, activeElement, active);
 
     return elements;
   }
 
   // The scroll handle shows a direct child of the list by its index.
-  private showCursor(elements: readonly Element[], cursorElement: Element | null): void {
-    const index = cursorElement === null ? -1 : elements.indexOf(cursorElement);
+  private showRows(
+    elements: readonly Element[],
+    cursorElement: Element | null,
+    activeElement: Element | null,
+    active: string | null,
+  ): void {
+    const cursorIndex = cursorElement === null ? -1 : elements.indexOf(cursorElement);
 
-    if (this.revealCursor && index >= 0) {
-      this.scroll.scroll_to_item(index);
+    if (this.revealCursor && cursorIndex >= 0) {
+      this.scroll.scroll_to_item(cursorIndex);
     }
 
     this.revealCursor = false;
+
+    const activeIndex = activeElement === null ? -1 : elements.indexOf(activeElement);
+
+    if (active === this.revealedActive && activeIndex === this.revealedIndex) {
+      return;
+    }
+
+    this.revealedActive = active;
+    this.revealedIndex = activeIndex;
+
+    if (activeIndex >= 0) {
+      this.scroll.scroll_to_item(activeIndex);
+    }
   }
 
   private projectDragOver(project: Project, cx: Context): void {

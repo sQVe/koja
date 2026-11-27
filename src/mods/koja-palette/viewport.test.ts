@@ -111,6 +111,16 @@ describe('wheel', () => {
     });
   });
 
+  test('counts a row that opens a group from its group title', () => {
+    const places = placesOf(['A', 'A', 'B', 'B'], true);
+    const group = places[2];
+    const moved = wheel(places, 2, group?.row ?? 0, 500, 20);
+
+    expect(moved.scroll).toBeLessThan(group?.row ?? 0);
+    expect(moved.scroll).toBeGreaterThan(group?.title ?? 0);
+    expect(moved.at).toBe(3);
+  });
+
   test('keeps the selection on screen', () => {
     const places = placesOf(
       Array.from({ length: 20 }, () => 'A'),

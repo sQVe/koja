@@ -74,6 +74,31 @@ describe('paneName', () => {
     expect(paneName(pane)).toBe('shell');
   });
 
+  test('shows the name someone gave the pane over the program name', () => {
+    const pane = {
+      ...paneOf('vim notes.md', { name: 'Claude Code', agent: true }),
+      name: 'Review',
+    };
+
+    expect(paneName(pane)).toBe('Review');
+  });
+
+  test('shows the name someone gave the pane over the terminal title', () => {
+    const pane = { ...paneOf('vim notes.md', { name: 'Neovim' }), name: 'Notes' };
+
+    expect(paneName(pane)).toBe('Notes');
+  });
+
+  test('treats a name of only whitespace as no name', () => {
+    const pane = { ...paneOf('vim notes.md', { name: 'Neovim' }), name: '   ' };
+
+    expect(paneName(pane)).toBe('vim notes.md');
+  });
+
+  test('shows the name someone gave a mod pane over the mod name', () => {
+    expect(paneName({ ...modPaneOf('Gallery'), name: 'Screens' })).toBe('Screens');
+  });
+
   test('shows the mod name for a mod pane, which has no program', () => {
     expect(paneName(modPaneOf('Gallery'))).toBe('Gallery');
   });

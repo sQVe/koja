@@ -44,6 +44,7 @@ const menuHost: MenuHost = {
   openWorktreeDialog,
   openGroveDialog,
   terminals,
+  panes,
   themes: themeChoices,
 };
 

@@ -1,3 +1,5 @@
+import { untab } from './textWidth.ts';
+
 type DiffKind = '@' | '+' | '-' | ' ' | '';
 
 export interface DiffRow {
@@ -17,17 +19,17 @@ export const diffRows = (lines: string[]): DiffRow[] => {
       old = Number(match[1]);
       current = Number(match[2]);
 
-      return { kind: '@', text: line };
+      return { kind: '@', text: untab(line) };
     }
 
     const kind = line[0];
 
     if (kind === '-') {
-      return { kind, number: old++, text: line.slice(1) || ' ' };
+      return { kind, number: old++, text: untab(line.slice(1)) || ' ' };
     }
 
     if (kind === '+') {
-      return { kind, number: current++, text: line.slice(1) || ' ' };
+      return { kind, number: current++, text: untab(line.slice(1)) || ' ' };
     }
 
     if (kind === ' ') {
@@ -35,9 +37,9 @@ export const diffRows = (lines: string[]): DiffRow[] => {
 
       old += 1;
 
-      return { kind, number, text: line.slice(1) || ' ' };
+      return { kind, number, text: untab(line.slice(1)) || ' ' };
     }
 
-    return { kind: '', text: line };
+    return { kind: '', text: untab(line) };
   });
 };
