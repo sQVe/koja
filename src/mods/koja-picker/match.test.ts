@@ -1,27 +1,16 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 
-import { bestFieldMatch, fuzzyMatch } from './match.ts';
+import { bestFieldMatch, fuzzyMatch, OccurrenceTable, routeWorkBudget } from './match.ts';
 
-const scanCounter = (letter: string): { scanned: () => number; restore: () => void } => {
-  const original = String.prototype.indexOf;
-  let scanned = 0;
-
-  const spy = spyOn(String.prototype, 'indexOf').mockImplementation(function (
-    this: string,
-    needle: string,
-    start = 0,
-  ): number {
-    if (needle === letter) {
-      scanned += Math.max(0, this.length - start);
-    }
-
-    return original.call(this, needle, start);
-  });
+const lookupCounter = (): { lookups: () => number; restore: () => void } => {
+  const positionLookup = spyOn(OccurrenceTable.prototype, 'firstAtOrAfter');
+  const wordStartLookup = spyOn(OccurrenceTable.prototype, 'firstWordStartAtOrAfter');
 
   return {
-    scanned: () => scanned,
+    lookups: () => positionLookup.mock.calls.length + wordStartLookup.mock.calls.length,
     restore: () => {
-      spy.mockRestore();
+      positionLookup.mockRestore();
+      wordStartLookup.mockRestore();
     },
   };
 };
@@ -43,28 +32,55 @@ describe('fuzzyMatch', () => {
 
   test('bounds the scans for a missing query letter on a long text', () => {
     const text = 'a'.repeat(400_000);
-    const counter = scanCounter('b');
+    const counter = lookupCounter();
+    let match: ReturnType<typeof fuzzyMatch> = null;
+    let lookups = 0;
 
     try {
-      expect(fuzzyMatch('ab', text)).toBeNull();
+      match = fuzzyMatch('ab', text);
+      lookups = counter.lookups();
     } finally {
       counter.restore();
     }
 
-    expect(counter.scanned()).toBeLessThan(text.length * 2);
+    expect(match).toBeNull();
+    expect(lookups).toBeLessThan(10);
   });
 
   test('bounds the scans when the rescue letter is present', () => {
     const text = `${'a'.repeat(400_000)}b`;
-    const counter = scanCounter('b');
+    const counter = lookupCounter();
+    let positions: number[] | undefined;
+    let lookups = 0;
 
     try {
-      expect(fuzzyMatch('ab', text)?.positions).toEqual([399_999, 400_000]);
+      positions = fuzzyMatch('ab', text)?.positions;
+      lookups = counter.lookups();
     } finally {
       counter.restore();
     }
 
-    expect(counter.scanned()).toBeLessThan(text.length * 2);
+    expect(positions).toEqual([399_999, 400_000]);
+    expect(lookups).toBeLessThan(text.length * 3);
+  });
+
+  test('bounds the occurrence-table lookups when the route search tries many starts', () => {
+    const count = 200;
+    const text = `${'a b '.repeat(count)}${'x'.repeat(12)}${'c'.repeat(count)}`;
+    const counter = lookupCounter();
+    let match: ReturnType<typeof fuzzyMatch> = null;
+    let lookups = 0;
+
+    try {
+      match = fuzzyMatch('abc', text);
+      lookups = counter.lookups();
+    } finally {
+      counter.restore();
+    }
+
+    expect(match).toBeNull();
+    expect(lookups).toBeGreaterThan(1000);
+    expect(lookups).toBeLessThanOrEqual(routeWorkBudget);
   });
 
   test('matches a compact rescue after a supplementary first character', () => {
@@ -141,6 +157,16 @@ describe('fuzzyMatch', () => {
 
   test('finds the word-start route past an earlier letter', () => {
     expect(fuzzyMatch('abc', 'abxxxxxxxxxx bc')?.positions).toEqual([0, 13, 14]);
+  });
+
+  test('finds a route that starts at a later occurrence of the first letter', () => {
+    const text = `a${'x'.repeat(11)}ab${'x'.repeat(11)}c c`;
+
+    expect(fuzzyMatch('abc', text)?.positions).toEqual([12, 13, 27]);
+  });
+
+  test('keeps a route whose earlier word start fails', () => {
+    expect(fuzzyMatch('abc', '-aax-xcxbx-- b x-bcxxx  aa  xx')?.positions).toEqual([1, 17, 18]);
   });
 
   test('accepts a wide match with a run after an astral character', () => {

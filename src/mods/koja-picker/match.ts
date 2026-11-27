@@ -10,8 +10,12 @@ export interface FieldMatch extends Match {
 interface FoldedText {
   text: string;
   folded: readonly string[];
+  // Folded code point index to original character index.
   originalOf: readonly number[];
-  starts: readonly number[];
+  // Original character index to its UTF-16 offset in `text`.
+  originalOffsets: readonly number[];
+  // Original character index to its first folded code point index.
+  foldedStarts: readonly number[];
 }
 
 interface RouteState {
@@ -19,7 +23,18 @@ interface RouteState {
   score: number;
   nextFolded: number;
   previousOriginal: number;
-  from: number;
+}
+
+interface RouteBudget {
+  spent: number;
+}
+
+interface RouteSearch {
+  queryCodePoints: readonly string[];
+  folded: FoldedText;
+  tables: ReadonlyMap<string, OccurrenceTable>;
+  failed: Set<number>;
+  budget: RouteBudget;
 }
 
 const runScore = 8;
@@ -34,8 +49,21 @@ const spreadPerLetter = 2;
 
 const spreadSlack = 4;
 
+export const routeWorkBudget = 4096;
+
 const isWordStart = (text: string, index: number): boolean =>
   index === 0 || /[\s/_.\-~]/.test(text.charAt(index - 1));
+
+const isRunOrWordStart = (
+  folded: FoldedText,
+  originalIndex: number,
+  previousOriginal: number,
+): boolean => {
+  const follows = originalIndex === previousOriginal + 1;
+  const startsWord = isWordStart(folded.text, folded.originalOffsets[originalIndex] ?? 0);
+
+  return follows || startsWord;
+};
 
 // Lowercasing one character at a time can pick a different case form than the whole string does,
 // so only the per-character folded length is used.
@@ -46,12 +74,15 @@ const foldText = (text: string): FoldedText => {
   const characters = Array.from(text);
   const folded = Array.from(text.toLowerCase());
   const lengths = foldedLengths(characters);
-  const starts: number[] = [];
+  const originalOffsets: number[] = [];
+  const foldedStarts: number[] = [];
   const originalOf: number[] = [];
-  let start = 0;
+  let offset = 0;
+  let foldedStart = 0;
 
   for (const [index, character] of characters.entries()) {
-    starts.push(start);
+    originalOffsets.push(offset);
+    foldedStarts.push(foldedStart);
 
     const foldedLength = lengths[index] ?? 0;
 
@@ -59,10 +90,11 @@ const foldText = (text: string): FoldedText => {
       originalOf.push(index);
     }
 
-    start += character.length;
+    offset += character.length;
+    foldedStart += foldedLength;
   }
 
-  return { text, folded, originalOf, starts };
+  return { text, folded, originalOf, originalOffsets, foldedStarts };
 };
 
 const isCompact = (folded: FoldedText, positions: readonly number[]): boolean => {
@@ -75,29 +107,9 @@ const isCompact = (folded: FoldedText, positions: readonly number[]): boolean =>
 
   return positions.slice(1).every((position, index) => {
     const previous = positions[index] ?? 0;
-    const follows = position === previous + 1;
-    const startsWord = isWordStart(folded.text, folded.starts[position] ?? 0);
 
-    return follows || startsWord;
+    return isRunOrWordStart(folded, position, previous);
   });
-};
-
-// Each letter gets one occurrence table, so the rescue does not rescan the suffix per start.
-const occurrenceTables = (
-  folded: readonly string[],
-  queryCodePoints: readonly string[],
-): Map<string, number[]> => {
-  const tables = new Map<string, number[]>();
-
-  for (const letter of new Set(queryCodePoints)) {
-    tables.set(letter, []);
-  }
-
-  for (const [index, codePoint] of folded.entries()) {
-    tables.get(codePoint)?.push(index);
-  }
-
-  return tables;
 };
 
 const firstAtOrAfter = (positions: readonly number[], from: number): number => {
@@ -117,14 +129,69 @@ const firstAtOrAfter = (positions: readonly number[], from: number): number => {
   return positions[low] ?? -1;
 };
 
-const scoreStep = (
+export class OccurrenceTable {
+  readonly positions: readonly number[];
+  readonly wordStarts: readonly number[];
+
+  constructor(positions: readonly number[], wordStarts: readonly number[]) {
+    this.positions = positions;
+    this.wordStarts = wordStarts;
+  }
+
+  firstAtOrAfter(from: number): number {
+    return firstAtOrAfter(this.positions, from);
+  }
+
+  firstWordStartAtOrAfter(from: number): number {
+    return firstAtOrAfter(this.wordStarts, from);
+  }
+}
+
+// Each letter gets one occurrence table, so the rescue does not rescan the suffix per start.
+const occurrenceTables = (
   folded: FoldedText,
-  originalIndex: number,
-  previous: number | null,
-  from: number,
-): number => {
-  const follows = previous !== null && originalIndex === previous + 1;
-  const startsWord = isWordStart(folded.text, folded.starts[originalIndex] ?? 0);
+  queryCodePoints: readonly string[],
+): Map<string, OccurrenceTable> => {
+  const positions = new Map<string, number[]>();
+  const wordStarts = new Map<string, number[]>();
+
+  for (const letter of new Set(queryCodePoints)) {
+    positions.set(letter, []);
+    wordStarts.set(letter, []);
+  }
+
+  for (const [foldedIndex, letter] of folded.folded.entries()) {
+    const letterPositions = positions.get(letter);
+
+    if (letterPositions === undefined) {
+      continue;
+    }
+
+    letterPositions.push(foldedIndex);
+
+    const originalIndex = folded.originalOf[foldedIndex] ?? 0;
+    const startsWord = isWordStart(folded.text, folded.originalOffsets[originalIndex] ?? 0);
+
+    if (startsWord) {
+      wordStarts.get(letter)?.push(foldedIndex);
+    }
+  }
+
+  const tables = new Map<string, OccurrenceTable>();
+
+  for (const [letter, letterPositions] of positions) {
+    const letterWordStarts = wordStarts.get(letter) ?? [];
+
+    tables.set(letter, new OccurrenceTable(letterPositions, letterWordStarts));
+  }
+
+  return tables;
+};
+
+const scoreStep = (folded: FoldedText, originalIndex: number, previous: number | null): number => {
+  const from = previous === null ? 0 : previous + 1;
+  const follows = previous !== null && originalIndex === from;
+  const startsWord = isWordStart(folded.text, folded.originalOffsets[originalIndex] ?? 0);
   const gap = Math.min(originalIndex - from, longestCountedGap);
 
   return (follows ? runScore : 1) + (startsWord ? wordStartScore : 0) - gap * gapPenalty;
@@ -133,17 +200,17 @@ const scoreStep = (
 const matchFrom = (
   queryCodePoints: readonly string[],
   folded: FoldedText,
-  tables: ReadonlyMap<string, number[]>,
+  tables: ReadonlyMap<string, OccurrenceTable>,
   searchFrom: number,
 ): Match | null => {
   const originalPositions: number[] = [];
   let score = 0;
-  let from = 0;
   let previous: number | null = null;
   let searching = searchFrom;
 
   for (const letter of queryCodePoints) {
-    const foldedIndex = firstAtOrAfter(tables.get(letter) ?? [], searching);
+    const table = tables.get(letter);
+    const foldedIndex = table?.firstAtOrAfter(searching) ?? -1;
 
     if (foldedIndex === -1) {
       return null;
@@ -157,17 +224,16 @@ const matchFrom = (
       continue;
     }
 
-    score += scoreStep(folded, originalIndex, previous, from);
+    score += scoreStep(folded, originalIndex, previous);
     originalPositions.push(originalIndex);
     previous = originalIndex;
-    from = originalIndex + 1;
   }
 
   if (originalPositions.length > 0 && !isCompact(folded, originalPositions)) {
     return null;
   }
 
-  const positions = originalPositions.map((index) => folded.starts[index] ?? 0);
+  const positions = originalPositions.map((index) => folded.originalOffsets[index] ?? 0);
 
   return { score, positions };
 };
@@ -176,17 +242,8 @@ const continuesRoute = (
   folded: FoldedText,
   originalIndex: number,
   previousOriginal: number,
-): boolean => {
-  if (originalIndex === previousOriginal) {
-    return true;
-  }
-
-  if (originalIndex === previousOriginal + 1) {
-    return true;
-  }
-
-  return isWordStart(folded.text, folded.starts[originalIndex] ?? 0);
-};
+): boolean =>
+  originalIndex === previousOriginal || isRunOrWordStart(folded, originalIndex, previousOriginal);
 
 const extendRoute = (
   folded: FoldedText,
@@ -198,31 +255,152 @@ const extendRoute = (
     return { ...state, nextFolded };
   }
 
-  const score = state.score + scoreStep(folded, originalIndex, state.previousOriginal, state.from);
+  const score = state.score + scoreStep(folded, originalIndex, state.previousOriginal);
 
   return {
     positions: [...state.positions, originalIndex],
     score,
     nextFolded,
     previousOriginal: originalIndex,
-    from: originalIndex + 1,
   };
 };
 
-// Explores the word-start and adjacent occurrences a greedy pass skipped. A failed state is
-// remembered so the exploration stays bounded by the query length and the text length.
-const routeFrom = (
-  queryCodePoints: readonly string[],
-  queryAt: number,
-  folded: FoldedText,
-  tables: ReadonlyMap<string, number[]>,
+const hasRouteWork = (budget: RouteBudget): boolean => budget.spent < routeWorkBudget;
+
+const nearestRouteCandidate = (
+  search: RouteSearch,
   state: RouteState,
-  failed: Set<number>,
+  table: OccurrenceTable,
+): number => {
+  const { folded, budget } = search;
+
+  budget.spent += 1;
+  const nearest = table.firstAtOrAfter(state.nextFolded);
+
+  if (nearest === -1) {
+    return -1;
+  }
+
+  const originalIndex = folded.originalOf[nearest] ?? 0;
+
+  if (!continuesRoute(folded, originalIndex, state.previousOriginal)) {
+    return -1;
+  }
+
+  return nearest;
+};
+
+const adjacentRouteCandidate = (
+  search: RouteSearch,
+  state: RouteState,
+  table: OccurrenceTable,
+  nearest: number,
+): number => {
+  const { folded, budget } = search;
+  const adjacentStart = folded.foldedStarts[state.previousOriginal + 1];
+
+  if (adjacentStart === undefined || !hasRouteWork(budget)) {
+    return -1;
+  }
+
+  budget.spent += 1;
+  const candidate = table.firstAtOrAfter(adjacentStart);
+
+  if (candidate === -1) {
+    return -1;
+  }
+
+  const originalIndex = folded.originalOf[candidate] ?? 0;
+
+  if (originalIndex !== state.previousOriginal + 1 || candidate === nearest) {
+    return -1;
+  }
+
+  return candidate;
+};
+
+const routeFromWordStarts = (
+  search: RouteSearch,
+  state: RouteState,
+  table: OccurrenceTable,
+  skip: readonly number[],
+  tryCandidate: (foldedIndex: number) => Match | null,
 ): Match | null => {
+  const { budget } = search;
+
+  if (!hasRouteWork(budget)) {
+    return null;
+  }
+
+  budget.spent += 1;
+  let wordStart = table.firstWordStartAtOrAfter(state.nextFolded);
+
+  while (wordStart !== -1) {
+    if (!skip.includes(wordStart)) {
+      const result = tryCandidate(wordStart);
+
+      if (result !== null) {
+        return result;
+      }
+    }
+
+    if (!hasRouteWork(budget)) {
+      return null;
+    }
+
+    budget.spent += 1;
+    wordStart = table.firstWordStartAtOrAfter(wordStart + 1);
+  }
+
+  return null;
+};
+
+// Tries every viable occurrence while the budget lasts: the nearest occurrence, the occurrence
+// adjacent to the previous one, and every word start after them.
+const routeFromOccurrences = (
+  search: RouteSearch,
+  state: RouteState,
+  table: OccurrenceTable,
+  tryCandidate: (foldedIndex: number) => Match | null,
+): Match | null => {
+  const nearest = nearestRouteCandidate(search, state, table);
+
+  if (nearest !== -1) {
+    const result = tryCandidate(nearest);
+
+    if (result !== null) {
+      return result;
+    }
+  }
+
+  const adjacent = adjacentRouteCandidate(search, state, table, nearest);
+
+  if (adjacent !== -1) {
+    const result = tryCandidate(adjacent);
+
+    if (result !== null) {
+      return result;
+    }
+  }
+
+  const skip = [nearest, adjacent];
+
+  return routeFromWordStarts(search, state, table, skip, tryCandidate);
+};
+
+// Explores the word-start and adjacent occurrences a greedy pass skipped. A failed state is
+// remembered, and one budget bounds the whole search so backtracking cannot grow without limit.
+const routeFrom = (search: RouteSearch, queryAt: number, state: RouteState): Match | null => {
+  const { queryCodePoints, folded, tables, failed, budget } = search;
+
   if (queryAt === queryCodePoints.length) {
-    const positions = state.positions.map((index) => folded.starts[index] ?? 0);
+    const positions = state.positions.map((index) => folded.originalOffsets[index] ?? 0);
 
     return { score: state.score, positions };
+  }
+
+  if (!hasRouteWork(budget)) {
+    return null;
   }
 
   const failedKey = queryAt * (folded.folded.length + 1) + state.nextFolded;
@@ -231,51 +409,70 @@ const routeFrom = (
     return null;
   }
 
-  const occurrences = tables.get(queryCodePoints[queryAt] ?? '') ?? [];
-  let foldedIndex = firstAtOrAfter(occurrences, state.nextFolded);
+  const table = tables.get(queryCodePoints[queryAt] ?? '');
 
-  while (foldedIndex !== -1) {
-    const originalIndex = folded.originalOf[foldedIndex] ?? 0;
-
-    if (continuesRoute(folded, originalIndex, state.previousOriginal)) {
-      const next = extendRoute(folded, state, originalIndex, foldedIndex + 1);
-      const result = routeFrom(queryCodePoints, queryAt + 1, folded, tables, next, failed);
-
-      if (result !== null) {
-        return result;
-      }
-    }
-
-    foldedIndex = firstAtOrAfter(occurrences, foldedIndex + 1);
+  if (table === undefined) {
+    return null;
   }
 
-  failed.add(failedKey);
+  const tryCandidate = (foldedIndex: number): Match | null => {
+    if (!hasRouteWork(budget)) {
+      return null;
+    }
 
-  return null;
+    budget.spent += 1;
+
+    const originalIndex = folded.originalOf[foldedIndex] ?? 0;
+    const next = extendRoute(folded, state, originalIndex, foldedIndex + 1);
+
+    return routeFrom(search, queryAt + 1, next);
+  };
+
+  const result = routeFromOccurrences(search, state, table, tryCandidate);
+
+  if (result === null) {
+    failed.add(failedKey);
+  }
+
+  return result;
 };
 
 const routeMatch = (
   queryCodePoints: readonly string[],
   folded: FoldedText,
-  tables: ReadonlyMap<string, number[]>,
+  tables: ReadonlyMap<string, OccurrenceTable>,
+  firstPositions: readonly number[],
 ): Match | null => {
-  const firstFolded = firstAtOrAfter(tables.get(queryCodePoints[0] ?? '') ?? [], 0);
-
-  if (firstFolded === -1) {
-    return null;
-  }
-
-  const firstOriginal = folded.originalOf[firstFolded] ?? 0;
-
-  const state: RouteState = {
-    positions: [firstOriginal],
-    score: scoreStep(folded, firstOriginal, null, 0),
-    nextFolded: firstFolded + 1,
-    previousOriginal: firstOriginal,
-    from: firstOriginal + 1,
+  const search: RouteSearch = {
+    queryCodePoints,
+    folded,
+    tables,
+    failed: new Set<number>(),
+    budget: { spent: 0 },
   };
 
-  return routeFrom(queryCodePoints, 1, folded, tables, state, new Set<number>());
+  for (const firstFolded of firstPositions) {
+    if (!hasRouteWork(search.budget)) {
+      break;
+    }
+
+    const firstOriginal = folded.originalOf[firstFolded] ?? 0;
+
+    const state: RouteState = {
+      positions: [firstOriginal],
+      score: scoreStep(folded, firstOriginal, null),
+      nextFolded: firstFolded + 1,
+      previousOriginal: firstOriginal,
+    };
+
+    const result = routeFrom(search, 1, state);
+
+    if (result !== null) {
+      return result;
+    }
+  }
+
+  return null;
 };
 
 export const fuzzyMatch = (query: string, text: string): Match | null => {
@@ -287,14 +484,17 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
 
   const queryCodePoints = Array.from(lowerQuery);
   const folded = foldText(text);
-  const tables = occurrenceTables(folded.folded, queryCodePoints);
-  const missing = queryCodePoints.some((letter) => (tables.get(letter) ?? []).length === 0);
+  const tables = occurrenceTables(folded, queryCodePoints);
+
+  const missing = queryCodePoints.some(
+    (letter) => (tables.get(letter)?.positions.length ?? 0) === 0,
+  );
 
   if (missing) {
     return null;
   }
 
-  const firstPositions = tables.get(queryCodePoints[0] ?? '') ?? [];
+  const firstPositions = tables.get(queryCodePoints[0] ?? '')?.positions ?? [];
 
   // The first occurrence keeps today's ranking; later starts rescue a spread-out first match.
   const first = matchFrom(queryCodePoints, folded, tables, firstPositions[0] ?? 0);
@@ -319,7 +519,7 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
     return best;
   }
 
-  return routeMatch(queryCodePoints, folded, tables);
+  return routeMatch(queryCodePoints, folded, tables, firstPositions);
 };
 
 export const bestFieldMatch = (
