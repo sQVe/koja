@@ -726,33 +726,48 @@ describe('Changes view', () => {
     expect(renderedList?.line).toBeNull();
   });
 
-  test('a failed read runs no status and no numstat command', async () => {
+  test('fails with the git error and reads no changes when git cannot read the folder', async () => {
     const view = await boot();
 
     const readsBefore = statusReads;
     const numstatBefore = numstatCommands().length;
-
-    const expectNoRead = (): void => {
-      expect(statusReads).toBe(readsBefore);
-      expect(numstatCommands()).toHaveLength(numstatBefore);
-    };
-
-    failIdentity = 'fatal: not a git repository';
-    view.refresh(context, true);
-    await settle();
-
-    expectNoRead();
 
     failIdentity = 'fatal: detected dubious ownership in repository at /repo';
     view.refresh(context, true);
     await settle();
     view.render(context);
 
-    expectNoRead();
+    expect(statusReads).toBe(readsBefore);
+    expect(numstatCommands()).toHaveLength(numstatBefore);
     expect(renderedList?.line?.kind).toBe('error');
   });
 
-  test('a bare repository runs no status read, shows the not-a-repository line, and starts no watch', async () => {
+  test('a folder outside a repository shows the not-a-repository line and reads no changes', async () => {
+    const view = await boot();
+
+    const readsBefore = statusReads;
+    const numstatBefore = numstatCommands().length;
+
+    failIdentity = 'fatal: not a git repository';
+    view.refresh(context, true);
+    await settle();
+    view.render(context);
+
+    expect(statusReads).toBe(readsBefore);
+    expect(numstatCommands()).toHaveLength(numstatBefore);
+    expect(renderedList?.line?.kind).toBe('error');
+  });
+
+  test('fails with the status error and reads no counts when status fails', async () => {
+    failStatus = true;
+
+    await boot();
+
+    expect(numstatCommands()).toEqual([]);
+    expect(renderedList?.line).toEqual({ kind: 'error', text: 'Error: status unavailable' });
+  });
+
+  test('reports a bare repository as not a git repository and reads no changes', async () => {
     bareRepository = true;
 
     const view = await boot();
@@ -884,6 +899,45 @@ describe('Changes view', () => {
 
     expect(statusReads).toBe(2);
     expect(renderedList?.files).toHaveLength(2);
+  });
+
+  test('the first good read starts one more read after the watch and keeps Commit off until it ends', async () => {
+    blockStatus = true;
+
+    const view = await loadView();
+
+    view.init(null, context);
+    typeMessage();
+    await settle();
+    view.render(context);
+
+    expect(statusReads).toBe(1);
+    expect(watchers).toHaveLength(1);
+
+    watchers[0]?.resolve(['/repo/a.ts']);
+    await settle();
+
+    expect(statusReads).toBe(1);
+
+    blockAfterReads = 1;
+    statusGate?.();
+    await settle();
+
+    clock.now += 120000;
+    timerHandler?.(context);
+    await settle();
+    view.render(context);
+
+    expect(statusReads).toBe(2);
+    expect(renderedCommit?.enabled).toBe(false);
+
+    blockStatus = false;
+    statusGate?.();
+    await settle();
+    view.render(context);
+
+    expect(statusReads).toBe(2);
+    expect(renderedCommit?.enabled).toBe(true);
   });
 
   test('timer ticks during a slow read start no extra read and Commit turns on after it', async () => {

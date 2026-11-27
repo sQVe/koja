@@ -347,6 +347,22 @@ describe('repoStatus', () => {
     expect(scan?.status).toBeNull();
   });
 
+  test('returns null and runs no change read when the folder changed after the identity read', async () => {
+    const h = harness();
+
+    const scan = await repoStatus(
+      h.host,
+      '/repo',
+      null,
+      request({ after: 900 }),
+      h.context,
+      () => false,
+    );
+
+    expect(scan).toBeNull();
+    expect(h.reads).toBe(0);
+  });
+
   test('reports no scan once the panel has left the folder', async () => {
     const h = harness();
 

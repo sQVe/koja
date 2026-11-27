@@ -233,7 +233,7 @@ describe('koja-spaces list cursor', () => {
     expect(state.scrollCalls).toEqual([spaceChildIndex(view, 'b')]);
   });
 
-  test('a draw in which nothing moved asks for no scroll', async () => {
+  test('a draw with no list command asks for no scroll', async () => {
     const view = await loadView();
 
     view.render();

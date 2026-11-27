@@ -485,7 +485,7 @@ describe('tabRowDisplay', () => {
     expect(tabRowDisplay(tabOf('k1', 1), [tuicrPane], []).label).toBe('review');
   });
 
-  test('labels an unnamed tab by its program when the title names it', () => {
+  test('labels an unnamed tab by the program it runs', () => {
     const named = { ...tuicrPane, title: 'tuicr' };
 
     expect(tabRowDisplay(tabOf('k1', 1), [named], []).label).toBe('tuicr');

@@ -98,6 +98,21 @@ describe('allEntries', () => {
     expect(names).not.toContain('agent.prev');
   });
 
+  test("lists every theme the app reports, including Koja's own", () => {
+    commandList = [commandOf('app.theme')];
+
+    themeList = [
+      { name: 'graphite', label: 'Theme: graphite', light: false },
+      { name: 'catppuccin-latte-muted', label: 'Theme: catppuccin latte muted', light: false },
+    ];
+
+    const titles = allEntries(host())
+      .filter((item) => item.name === 'app.theme')
+      .map((item) => item.title);
+
+    expect(titles).toEqual(['Theme: graphite', 'Theme: catppuccin latte muted']);
+  });
+
   test("offers only the themes of the window's lightness", () => {
     commandList = [commandOf('app.theme')];
     themeList = [themeOf('graphite', false), themeOf('catppuccin-latte', true)];

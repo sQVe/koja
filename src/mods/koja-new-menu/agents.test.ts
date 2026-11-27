@@ -25,7 +25,7 @@ describe('agentState', () => {
     expect(agentState({ status: 'pending' })?.kind).toBe('loading');
   });
 
-  test('says it could not check after a failure, even with agents to show', () => {
+  test('says it could not load after a failure', () => {
     expect(agentState({ status: 'failed', agents: [] })?.kind).toBe('error');
     expect(agentState({ status: 'failed', agents: [agent('pi', true)] })?.kind).toBe('error');
   });
