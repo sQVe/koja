@@ -160,6 +160,8 @@ export default class Spaces extends View {
 
   private halfPage = 1;
 
+  private lastHeight: number | null = null;
+
   private readonly scroll = ScrollHandle.new();
 
   private revealCursor = false;
@@ -214,7 +216,11 @@ export default class Spaces extends View {
       .on_size_change((size) => {
         this.halfPage = halfPageOf(size.height, rowHeight.small);
 
-        if (this.revealedIndex >= 0) {
+        const heightChanged = this.lastHeight !== size.height;
+
+        this.lastHeight = size.height;
+
+        if (heightChanged && this.revealedIndex >= 0) {
           this.scroll.scroll_to_item(this.revealedIndex);
         }
       })
@@ -506,6 +512,7 @@ export default class Spaces extends View {
 
   private listRows(state: DataState, projects: Project[], ids: readonly string[]): Element[] {
     const cursor = this.cursorRow(projects);
+    const active = activeSpaceId();
     const now = Date.now();
     const pulls = pullFactsOf(state);
 
@@ -518,7 +525,7 @@ export default class Spaces extends View {
         cursorElement = element;
       }
 
-      if (row.space.active) {
+      if (row.space.id === active) {
         activeElement = element;
       }
 
@@ -557,7 +564,7 @@ export default class Spaces extends View {
       onHover: this.setHovered,
     });
 
-    this.showRows(elements, cursorElement, activeElement);
+    this.showRows(elements, cursorElement, activeElement, active);
 
     return elements;
   }
@@ -567,6 +574,7 @@ export default class Spaces extends View {
     elements: readonly Element[],
     cursorElement: Element | null,
     activeElement: Element | null,
+    active: string | null,
   ): void {
     const cursorIndex = cursorElement === null ? -1 : elements.indexOf(cursorElement);
 
@@ -576,7 +584,6 @@ export default class Spaces extends View {
 
     this.revealCursor = false;
 
-    const active = activeSpaceId();
     const activeIndex = activeElement === null ? -1 : elements.indexOf(activeElement);
 
     if (active === this.revealedActive && activeIndex === this.revealedIndex) {

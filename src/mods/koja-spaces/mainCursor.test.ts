@@ -8,6 +8,7 @@ import {
   mark,
   redrawsOf,
   reportHeight,
+  reportSize,
   resetKojaSpaces,
   restoreKojaSpaces,
   rowHeightSmall,
@@ -248,6 +249,26 @@ describe('koja-spaces list cursor', () => {
     reportHeight(view, rowHeightSmall * 4);
 
     expect(state.scrollCalls).toEqual([spaceChildIndex(view, 'b')]);
+  });
+
+  test('a list that reports only a new width keeps the offset it had', async () => {
+    const view = await loadView();
+
+    reportHeight(view, rowHeightSmall * 4);
+    state.scrollCalls = [];
+
+    reportSize(view, 260, rowHeightSmall * 4);
+
+    expect(state.scrollCalls).toEqual([]);
+  });
+
+  test('a draw reveals the space spaces() reports active when two rows claim it', async () => {
+    const view = await loadView();
+
+    state.spaceList = [space('h', true), space('a', true)];
+    view.render();
+
+    expect(state.scrollCalls).toEqual([spaceChildIndex(view, 'h')]);
   });
 
   test('a list command on a sidebar that is not marked asks for no scroll', async () => {

@@ -437,10 +437,14 @@ export const spaceChildIndex = (view: FakeView, id: string): number => {
   return (list?.kids ?? []).findIndex((child) => elementsWithId(child, `space-${id}`).length > 0);
 };
 
-export const reportHeight = (view: FakeView, height: number): void => {
+export const reportSize = (view: FakeView, width: number, height: number): void => {
   for (const element of elementsWithSizeHandler(view.render())) {
-    element.sizeHandlers[0]?.({ width: 200, height }, {});
+    element.sizeHandlers[0]?.({ width, height }, {});
   }
+};
+
+export const reportHeight = (view: FakeView, height: number): void => {
+  reportSize(view, 200, height);
 };
 
 export const pressable = (element: DrawnElement): boolean =>
