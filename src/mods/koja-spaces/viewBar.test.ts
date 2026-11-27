@@ -2,6 +2,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import { click, clickablesWithText, drawn } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
+import { memoryStore } from '../../../tests/memoryStore.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -10,11 +11,6 @@ import {
 } from '../../../tests/moduleFakes.ts';
 import { sidebarViewKey } from './sidebarView.ts';
 import type { KeyValueStore } from './storage.ts';
-
-interface Stored {
-  values: Record<string, string>;
-  store: KeyValueStore;
-}
 
 const palette = {
   dim: '#2b2b3b',
@@ -45,26 +41,12 @@ afterAll(() => {
   mock.restore();
 });
 
-const stored = (view: string | null): Stored => {
-  const values: Record<string, string> = view === null ? {} : { [sidebarViewKey]: view };
-
-  return {
-    values,
-    store: {
-      get: (key) => values[key] ?? null,
-      set: (key, value) => {
-        values[key] = value;
-      },
-    },
-  };
-};
-
 const optionButton = (element: DrawnElement, label: string): DrawnElement | undefined =>
   clickablesWithText(element, label)[0];
 
 describe('viewBar', () => {
   test('the stored view is the active option', () => {
-    const { store } = stored('inbox');
+    const { store } = memoryStore({ [sidebarViewKey]: 'inbox' });
 
     const element = viewBar(store, () => undefined);
 
@@ -72,8 +54,22 @@ describe('viewBar', () => {
     expect(optionButton(element, 'Inbox')?.backgroundColors).toEqual([palette.selected]);
   });
 
-  test('a select stores the view and asks for one redraw', () => {
-    const { values, store } = stored('projects');
+  test('a select stores the chosen view', () => {
+    const { values, store } = memoryStore();
+
+    const element = viewBar(store, () => undefined);
+
+    const inbox = optionButton(element, 'Inbox');
+
+    if (inbox !== undefined) {
+      click(inbox);
+    }
+
+    expect(values[sidebarViewKey]).toBe('inbox');
+  });
+
+  test('a select asks for one redraw', () => {
+    const { store } = memoryStore();
     const changes: unknown[] = [];
     const context = { stop_propagation: () => undefined };
 
@@ -85,7 +81,6 @@ describe('viewBar', () => {
       click(inbox, context);
     }
 
-    expect(values[sidebarViewKey]).toBe('inbox');
     expect(changes).toEqual([context]);
   });
 });

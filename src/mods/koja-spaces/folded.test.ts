@@ -1,27 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
+import { memoryStore } from '../../../tests/memoryStore.ts';
 import { foldedSet } from './folded.ts';
-
-const store = (): {
-  values: Record<string, string>;
-  store: { get: (key: string) => string | null; set: (key: string, value: string) => void };
-} => {
-  const values: Record<string, string> = {};
-
-  return {
-    values,
-    store: {
-      get: (key) => values[key] ?? null,
-      set: (key, value) => {
-        values[key] = value;
-      },
-    },
-  };
-};
 
 describe('foldedSet', () => {
   test('toggles an item on and off, persisting each time', () => {
-    const { values, store: storage } = store();
+    const { values, store: storage } = memoryStore();
     const folded = foldedSet('machines.folded', storage);
 
     expect(folded.has('work')).toBe(false);
@@ -38,7 +22,7 @@ describe('foldedSet', () => {
   });
 
   test('recovers from invalid saved JSON and persists a later toggle', () => {
-    const { values, store: storage } = store();
+    const { values, store: storage } = memoryStore();
 
     storage.set('repos.folded', '{{{not json');
 
@@ -53,7 +37,7 @@ describe('foldedSet', () => {
   });
 
   test('reads an existing folded set', () => {
-    const { store: storage } = store();
+    const { store: storage } = memoryStore();
 
     storage.set('repos.folded', '["a","b"]');
 
@@ -64,7 +48,7 @@ describe('foldedSet', () => {
   });
 
   test('drops saved items that are not strings', () => {
-    const { values, store: storage } = store();
+    const { values, store: storage } = memoryStore();
 
     storage.set('repos.folded', '["a",1,null,{"b":true},["c"],"d"]');
 
