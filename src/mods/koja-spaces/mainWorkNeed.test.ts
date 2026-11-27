@@ -120,6 +120,39 @@ describe('koja-spaces row work need', () => {
     expect(elementWithIcon(afterEnd as DrawnElement, 'circle-x.svg')).not.toBeNull();
   });
 
+  test('a failed PR read drops the kept need when another repository takes the same path', async () => {
+    anotherOwner();
+    useStackFacts();
+
+    const view = await loadView();
+    const [before] = elementsWithId(view.render(), 'space-w');
+    const beforeEnd = (before as DrawnElement).kids.at(-1);
+
+    expect(elementWithIcon(beforeEnd as DrawnElement, 'circle-x.svg')).not.toBeNull();
+
+    const otherRepository = repositoryOf(null, '/code/other/.git');
+
+    const replaced = storedFacts(
+      [
+        { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
+        {
+          folder: '/code/koja-fix',
+          commonDirectory: '/code/other/.git',
+          linked: true,
+          branch: 'me-2-top',
+        },
+      ],
+      { [otherRepository.key]: { pulls: [], failed: true } },
+    );
+
+    showFacts(replaced);
+
+    const [after] = elementsWithId(view.render(), 'space-w');
+    const afterEnd = (after as DrawnElement).kids.at(-1);
+
+    expect(elementWithIcon(afterEnd as DrawnElement, 'circle-x.svg')).toBeNull();
+  });
+
   test('a failed PR read keeps the last need when the stack facts change', async () => {
     anotherOwner();
     useSingleStack(false, 'needed');

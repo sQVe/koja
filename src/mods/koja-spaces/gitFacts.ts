@@ -7,6 +7,7 @@ import type { GitInfo } from './tree.ts';
 
 export interface KeptNeed {
   branch: string | null;
+  repositoryKey: string;
   need: StackNeed;
 }
 
@@ -70,7 +71,7 @@ export const needAt = (
   if (pullFailedAt(state, git)) {
     const last = lastNeeds.get(git.worktreeKey);
 
-    if (last === undefined || last.branch !== git.branch) {
+    if (last === undefined || last.branch !== git.branch || last.repositoryKey !== git.repo.key) {
       lastNeeds.delete(git.worktreeKey);
 
       return null;
@@ -84,7 +85,7 @@ export const needAt = (
   if (need === null) {
     lastNeeds.delete(git.worktreeKey);
   } else {
-    lastNeeds.set(git.worktreeKey, { branch: git.branch, need });
+    lastNeeds.set(git.worktreeKey, { branch: git.branch, repositoryKey: git.repo.key, need });
   }
 
   return need;

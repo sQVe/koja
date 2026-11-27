@@ -51,15 +51,12 @@ const projectAt = (git: GitFacts, worktree: WorktreeGit | null, folder: string):
 const readFailed = (facts: Facts, found: FoundWorktree): boolean =>
   facts.pulls[found.worktree.repository.key]?.failed === true;
 
-const prDataAvailable = (facts: Facts, found: FoundWorktree | null): found is FoundWorktree =>
-  found !== null && !readFailed(facts, found);
-
 const pullFactsIn = (
   facts: Facts,
   found: FoundWorktree | null,
   branch: string | null,
 ): PullFacts => {
-  if (!prDataAvailable(facts, found)) {
+  if (found === null || readFailed(facts, found)) {
     return { pull: null, need: null };
   }
 
