@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { click, drawn } from '../../../tests/drawn.ts';
+import { click, drawn, elementsWithId } from '../../../tests/drawn.ts';
 import {
   chainable,
   gpuiBaseFake,
@@ -46,7 +46,7 @@ Object.assign(globalThis, {
 });
 
 await mock.module('gpui-base', () =>
-  gpuiBaseFake({ h_flex: chainable, ScrollHandle: { new: () => scrollHandle } }),
+  gpuiBaseFake({ h_flex: () => drawn(), ScrollHandle: { new: () => scrollHandle } }),
 );
 
 await mock.module('gpui-kit', () => gpuiKitFake({ div: chainable }));
@@ -198,6 +198,31 @@ describe('the active tab in view', () => {
     }
 
     expect(scrollCalls).toEqual([1]);
+  });
+
+  test('reveals the active tab again when a different tab takes its index', () => {
+    const view = new loaded.default();
+
+    view.render();
+    scrollCalls = [];
+
+    tabList = [{ id: 'tab-2', active: true }];
+    view.render();
+
+    expect(scrollCalls).toEqual([0]);
+  });
+
+  test('reveals the active tab when the strip itself changes size', () => {
+    const view = new loaded.default();
+    const [scroller] = elementsWithId(view.render() as DrawnElement, 'tab-scroll');
+
+    scrollCalls = [];
+
+    for (const handler of scroller?.sizeHandlers ?? []) {
+      handler({ width: 80, height: 28 }, context);
+    }
+
+    expect(scrollCalls).toEqual([0]);
   });
 });
 

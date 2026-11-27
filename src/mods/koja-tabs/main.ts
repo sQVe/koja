@@ -171,6 +171,8 @@ export default class Tabs extends View {
 
   private revealedIndex = -1;
 
+  private revealedTab: string | null = null;
+
   override init(_props: unknown, _cx: AsyncContext): void {
     // A session that ended with the new menu open leaves its flag set, and the `+` would draw
     // pressed with no menu over it. No popup survives a start, so a flag read here is always stale.
@@ -193,7 +195,9 @@ export default class Tabs extends View {
     const startSpacer = div().w(startPadding).flex_none();
     const endSpacer = div().flex_1().min_w(0);
 
-    const activeIndex = shown.findIndex((tabInfo) => tabInfo.active);
+    const active = shown.find((tabInfo) => tabInfo.active);
+    const activeId = active?.id ?? null;
+    const activeIndex = active === undefined ? -1 : shown.indexOf(active);
 
     const tabItems = shown.map((tabInfo, index) => {
       const item = this.tabItem(space, tabInfo, statuses.tabs[tabInfo.id] ?? null, index);
@@ -206,8 +210,9 @@ export default class Tabs extends View {
         : item;
     });
 
-    if (activeIndex !== this.revealedIndex) {
+    if (activeIndex !== this.revealedIndex || activeId !== this.revealedTab) {
       this.revealedIndex = activeIndex;
+      this.revealedTab = activeId;
       this.revealTab(activeIndex);
     }
 
