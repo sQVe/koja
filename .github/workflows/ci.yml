@@ -41,6 +41,9 @@ jobs:
         with:
           bun-version: 1.4.5
       - run: bun install --frozen-lockfile
+      # Fails when the runner patch is lost or stops working. See scripts/mutation-tuning.md.
+      - name: Dry run the mutation check
+        run: bunx --bun stryker run --dryRunOnly
       - run: bun run build
       - run: bun run --bun test
 
