@@ -1,0 +1,13 @@
+diff --git a/dist/index.js b/dist/index.js
+index acdebffdbc7508da6cd6cefbf4056b5b296842db..4f5b6aac76364024ce1cd02b69d82f5a21c20d1f 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -3627,7 +3627,7 @@ class BunTestRunner {
+       return;
+     });
+     if (this.cachedEagerModules === undefined || this.cachedEagerModulesCwd !== eagerCwd) {
+-      this.cachedEagerModules = await resolveEagerModulesFromGlobs(this.mutateGlobs);
++      this.cachedEagerModules = [];
+       this.cachedEagerModulesCwd = eagerCwd;
+       this.logger.debug("Resolved %d eager modules from mutate globs", this.cachedEagerModules.length);
+     }

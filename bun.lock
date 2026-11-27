@@ -22,6 +22,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@hughescr/stryker-bun-runner@1.6.0": "patches/@hughescr%2Fstryker-bun-runner@1.6.0.patch",
+  },
   "overrides": {
     "vite": "npm:@voidzero-dev/vite-plus-core@0.3.0",
   },
