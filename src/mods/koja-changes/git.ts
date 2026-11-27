@@ -56,7 +56,28 @@ export const statusCommand = (
   on: string | null,
 ): Promise<ExecResult> => run('git', [...readFlags, ...statusArguments], { cwd: root, on });
 
-const countOutputs = async (
+const readCounts = async (
+  git: (args: string[]) => Promise<ExecResult>,
+  requests: readonly string[][],
+): Promise<string[]> => {
+  const args = requests[0];
+
+  if (args === undefined) {
+    return [];
+  }
+
+  const result = await git(args);
+
+  if (result.code !== 0) {
+    throw new Error(result.stderr);
+  }
+
+  const rest = await readCounts(git, requests.slice(1));
+
+  return [result.stdout, ...rest];
+};
+
+const countOutputs = (
   git: (args: string[]) => Promise<ExecResult>,
   hasHead: boolean,
 ): Promise<string[]> => {
@@ -67,20 +88,7 @@ const countOutputs = async (
         ['diff', '--numstat', '-z', '--no-renames'],
       ];
 
-  const outputs: string[] = [];
-
-  for (const args of requests) {
-    // eslint-disable-next-line no-await-in-loop -- one count read at a time, so a failure stops the rest
-    const result = await git(args);
-
-    if (result.code !== 0) {
-      throw new Error(result.stderr);
-    }
-
-    outputs.push(result.stdout);
-  }
-
-  return outputs;
+  return readCounts(git, requests);
 };
 
 export const changeSnapshot = async (
