@@ -103,7 +103,7 @@ export const pullStackNeed = (
   }
 
   const needs = pullNeeds(pull).map(stackNeedOf);
-  const withRestack = restack === 'needed' ? [...needs, 'restack'] : needs;
+  const withRestack: StackNeed[] = restack === 'needed' ? [...needs, 'restack'] : needs;
 
   return mostBlockingNeed(withRestack);
 };

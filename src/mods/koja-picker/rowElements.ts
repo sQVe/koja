@@ -2,8 +2,6 @@ import type { VirtualListScrollHandle } from 'gpui-base';
 import { v_virtual_list } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
-import type { PullNeed } from '../../data/pullNeeds.ts';
-import type { WorkNeed } from '../../kit/index.ts';
 import {
   colors,
   emptyWorkSlot,
@@ -26,13 +24,6 @@ import type { StackReason } from './stackSearch.ts';
 type SpaceRow = Extract<PickerRow, { kind: 'space' }>;
 
 const rowState = (selected: boolean): 'selected' | 'normal' => (selected ? 'selected' : 'normal');
-
-const needLooks: Record<PullNeed, WorkNeed> = {
-  conflict: 'conflict',
-  failing: 'failing',
-  review: 'review',
-  ready: 'merge',
-};
 
 const reasonFacts = (reason: StackReason): string[] => {
   const facts = [`PR ${reason.position} of ${reason.total}`];
@@ -62,7 +53,7 @@ const spaceRow = (row: SpaceRow, selected: boolean, query: string, data: PickerD
   const facts = data.facts[space.id];
   const project = facts?.project ?? null;
   const need = facts?.need ?? null;
-  const workSlot = need === null ? emptyWorkSlot() : workIcon(needLooks[need]);
+  const workSlot = need === null ? emptyWorkSlot() : workIcon(need);
 
   return listRow({
     size: 'large',

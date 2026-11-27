@@ -175,10 +175,12 @@ const branchOf = (pull: StackPull): StackBranch => ({
 
 // Recorded facts for one space, so a row search reads its stack through the same place and worktree
 // branch the data layer stores.
-export const factsWithStack = (
+export const stackFacts = (
   folder: string,
+  branch: string | null,
   stack: SpaceStack,
-  livePulls: Pull[] = stack.pulls.flatMap(pullOfStack),
+  livePulls: Pull[],
+  failed = false,
 ): Facts => {
   const place = placeOf(null, folder);
   const worktree = worktreeOf(null, folder);
@@ -191,13 +193,13 @@ export const factsWithStack = (
         [worktree.key]: {
           repository,
           root: folder,
-          branch: stack.pulls[0]?.branch ?? null,
+          branch,
           linked: false,
           bare: false,
         },
       },
     },
-    pulls: { [repository.key]: { pulls: livePulls, failed: false } },
+    pulls: { [repository.key]: { pulls: livePulls, failed } },
     trackers: {},
     stacks: {
       [repository.key]: {
@@ -207,3 +209,9 @@ export const factsWithStack = (
     },
   };
 };
+
+export const factsWithStack = (
+  folder: string,
+  stack: SpaceStack,
+  livePulls: Pull[] = stack.pulls.flatMap(pullOfStack),
+): Facts => stackFacts(folder, stack.pulls[0]?.branch ?? null, stack, livePulls);

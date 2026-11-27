@@ -1,22 +1,116 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 
+import type { PaneInfo } from 'herdr';
+
+import type { DrawnElement } from '../../../tests/drawn.ts';
+import { drawn, drawnIcons, drawnTree } from '../../../tests/drawn.ts';
+import {
+  gpuiBaseFake,
+  gpuiKitFake,
+  herdrFake,
+  realKitIndexFake,
+} from '../../../tests/moduleFakes.ts';
 import {
   factsWithStack,
   mergedStack,
   pickerData,
   spaceOf,
+  stackFacts,
   stackOf,
   stackPullOf,
   tabOf,
   ticketStack,
 } from '../../../tests/pickerFixtures.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
+import type { Pull } from '../../data/pulls.ts';
 import type { Facts } from '../../data/snapshot.ts';
 import type { SpaceStack } from '../../data/spaceStack.ts';
 import type { PickerData } from './rows.ts';
 import { buildRows } from './rows.ts';
 
+interface Range {
+  start: number;
+  end: number;
+}
+
+type DrawRange = (range: Range) => DrawnElement[];
+
 const folder = '/home/me/koja';
+
+const palette = {
+  blocked: '#c0392b',
+  border: '#999ca7',
+  dim: '#525460',
+  done: '#2e7d32',
+  foreground: '#1e2028',
+  muted: '#3a3d4c',
+  popover: '#dcdee5',
+  working: '#b8860b',
+  idle: '#525460',
+} as const;
+
+Object.assign(globalThis, { kojaModName: 'koja-picker' });
+
+const virtualList = (
+  _id: string,
+  count: number,
+  _height: number,
+  _keyOf: (index: number) => string,
+  draw: DrawRange,
+): DrawnElement => drawnTree(draw({ start: 0, end: count }));
+
+await mock.module('gpui-base', () =>
+  gpuiBaseFake({ h_flex: () => drawn(), v_virtual_list: virtualList }),
+);
+
+await mock.module('gpui-kit', () =>
+  gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
+);
+
+await mock.module('herdr', () => herdrFake({ theme: () => palette, shared: () => undefined }));
+
+await mock.module('../../kit/index.ts', () =>
+  realKitIndexFake([
+    'factLine',
+    'icon',
+    'listRow',
+    'modName',
+    'size',
+    'statusMark',
+    'text',
+    'textRole',
+    'theme',
+    'workIcon',
+  ]),
+);
+
+const { spaceFacts } = (await import('./spaceFacts.ts')) as {
+  spaceFacts: (
+    facts: Facts | null,
+    spaceList: PickerData['spaces'],
+    paneList: PaneInfo[],
+  ) => PickerData['facts'];
+};
+
+const rowElementsPath = './rowElements.ts';
+
+const { list } = (await import(rowElementsPath)) as {
+  list: (
+    rows: ReturnType<typeof buildRows>,
+    query: string,
+    selectedKey: string | null,
+    data: PickerData,
+    scroll: unknown,
+    onItemClick: (key: string) => void,
+  ) => DrawnElement;
+};
+
+afterAll(() => {
+  mock.restore();
+});
+
+const listOf = (query: string, data: PickerData): DrawnElement =>
+  list(buildRows(query, null, data), query, null, data, {}, () => undefined);
 
 const reasonOf = (rows: ReturnType<typeof buildRows>, index: number) => {
   const row = rows[index];
@@ -213,5 +307,56 @@ describe('buildRows with stacks', () => {
 
     expect(rows.map((row) => row.key)).toEqual(['space:a']);
     expect(reasonOf(rows, 0)).toBeNull();
+  });
+});
+
+const conflictAndReady = (): { stack: SpaceStack; pulls: Pull[] } => {
+  const stack = stackOf([
+    stackPullOf({ branch: 'me-1-lower', number: 701 }),
+    stackPullOf({ branch: 'me-2-top', number: 702 }),
+  ]);
+
+  const pulls = [
+    pullFacts({
+      number: 701,
+      headRefName: 'me-1-lower',
+      mergeable: 'conflicting',
+      mergeState: 'dirty',
+    }),
+    pullFacts({
+      number: 702,
+      headRefName: 'me-2-top',
+      mergeable: 'mergeable',
+      mergeState: 'clean',
+      review: 'approved',
+      checks: { kind: 'read', value: 'passing' },
+      threads: { kind: 'read', value: { unresolved: 0, complete: true } },
+    }),
+  ];
+
+  return { stack, pulls };
+};
+
+// The space sits on the top branch, whose own PR is ready, while the lower PR conflicts.
+const dataForStack = (failed: boolean): PickerData => {
+  const { stack, pulls } = conflictAndReady();
+  const stored = stackFacts(folder, 'me-2-top', stack, pulls, failed);
+  const spaces = [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])];
+  const panes: PaneInfo[] = [];
+
+  return pickerData({ spaces, panes, stored, facts: spaceFacts(stored, spaces, panes) });
+};
+
+describe('the work icon of a space with a stack', () => {
+  test("a space's work icon covers its whole stack", () => {
+    const found = listOf('', dataForStack(false));
+
+    expect(drawnIcons(found)).toContain('triangle-alert.svg');
+  });
+
+  test('a failed PR read draws no work icon even when the stack has a need', () => {
+    const found = listOf('', dataForStack(true));
+
+    expect(drawnIcons(found)).toEqual([]);
   });
 });
