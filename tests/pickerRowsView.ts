@@ -5,6 +5,8 @@ import { buildRows } from '../src/mods/koja-picker/rows.ts';
 import type { DrawnElement } from './drawn.ts';
 import { drawn, drawnTree } from './drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, realKitIndexFake } from './moduleFakes.ts';
+import type { SavedGlobals } from './savedGlobals.ts';
+import { restoreGlobals, saveGlobals } from './savedGlobals.ts';
 
 interface Range {
   start: number;
@@ -61,10 +63,10 @@ const kitParts = [
   'workIcon',
 ];
 
-let savedKojaModName: PropertyDescriptor | undefined;
+let savedGlobals: SavedGlobals = new Map();
 
 export const setupPickerRows = async (): Promise<PickerRows> => {
-  savedKojaModName = Object.getOwnPropertyDescriptor(globalThis, 'kojaModName');
+  savedGlobals = saveGlobals(['kojaModName']);
   Object.assign(globalThis, { kojaModName: 'koja-picker' });
 
   await mock.module('gpui-base', () =>
@@ -90,11 +92,7 @@ export const setupPickerRows = async (): Promise<PickerRows> => {
 };
 
 export const restorePickerRows = (): void => {
-  if (savedKojaModName === undefined) {
-    Reflect.deleteProperty(globalThis, 'kojaModName');
-  } else {
-    Object.defineProperty(globalThis, 'kojaModName', savedKojaModName);
-  }
-
+  restoreGlobals(savedGlobals);
+  savedGlobals = new Map();
   mock.restore();
 };

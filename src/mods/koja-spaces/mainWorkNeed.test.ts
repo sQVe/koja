@@ -14,7 +14,7 @@ import {
   state,
   storedFacts,
 } from '../../../tests/kojaSpacesView.ts';
-import { pullFacts } from '../../../tests/pullFacts.ts';
+import { pullFacts, readyPull } from '../../../tests/pullFacts.ts';
 import { stacksOf } from '../../../tests/stackFixtures.ts';
 import { repositoryOf } from '../../data/gitIdentity.ts';
 
@@ -62,19 +62,11 @@ const failingPull = pullFacts({
   checks: { kind: 'read', value: 'failing' },
 });
 
-const readyPull = pullFacts({
-  number: 702,
-  headRefName: 'me-2-top',
-  mergeable: 'mergeable',
-  mergeState: 'clean',
-  review: 'approved',
-  checks: { kind: 'read', value: 'passing' },
-  threads: { kind: 'read', value: { unresolved: 0, complete: true } },
-});
+const ready = readyPull({ number: 702, headRefName: 'me-2-top' });
 
 const useStackFacts = (failed = false): void => {
   const facts = storedFacts(checkouts, {
-    [kojaRepository.key]: { pulls: [failingPull, readyPull], failed },
+    [kojaRepository.key]: { pulls: [failingPull, ready], failed },
   });
 
   facts.stacks = stacksOf(kojaRepository, ['me-1-lower', 'me-2-top']);
@@ -85,7 +77,7 @@ const useStackFacts = (failed = false): void => {
 
 const useSingleStack = (failed: boolean, restack: 'needed' | 'none'): void => {
   const facts = storedFacts(checkouts, {
-    [kojaRepository.key]: { pulls: [readyPull], failed },
+    [kojaRepository.key]: { pulls: [ready], failed },
   });
 
   facts.stacks = stacksOf(kojaRepository, ['me-2-top'], restack);

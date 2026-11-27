@@ -17,6 +17,8 @@ import {
 } from './drawn.ts';
 import type { DrawnElement } from './drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake, realKitIndexFake } from './moduleFakes.ts';
+import type { SavedGlobals } from './savedGlobals.ts';
+import { restoreGlobals, saveGlobals } from './savedGlobals.ts';
 
 export type MouseHandler = (event: unknown, cx: unknown) => void;
 
@@ -182,22 +184,10 @@ export const anotherOwner = (): void => {
 };
 
 const installedGlobals = ['kojaModName', 'localStorage'] as const;
-const savedGlobals = new Map<string, PropertyDescriptor | undefined>();
-
-const restoreGlobal = (name: string, descriptor: PropertyDescriptor | undefined): void => {
-  if (descriptor === undefined) {
-    Reflect.deleteProperty(globalThis, name);
-
-    return;
-  }
-
-  Object.defineProperty(globalThis, name, descriptor);
-};
+let savedGlobals: SavedGlobals = new Map();
 
 const installGlobals = (): void => {
-  for (const name of installedGlobals) {
-    savedGlobals.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
-  }
+  savedGlobals = saveGlobals(installedGlobals);
 
   Object.assign(globalThis, {
     kojaModName: 'koja',
@@ -303,11 +293,8 @@ export const setupKojaSpaces = async (): Promise<void> => {
 };
 
 export const restoreKojaSpaces = (): void => {
-  for (const [name, descriptor] of savedGlobals) {
-    restoreGlobal(name, descriptor);
-  }
-
-  savedGlobals.clear();
+  restoreGlobals(savedGlobals);
+  savedGlobals = new Map();
   crypto.randomUUID = realRandomUuid;
   mock.restore();
 };

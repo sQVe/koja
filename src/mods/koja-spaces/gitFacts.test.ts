@@ -151,16 +151,11 @@ describe('needAt', () => {
   test('gives null when the state is unavailable or the row has no checkout', () => {
     expect(needAt({ kind: 'unavailable' }, kojaGit, new Map())).toBeNull();
     expect(needAt(stateOf(kojaFacts()), null, new Map())).toBeNull();
-
-    const lastNeeds = new Map<string, KeptNeed>();
-
-    expect(needAt(readState(false), kojaGit, lastNeeds)).toBe('conflict');
-    expect(needAt({ kind: 'unavailable' }, kojaGit, lastNeeds)).toBeNull();
-    expect(needAt(readState(true), kojaGit, lastNeeds)).toBe('conflict');
   });
 
-  test('drops a kept need whose worktree leaves the snapshot when a read succeeds', () => {
+  test('keeps the needs of worktrees that stay when a read drops the ones that left', () => {
     const otherFolder = '/code/other';
+    const thirdFolder = '/code/third';
 
     const otherGit: GitInfo = {
       branch: 'main',
@@ -170,24 +165,54 @@ describe('needAt', () => {
       linked: false,
     };
 
+    const thirdGit: GitInfo = {
+      branch: 'main',
+      worktreeKey: worktreeOf(null, thirdFolder).key,
+      repo: repositoryOf(null, `${thirdFolder}/.git`),
+      root: thirdFolder,
+      linked: false,
+    };
+
+    const checkouts = {
+      koja: { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
+      other: { folder: otherFolder, commonDirectory: `${otherFolder}/.git`, linked: false },
+      third: { folder: thirdFolder, commonDirectory: `${thirdFolder}/.git`, linked: false },
+    };
+
+    const all = [checkouts.koja, checkouts.other, checkouts.third];
+    const withoutKojaCheckouts = [checkouts.other, checkouts.third];
+
+    const pulls = {
+      [kojaGit.repo.key]: { pulls: [conflictingPull], failed: false },
+      [otherGit.repo.key]: { pulls: [conflictingPull], failed: false },
+    };
+
     const lastNeeds = new Map<string, KeptNeed>();
 
-    expect(needAt(readState(false), kojaGit, lastNeeds)).toBe('conflict');
+    expect(needAt(stateOf(factsOf(all, pulls)), kojaGit, lastNeeds)).toBe('conflict');
+    expect(needAt(stateOf(factsOf(all, pulls)), otherGit, lastNeeds)).toBe('conflict');
 
-    const withoutKoja = stateOf(
-      factsOf([{ folder: otherFolder, commonDirectory: `${otherFolder}/.git`, linked: false }], {
-        [otherGit.repo.key]: { pulls: [], failed: false },
+    const withoutKoja = stateOf(factsOf(withoutKojaCheckouts, pulls));
+
+    expect(needAt(withoutKoja, thirdGit, lastNeeds)).toBeNull();
+    expect(lastNeeds.has(kojaGit.worktreeKey)).toBe(false);
+
+    const otherFailed = stateOf(
+      factsOf(withoutKojaCheckouts, {
+        [otherGit.repo.key]: { pulls: [], failed: true },
       }),
     );
 
-    expect(needAt(withoutKoja, otherGit, lastNeeds)).toBeNull();
+    expect(needAt(otherFailed, otherGit, lastNeeds)).toBe('conflict');
     expect(needAt(readState(true), kojaGit, lastNeeds)).toBeNull();
   });
 
-  test('keeps the last need through a failed read, then replaces or drops it on a successful one', () => {
+  test('keeps the last need through a failed or unavailable read, then replaces or drops it on a successful one', () => {
     const lastNeeds = new Map<string, KeptNeed>();
 
     expect(needAt(readState(false), kojaGit, lastNeeds)).toBe('conflict');
+    expect(needAt(readState(true), kojaGit, lastNeeds)).toBe('conflict');
+    expect(needAt({ kind: 'unavailable' }, kojaGit, lastNeeds)).toBeNull();
     expect(needAt(readState(true), kojaGit, lastNeeds)).toBe('conflict');
 
     expect(needAt(readState(false, [failingPull]), kojaGit, lastNeeds)).toBe('failing');

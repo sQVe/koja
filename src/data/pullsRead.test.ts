@@ -8,7 +8,7 @@ import {
   pullNodeOf,
   runWith,
 } from '../../tests/pullAnswers.ts';
-import { pullFacts } from '../../tests/pullFacts.ts';
+import { pullFacts, readyPull } from '../../tests/pullFacts.ts';
 import type { RunCommand } from './gitIdentity.ts';
 import { repositoryOf } from './gitIdentity.ts';
 import { pullNeeds } from './pullNeeds.ts';
@@ -31,15 +31,9 @@ const readFixture = async (name: string): Promise<Pull[]> =>
 
 const historyOf = (): Pull[] => {
   const pulls = [
-    pullFacts({
+    readyPull({
       number: 1,
       headRefName: 'wanted',
-      state: 'OPEN',
-      mergeable: 'mergeable',
-      mergeState: 'clean',
-      review: 'approved',
-      checks: { kind: 'read', value: 'passing' },
-      threads: { kind: 'read', value: { unresolved: 0, complete: true } },
     }),
   ];
 
