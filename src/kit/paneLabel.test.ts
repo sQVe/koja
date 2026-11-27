@@ -89,6 +89,12 @@ describe('paneName', () => {
     expect(paneName(pane)).toBe('Notes');
   });
 
+  test('treats a name of only whitespace as no name', () => {
+    const pane = { ...paneOf('vim notes.md', { name: 'Neovim' }), name: '   ' };
+
+    expect(paneName(pane)).toBe('vim notes.md');
+  });
+
   test('shows the name someone gave a mod pane over the mod name', () => {
     expect(paneName({ ...modPaneOf('Gallery'), name: 'Screens' })).toBe('Screens');
   });
