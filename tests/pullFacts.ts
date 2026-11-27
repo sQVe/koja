@@ -11,3 +11,15 @@ export const pullFacts = (fields: Pick<Pull, 'number' | 'headRefName'> & Partial
   threads: { kind: 'unread' },
   ...fields,
 });
+
+export const readyPull = (fields: Partial<Pull> = {}): Pull =>
+  pullFacts({
+    number: 1,
+    headRefName: 'main',
+    mergeable: 'mergeable',
+    mergeState: 'clean',
+    review: 'approved',
+    checks: { kind: 'read', value: 'passing' },
+    threads: { kind: 'read', value: { unresolved: 0, complete: true } },
+    ...fields,
+  });

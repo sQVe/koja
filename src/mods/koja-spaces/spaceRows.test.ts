@@ -166,6 +166,7 @@ describe('row', () => {
     const [age, slot] = rowElement.kids.slice(-2) as [DrawnElement, DrawnElement];
 
     expect(drawnTexts(age)).toEqual(['4m']);
+    expect(elementsWithStyle(slot, 'size')).toHaveLength(1);
     expect(drawnIcons(slot)).toEqual([]);
   });
 });

@@ -57,6 +57,17 @@ export const gitInfoAt = (state: DataState, place: Place): GitInfo | null | unde
   };
 };
 
+const dropNeedsOfGoneWorktrees = (
+  lastNeeds: Map<string, KeptNeed>,
+  worktrees: GitFacts['worktrees'],
+): void => {
+  for (const key of lastNeeds.keys()) {
+    if (!Object.hasOwn(worktrees, key)) {
+      lastNeeds.delete(key);
+    }
+  }
+};
+
 // A failed PR read freezes the PR array, but the stack facts keep arriving from local reads, so the
 // last need is kept per worktree until a successful read replaces it.
 export const needAt = (
@@ -81,6 +92,8 @@ export const needAt = (
   }
 
   const need = spaceNeedOf(state.snapshot.facts, git.worktreeKey);
+
+  dropNeedsOfGoneWorktrees(lastNeeds, state.snapshot.facts.git.worktrees);
 
   if (need === null) {
     lastNeeds.delete(git.worktreeKey);

@@ -7,11 +7,10 @@ import type { Place, RepositoryIdentity } from '../../data/gitIdentity.ts';
 import { placeOf } from '../../data/gitIdentity.ts';
 import { placeOfSpace } from '../../data/places.ts';
 import type { StackNeed } from '../../data/pullNeeds.ts';
-import { pullStackNeed } from '../../data/pullNeeds.ts';
 import { repositoryNameOf } from '../../data/repositoryName.ts';
 import type { Facts, GitFacts, WorktreeGit } from '../../data/snapshot.ts';
 import { pullOfBranch, worktreeKeyAtPlace } from '../../data/snapshot.ts';
-import { spaceNeedOf } from '../../data/spaceStack.ts';
+import { branchNeedOf, spaceNeedOf } from '../../data/spaceStack.ts';
 
 export interface SpaceFacts {
   project: string;
@@ -60,9 +59,16 @@ const pullFactsIn = (
     return { pull: null, need: null };
   }
 
-  const repository = facts.pulls[found.worktree.repository.key] ?? null;
-  const pull = pullOfBranch(repository, branch ?? found.worktree.branch);
-  const need = branch === null ? spaceNeedOf(facts, found.key) : pullStackNeed(pull, 'none');
+  const repositoryKey = found.worktree.repository.key;
+  const namedBranch = branch ?? found.worktree.branch;
+  const pull = pullOfBranch(facts.pulls[repositoryKey] ?? null, namedBranch);
+
+  // A space row shows its whole stack's need; pane facts keep the need of the pull of the branch
+  // the pane names, so a header cannot claim another branch's need.
+  const need =
+    branch === null
+      ? spaceNeedOf(facts, found.key)
+      : branchNeedOf(facts, repositoryKey, namedBranch);
 
   return { pull: pull?.number ?? null, need };
 };

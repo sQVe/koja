@@ -15,7 +15,7 @@ import {
   ticketStack,
 } from '../../../tests/pickerFixtures.ts';
 import { restorePickerRows, setupPickerRows } from '../../../tests/pickerRowsView.ts';
-import { pullFacts } from '../../../tests/pullFacts.ts';
+import { pullFacts, readyPull } from '../../../tests/pullFacts.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type { Facts } from '../../data/snapshot.ts';
 import type { SpaceStack } from '../../data/spaceStack.ts';
@@ -249,14 +249,9 @@ const conflictAndReady = (): { stack: SpaceStack; pulls: Pull[] } => {
       mergeable: 'conflicting',
       mergeState: 'dirty',
     }),
-    pullFacts({
+    readyPull({
       number: 702,
       headRefName: 'me-2-top',
-      mergeable: 'mergeable',
-      mergeState: 'clean',
-      review: 'approved',
-      checks: { kind: 'read', value: 'passing' },
-      threads: { kind: 'read', value: { unresolved: 0, complete: true } },
     }),
   ];
 
@@ -265,7 +260,7 @@ const conflictAndReady = (): { stack: SpaceStack; pulls: Pull[] } => {
 
 const dataForStack = (failed: boolean): PickerData => {
   const { stack, pulls } = conflictAndReady();
-  const stored = stackFacts(folder, 'me-2-top', stack, pulls, failed);
+  const stored = stackFacts({ folder, branch: 'me-2-top', stack, livePulls: pulls, failed });
   const spaces = [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])];
   const panes: PaneInfo[] = [];
 

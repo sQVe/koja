@@ -61,7 +61,10 @@ const kitParts = [
   'workIcon',
 ];
 
+let savedKojaModName: PropertyDescriptor | undefined;
+
 export const setupPickerRows = async (): Promise<PickerRows> => {
+  savedKojaModName = Object.getOwnPropertyDescriptor(globalThis, 'kojaModName');
   Object.assign(globalThis, { kojaModName: 'koja-picker' });
 
   await mock.module('gpui-base', () =>
@@ -87,5 +90,11 @@ export const setupPickerRows = async (): Promise<PickerRows> => {
 };
 
 export const restorePickerRows = (): void => {
+  if (savedKojaModName === undefined) {
+    Reflect.deleteProperty(globalThis, 'kojaModName');
+  } else {
+    Object.defineProperty(globalThis, 'kojaModName', savedKojaModName);
+  }
+
   mock.restore();
 };

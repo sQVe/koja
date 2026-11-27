@@ -17,7 +17,6 @@ import {
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import { stacksOf } from '../../../tests/stackFixtures.ts';
 import { repositoryOf } from '../../data/gitIdentity.ts';
-import type { RepositoryStacks } from '../../data/snapshot.ts';
 
 await setupKojaSpaces();
 
@@ -89,14 +88,7 @@ const useSingleStack = (failed: boolean, restack: 'needed' | 'none'): void => {
     [kojaRepository.key]: { pulls: [readyPull], failed },
   });
 
-  const stacks: Record<string, RepositoryStacks> = {
-    [kojaRepository.key]: {
-      stacks: [{ trunk: 'main', branches: [{ branch: 'me-2-top', pullNumber: null, restack }] }],
-      failed: false,
-    },
-  };
-
-  facts.stacks = stacks;
+  facts.stacks = stacksOf(kojaRepository, ['me-2-top'], restack);
   showFacts(facts);
 
   state.spaceList = [space('m', true, '/code/koja'), space('w', false, '/code/koja-fix')];

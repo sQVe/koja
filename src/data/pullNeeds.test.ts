@@ -1,22 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
-import { pullFacts } from '../../tests/pullFacts.ts';
+import { readyPull } from '../../tests/pullFacts.ts';
 import type { StackNeed } from './pullNeeds.ts';
 import { mostBlockingNeed, pullNeeds, pullStackNeed } from './pullNeeds.ts';
 import type { Pull } from './pulls.ts';
 import type { StackBranch } from './stacks.ts';
-
-const readyPull = (fields: Partial<Pull> = {}): Pull =>
-  pullFacts({
-    number: 1,
-    headRefName: 'main',
-    mergeable: 'mergeable',
-    mergeState: 'clean',
-    review: 'approved',
-    checks: { kind: 'read', value: 'passing' },
-    threads: { kind: 'read', value: { unresolved: 0, complete: true } },
-    ...fields,
-  });
 
 describe('pullNeeds', () => {
   test('maps failing checks and an unresolved thread to failing and review', () => {

@@ -117,6 +117,16 @@ export const spaceStackOf = (facts: Facts, worktreeKey: string): SpaceStack | nu
   };
 };
 
+export const branchNeedOf = (
+  facts: Facts,
+  repositoryKey: string,
+  branch: string | null,
+): StackNeed | null => {
+  const pull = pullOfBranch(facts.pulls[repositoryKey] ?? null, branch);
+
+  return pullStackNeed(pull, 'none');
+};
+
 export const spaceNeedOf = (facts: Facts, worktreeKey: string): StackNeed | null => {
   const worktree = facts.git.worktrees[worktreeKey];
 
@@ -130,9 +140,7 @@ export const spaceNeedOf = (facts: Facts, worktreeKey: string): StackNeed | null
     return mostBlockingNeed(stack.pulls.map((pull) => pull.need));
   }
 
-  const pull = pullOfBranch(facts.pulls[worktree.repository.key] ?? null, worktree.branch);
-
-  return pullStackNeed(pull, 'none');
+  return branchNeedOf(facts, worktree.repository.key, worktree.branch);
 };
 
 const parentOf = (tickets: Record<string, TicketFacts>, branch: string): string | null => {

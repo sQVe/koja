@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { pullFacts } from '../../tests/pullFacts.ts';
+import { pullFacts, readyPull } from '../../tests/pullFacts.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
 import { ticketIdOf } from './linearTickets.ts';
 import type { Pull } from './pulls.ts';
@@ -86,17 +86,6 @@ const factsOf = (fixture: Fixture): Facts => {
 
 const pullOf = (branch: string, number: number, state: string, isDraft = false): Pull =>
   pullFacts({ number, headRefName: branch, title: `Title of ${number}`, state, isDraft });
-
-const readyPullOf = (branch: string, number: number): Pull =>
-  pullFacts({
-    number,
-    headRefName: branch,
-    mergeable: 'mergeable',
-    mergeState: 'clean',
-    review: 'approved',
-    checks: { kind: 'read', value: 'passing' },
-    threads: { kind: 'read', value: { unresolved: 0, complete: true } },
-  });
 
 describe('spaceStackOf', () => {
   test("a space's stack counts merged PRs", () => {
@@ -259,7 +248,7 @@ describe('spaceNeedOf', () => {
           headRefName: 'me-1-one',
           checks: { kind: 'read', value: 'failing' },
         }),
-        readyPullOf('me-2-two', 12),
+        readyPull({ number: 12, headRefName: 'me-2-two' }),
       ],
     });
 
@@ -275,7 +264,7 @@ describe('spaceNeedOf', () => {
       stack: ['me-1-one', 'me-2-two'],
       branch: 'me-1-one',
       pulls: [
-        readyPullOf('me-1-one', 11),
+        readyPull({ number: 11, headRefName: 'me-1-one' }),
         pullFacts({
           number: 12,
           headRefName: 'me-2-two',
@@ -300,6 +289,41 @@ describe('spaceNeedOf', () => {
     });
 
     expect(spaceNeedOf(facts, worktree.key)).toBe('review');
+  });
+
+  test('a ready PR whose branch needs a restack needs the restack', () => {
+    const facts = factsOf({
+      stack: ['me-1-one'],
+      branch: 'me-1-one',
+      pulls: [readyPull({ number: 11, headRefName: 'me-1-one' })],
+      restacks: { 'me-1-one': 'needed' },
+    });
+
+    expect(spaceStackOf(facts, worktree.key)?.pulls[0]?.need).toBe('restack');
+    expect(spaceNeedOf(facts, worktree.key)).toBe('restack');
+  });
+
+  test('a stack whose PRs are all merged needs nothing', () => {
+    const facts = factsOf({
+      stack: ['me-1-one', 'me-2-two'],
+      branch: 'me-1-one',
+      pulls: [pullOf('me-1-one', 11, 'MERGED'), pullOf('me-2-two', 12, 'MERGED')],
+    });
+
+    expect(spaceNeedOf(facts, worktree.key)).toBeNull();
+  });
+
+  test('a stack of ready PRs needs a merge', () => {
+    const facts = factsOf({
+      stack: ['me-1-one', 'me-2-two'],
+      branch: 'me-1-one',
+      pulls: [
+        readyPull({ number: 11, headRefName: 'me-1-one' }),
+        readyPull({ number: 12, headRefName: 'me-2-two' }),
+      ],
+    });
+
+    expect(spaceNeedOf(facts, worktree.key)).toBe('merge');
   });
 
   test('a worktree key the facts do not hold needs nothing', () => {
