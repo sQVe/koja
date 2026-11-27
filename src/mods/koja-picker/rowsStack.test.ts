@@ -1,15 +1,8 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
 
 import type { PaneInfo } from 'herdr';
 
-import type { DrawnElement } from '../../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTree } from '../../../tests/drawn.ts';
-import {
-  gpuiBaseFake,
-  gpuiKitFake,
-  herdrFake,
-  realKitIndexFake,
-} from '../../../tests/moduleFakes.ts';
+import { drawnIcons } from '../../../tests/drawn.ts';
 import {
   factsWithStack,
   mergedStack,
@@ -21,6 +14,7 @@ import {
   tabOf,
   ticketStack,
 } from '../../../tests/pickerFixtures.ts';
+import { restorePickerRows, setupPickerRows } from '../../../tests/pickerRowsView.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type { Facts } from '../../data/snapshot.ts';
@@ -28,61 +22,9 @@ import type { SpaceStack } from '../../data/spaceStack.ts';
 import type { PickerData } from './rows.ts';
 import { buildRows } from './rows.ts';
 
-interface Range {
-  start: number;
-  end: number;
-}
-
-type DrawRange = (range: Range) => DrawnElement[];
-
 const folder = '/home/me/koja';
 
-const palette = {
-  blocked: '#c0392b',
-  border: '#999ca7',
-  dim: '#525460',
-  done: '#2e7d32',
-  foreground: '#1e2028',
-  muted: '#3a3d4c',
-  popover: '#dcdee5',
-  working: '#b8860b',
-  idle: '#525460',
-} as const;
-
-Object.assign(globalThis, { kojaModName: 'koja-picker' });
-
-const virtualList = (
-  _id: string,
-  count: number,
-  _height: number,
-  _keyOf: (index: number) => string,
-  draw: DrawRange,
-): DrawnElement => drawnTree(draw({ start: 0, end: count }));
-
-await mock.module('gpui-base', () =>
-  gpuiBaseFake({ h_flex: () => drawn(), v_virtual_list: virtualList }),
-);
-
-await mock.module('gpui-kit', () =>
-  gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
-);
-
-await mock.module('herdr', () => herdrFake({ theme: () => palette, shared: () => undefined }));
-
-await mock.module('../../kit/index.ts', () =>
-  realKitIndexFake([
-    'factLine',
-    'icon',
-    'listRow',
-    'modName',
-    'size',
-    'statusMark',
-    'text',
-    'textRole',
-    'theme',
-    'workIcon',
-  ]),
-);
+const { listOf } = await setupPickerRows();
 
 const { spaceFacts } = (await import('./spaceFacts.ts')) as {
   spaceFacts: (
@@ -92,25 +34,9 @@ const { spaceFacts } = (await import('./spaceFacts.ts')) as {
   ) => PickerData['facts'];
 };
 
-const rowElementsPath = './rowElements.ts';
-
-const { list } = (await import(rowElementsPath)) as {
-  list: (
-    rows: ReturnType<typeof buildRows>,
-    query: string,
-    selectedKey: string | null,
-    data: PickerData,
-    scroll: unknown,
-    onItemClick: (key: string) => void,
-  ) => DrawnElement;
-};
-
 afterAll(() => {
-  mock.restore();
+  restorePickerRows();
 });
-
-const listOf = (query: string, data: PickerData): DrawnElement =>
-  list(buildRows(query, null, data), query, null, data, {}, () => undefined);
 
 const reasonOf = (rows: ReturnType<typeof buildRows>, index: number) => {
   const row = rows[index];

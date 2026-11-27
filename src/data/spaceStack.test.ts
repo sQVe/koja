@@ -270,6 +270,28 @@ describe('spaceNeedOf', () => {
     expect(needs).toEqual(['failing', 'merge']);
   });
 
+  test('a stack whose strongest need sits on a later PR needs that PR fixed', () => {
+    const facts = factsOf({
+      stack: ['me-1-one', 'me-2-two'],
+      branch: 'me-1-one',
+      pulls: [
+        readyPullOf('me-1-one', 11),
+        pullFacts({
+          number: 12,
+          headRefName: 'me-2-two',
+          mergeable: 'conflicting',
+          mergeState: 'dirty',
+        }),
+      ],
+    });
+
+    expect(spaceNeedOf(facts, worktree.key)).toBe('conflict');
+
+    const needs = spaceStackOf(facts, worktree.key)?.pulls.map((pull) => pull.need);
+
+    expect(needs).toEqual(['merge', 'conflict']);
+  });
+
   test("a space without a stack takes its own PR's need", () => {
     const facts = factsOf({
       stack: [],
