@@ -337,7 +337,6 @@ const conflictAndReady = (): { stack: SpaceStack; pulls: Pull[] } => {
   return { stack, pulls };
 };
 
-// The space sits on the top branch, whose own PR is ready, while the lower PR conflicts.
 const dataForStack = (failed: boolean): PickerData => {
   const { stack, pulls } = conflictAndReady();
   const stored = stackFacts(folder, 'me-2-top', stack, pulls, failed);

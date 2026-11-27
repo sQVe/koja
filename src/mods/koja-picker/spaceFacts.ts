@@ -44,8 +44,6 @@ const projectAt = (git: GitFacts, worktree: WorktreeGit | null, folder: string):
   return repositoryNameOf(main?.root ?? null, worktree.repository.commonDirectory);
 };
 
-// A failed refresh keeps the last pulls it read, and drawing them would claim a need that is no
-// longer known.
 const readFailed = (facts: Facts, found: FoundWorktree): boolean =>
   facts.pulls[found.worktree.repository.key]?.failed === true;
 
