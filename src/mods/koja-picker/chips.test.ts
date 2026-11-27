@@ -125,4 +125,12 @@ describe('chips', () => {
 
     expect(asked).toEqual([2]);
   });
+
+  test('the strip scrolls sideways and tracks the handle it is given', () => {
+    const handle = { scroll_to_item: () => undefined } as unknown as ScrollHandle;
+    const row = chips(0, dataWith(['idle']), handle, () => undefined);
+
+    expect(row.styles['overflow_x_scroll']).toEqual([]);
+    expect(row.styles['track_scroll']).toEqual([handle]);
+  });
 });

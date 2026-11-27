@@ -227,13 +227,23 @@ describe('rollupOwners', () => {
     expect(owners.spaces['s1']).toBeNull();
   });
 
+  test('gives no space owner when a pane in another tab holds the status', () => {
+    const { spaces } = fixtures();
+    const panes = [paneOf('p1', 'k1', 'idle'), paneOf('p2', 'k2', 'working')];
+    const owners = rollupOwners(spaces, panes, [terminalOf('t-child', 't-p1', 'working')]);
+
+    expect(owners.tabs['k1']?.pane).toBe('p1');
+    expect(owners.tabs['k2']).toBeNull();
+    expect(owners.spaces['s1']).toBeNull();
+  });
+
   test('takes the first owning pane by tab order then pane order', () => {
     const { spaces } = fixtures();
 
     const panes = [
+      paneOf('p3', 'k2', 'idle'),
       paneOf('p1', 'k1', 'idle'),
       paneOf('p2', 'k1', 'idle'),
-      paneOf('p3', 'k2', 'idle'),
     ];
 
     const owners = rollupOwners(spaces, panes, [

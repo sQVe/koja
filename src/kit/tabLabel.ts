@@ -2,7 +2,7 @@ import type { PaneInfo, TabInfo } from 'herdr';
 
 import { terminalMetadata } from '../data/terminalRecord.ts';
 
-const taskByAddress = (terminalRecords: readonly unknown[]): Map<unknown, string> => {
+export const taskIndexOf = (terminalRecords: readonly unknown[]): Map<unknown, string> => {
   const tasks = new Map<unknown, string>();
 
   for (const [address, metadata] of terminalMetadata(terminalRecords)) {
@@ -14,16 +14,10 @@ const taskByAddress = (terminalRecords: readonly unknown[]): Map<unknown, string
   return tasks;
 };
 
-export const taskIndexOf = (terminalRecords: readonly unknown[]): Map<unknown, string> =>
-  taskByAddress(terminalRecords);
-
 export const taskOfPaneWithTasks = (
   pane: PaneInfo,
   tasks: ReadonlyMap<unknown, string>,
 ): string | null => tasks.get(pane.terminal) ?? null;
-
-export const taskOfPane = (pane: PaneInfo, terminalRecords: readonly unknown[]): string | null =>
-  taskOfPaneWithTasks(pane, taskIndexOf(terminalRecords));
 
 const workerTasksOf = (
   tabInfo: TabInfo,

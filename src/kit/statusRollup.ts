@@ -18,6 +18,7 @@ interface DescendantContribution {
   owner: PaneInfo;
 }
 
+// A null owner means a pane in that tab or space itself holds the rolled-up status.
 export interface StatusOwners {
   spaces: Record<string, PaneInfo | null>;
   tabs: Record<string, PaneInfo | null>;
@@ -192,13 +193,18 @@ const earliestPane = (
   return earliest;
 };
 
+const comesOnlyFromBackground = (
+  rolledStatus: Status | null,
+  paneStatuses: readonly (Status | null)[],
+): boolean => rolledStatus !== null && statusRank(rolledStatus) > statusRank(bestOf(paneStatuses));
+
 const tabOwner = (
   tabStatus: Status | null,
   paneStatuses: readonly (Status | null)[],
   contributions: readonly DescendantContribution[],
   position: ReadonlyMap<PaneInfo, number>,
 ): PaneInfo | null => {
-  if (tabStatus === null || statusRank(tabStatus) <= statusRank(bestOf(paneStatuses))) {
+  if (!comesOnlyFromBackground(tabStatus, paneStatuses)) {
     return null;
   }
 
@@ -211,12 +217,14 @@ const tabOwner = (
 
 const spaceOwner = (
   space: SpaceInfo,
-  spaceStatus: Status | null,
   tabs: Readonly<Record<string, Status | null>>,
   tabOwners: Readonly<Record<string, PaneInfo | null>>,
-  paneStatuses: readonly (Status | null)[],
+  paneStatuses: Readonly<Record<string, (Status | null)[]>>,
 ): PaneInfo | null => {
-  if (spaceStatus === null || statusRank(spaceStatus) <= statusRank(bestOf(paneStatuses))) {
+  const spaceStatus = spaceStatusOf(space, tabs);
+  const spacePanes = space.tabs.flatMap((tab) => paneStatuses[tab.id] ?? []);
+
+  if (!comesOnlyFromBackground(spaceStatus, spacePanes)) {
     return null;
   }
 
@@ -270,10 +278,7 @@ export const rollupOwners = (
   const spaces: Record<string, PaneInfo | null> = {};
 
   for (const space of spaceList) {
-    const spaceStatus = spaceStatusOf(space, tabs);
-    const spacePanes = space.tabs.flatMap((tab) => paneStatuses[tab.id] ?? []);
-
-    spaces[space.id] = spaceOwner(space, spaceStatus, tabs, owners, spacePanes);
+    spaces[space.id] = spaceOwner(space, tabs, owners, paneStatuses);
   }
 
   return { spaces, tabs: owners };
