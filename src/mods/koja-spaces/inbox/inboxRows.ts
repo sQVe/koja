@@ -1,24 +1,17 @@
 import type { Context, Element } from 'gpui-kit';
-import { div } from 'gpui-kit';
 import { openOverlay, run, setShared, shared, spaces } from 'herdr';
 import type { SpaceInfo } from 'herdr';
 
 import type { DataState } from '../../../data/consumer.ts';
-import {
-  detailText,
-  overlaySize,
-  sectionHeader,
-  sidebarSize,
-  spacing,
-  stateLine,
-} from '../../../kit/index.ts';
+import { detailText, overlaySize, sectionHeader, sidebarSize } from '../../../kit/index.ts';
 import { runSpaceCommand } from '../../../kit/space/spaceSelection.ts';
 import type { KeptNeed } from '../gitFacts.ts';
 import { needAt } from '../gitFacts.ts';
-import type { InboxGroup, InboxGroupId } from '../inbox.ts';
+import type { InboxGroup } from '../inbox.ts';
 import { inboxGroups, inboxIds } from '../inbox.ts';
+import { loadingRow, projectGap } from '../projectRows.ts';
 import type { ShownRow } from '../projects.ts';
-import { groupProjects, shownRows } from '../projects.ts';
+import { groupProjects, noFolds, shownRows } from '../projects.ts';
 import type { ListedSpace } from '../tree.ts';
 
 export interface InboxRowsHost {
@@ -26,8 +19,6 @@ export interface InboxRowsHost {
   loading: boolean;
   draw: (row: ListedSpace, project: string) => Element;
 }
-
-const noFolds = { has: (): boolean => false };
 
 export const inboxGroupsOf = (
   state: DataState,
@@ -66,23 +57,13 @@ const openSpaceMenu = (space: SpaceInfo): void => {
   });
 };
 
-const groupGap = (): Element =>
-  div()
-    .flex_none()
-    .h(sidebarSize.groupGap - 2 * spacing.xxsmall);
-
-const loadingRow = (): Element => stateLine({ kind: 'loading', text: 'Loading…' });
-
-const groupHeader = (group: InboxGroup): Element => {
-  const id: InboxGroupId = group.id;
-
-  return sectionHeader({
+const groupHeader = (group: InboxGroup): Element =>
+  sectionHeader({
     label: group.label,
     size: 'default',
     detail: [detailText(String(group.spaces.length))],
     paddingStart: sidebarSize.rowContentInset,
-  }).id(`inbox-${id}`);
-};
+  }).id(`inbox-${group.id}`);
 
 const inboxRow = (entry: ShownRow, host: InboxRowsHost): Element =>
   host
@@ -107,6 +88,6 @@ export const inboxRows = (host: InboxRowsHost): Element[] => {
   return host.groups.flatMap((group, index) => {
     const block = groupBlock(group, host);
 
-    return index === 0 ? block : [groupGap(), ...block];
+    return index === 0 ? block : [projectGap(), ...block];
   });
 };

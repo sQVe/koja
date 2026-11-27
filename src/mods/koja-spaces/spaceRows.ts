@@ -54,11 +54,11 @@ export const row = (
   state: RowState,
   pull: Pull | null,
   ticketTitle: string | null,
-  project: string | null = null,
+  projectName: string | null,
 ): Element => {
   const { space } = listed;
   const drop = dropMark(state, space.id, ids);
-  const end: Element[] = project === null ? [] : [projectDetail(project)];
+  const end: Element[] = projectName === null ? [] : [projectDetail(projectName)];
 
   if (state.age !== null) {
     end.push(detailText(state.age));
@@ -83,7 +83,7 @@ export const row = (
     end,
   }).id(`space-${space.id}`);
 
-  if (project === null) {
+  if (projectName === null) {
     state.attachDrag(element, space, ids);
   }
 

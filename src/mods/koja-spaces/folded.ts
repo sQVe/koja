@@ -1,13 +1,9 @@
 import { parsedJson } from '../../kit/parsedJson.ts';
+import type { KeyValueStore } from './storage.ts';
 
 export interface FoldedSet {
   has: (item: string) => boolean;
   toggle: (item: string) => void;
-}
-
-export interface FoldedStore {
-  get: (key: string) => string | null;
-  set: (key: string, value: string) => void;
 }
 
 const readStrings = (value: string | null): Set<string> => {
@@ -28,7 +24,7 @@ const toggled = (set: Set<string>, item: string): void => {
   }
 };
 
-export const foldedSet = (key: string, store: FoldedStore): FoldedSet => {
+export const foldedSet = (key: string, store: KeyValueStore): FoldedSet => {
   const items = readStrings(store.get(key));
 
   return {

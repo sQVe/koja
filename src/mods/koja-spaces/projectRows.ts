@@ -23,12 +23,12 @@ export interface ProjectRowsHost {
 const pullErrorText = 'Could not read PRs';
 
 // The list puts the row gap on both sides of this spacer, so the projects sit a group gap apart.
-const projectGap = (): Element =>
+export const projectGap = (): Element =>
   div()
     .flex_none()
     .h(sidebarSize.groupGap - 2 * spacing.xxsmall);
 
-const loadingRow = (): Element => stateLine({ kind: 'loading', text: 'Loading…' });
+export const loadingRow = (): Element => stateLine({ kind: 'loading', text: 'Loading…' });
 
 const pullErrorRow = (git: GitInfo, host: ProjectRowsHost): Element => {
   const retry = toggleButton({ label: 'Retry', active: false }).on_click((_event, cx) => {

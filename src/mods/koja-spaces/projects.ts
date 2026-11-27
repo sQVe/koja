@@ -63,6 +63,8 @@ const projectOf = (key: string, rows: ProjectRows, foldedKeys: FoldedKeys): Proj
   };
 };
 
+export const noFolds: FoldedKeys = { has: (): boolean => false };
+
 export const groupProjects = (list: ListedSpace[], foldedKeys: FoldedKeys): Project[] => {
   const byKey = new Map<string, ProjectRows>();
 

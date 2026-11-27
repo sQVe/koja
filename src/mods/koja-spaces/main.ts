@@ -55,10 +55,10 @@ import { answeredPlaces, gitInfoAt, needAt, pullFailedAt, pullFactsOf } from './
 import { inboxGroupsOf, inboxIdsOf, inboxRows } from './inbox/inboxRows.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
-import { groupProjects, shownSpaces } from './projects.ts';
+import { groupProjects, noFolds, shownSpaces } from './projects.ts';
 import { pullOf } from './pulls.ts';
 import { showsTitle } from './rows.ts';
-import { readSidebarView, sidebarViewKey } from './sidebarView.ts';
+import { sidebarViewKey, storedViewIsInbox } from './sidebarView.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
 import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
@@ -89,8 +89,6 @@ const ageMilliseconds = 60_000;
 const waitTimesKey = 'wait.times';
 
 const projectsFoldedKey = 'repos.folded';
-
-const noFolds = { has: (): boolean => false };
 
 const isSidebarMarked = (): boolean => readSection(shared) === 'sidebar';
 
@@ -423,7 +421,7 @@ export default class Spaces extends View {
   }
 
   private shownIds(state: DataState): string[] {
-    return readSidebarView(storage.get(sidebarViewKey)) === 'inbox'
+    return storedViewIsInbox(storage.get(sidebarViewKey))
       ? inboxIdsOf(state, this.listedSpaces(state), this.lastNeeds)
       : shownIdsOf(this.projects(state));
   }
@@ -469,7 +467,7 @@ export default class Spaces extends View {
     now: number,
     pulls: Record<string, RepositoryPulls>,
     facts: RowFacts,
-    project: string | null = null,
+    projectName: string | null,
   ): Element {
     const waiting = { id: row.space.id, status: row.status, active: row.space.active };
     const age = waitAge(this.waitTimes, waiting, now);
@@ -487,7 +485,7 @@ export default class Spaces extends View {
 
     const pull = pullOf(row.git, pulls);
 
-    return spaceRow(row, ids, state, pull, facts.ticketTitle, project);
+    return spaceRow(row, ids, state, pull, facts.ticketTitle, projectName);
   }
 
   private drawMain(
@@ -560,7 +558,7 @@ export default class Spaces extends View {
       need: needAt(state, row.git, this.lastNeeds),
     });
 
-    if (readSidebarView(storage.get(sidebarViewKey)) === 'inbox') {
+    if (storedViewIsInbox(storage.get(sidebarViewKey))) {
       const elements = inboxRows({
         groups: inboxGroupsOf(state, this.listedSpaces(state), this.lastNeeds),
         loading: this.isWaiting(),
@@ -582,7 +580,7 @@ export default class Spaces extends View {
           need: needAt(state, row.git, this.lastNeeds),
         };
 
-        return keepRow(row, this.draw(row, ids, cursor, now, pulls, facts));
+        return keepRow(row, this.draw(row, ids, cursor, now, pulls, facts, null));
       },
       drawMain: (project, main) =>
         keepRow(main, this.drawMain(project, main, ids, keys, cursor, now)),

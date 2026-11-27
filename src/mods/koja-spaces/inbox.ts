@@ -2,7 +2,7 @@ import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { ShownRow } from './projects.ts';
 import type { ListedSpace } from './tree.ts';
 
-export type InboxGroupId = 'asks' | 'pulls' | 'running' | 'quiet';
+type InboxGroupId = 'asks' | 'pulls' | 'running' | 'quiet';
 
 export interface InboxGroup {
   id: InboxGroupId;
