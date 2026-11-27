@@ -1,4 +1,3 @@
-// eslint-disable-next-line unicorn/prefer-node-protocol -- Herdr's runtime declares "fs/promises".
 import { exists, readdir, readFile } from 'fs/promises';
 
 import { isRecord, recordOf, stringOf } from '../../kit/fields.ts';

@@ -12,6 +12,14 @@ export default defineConfig({
     // Herdr's declarations are kept as Herdr wrote them, so an upgrade's diff shows only
     // Herdr's changes.
     ignorePatterns: ['herdr/*.d.ts'],
+    overrides: [
+      {
+        // Herdr's runtime declares only bare module specifiers, so a `node:` import neither
+        // typechecks nor resolves in a mod.
+        files: ['src/mods/**/*.ts'],
+        rules: { 'unicorn/prefer-node-protocol': 'off' },
+      },
+    ],
   },
   fmt: {
     ...format,
