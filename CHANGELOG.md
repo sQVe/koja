@@ -1,5 +1,14 @@
 # koja
 
+## 0.6.0
+
+### Minor Changes
+
+- [#142](https://github.com/sQVe/koja/pull/142)
+  [`8ad146e`](https://github.com/sQVe/koja/commit/8ad146ef198b029afd7f1e45e15b939b3203b446) Thanks
+  [@sQVe](https://github.com/sQVe)! - The sidebar can switch to an Inbox that groups spaces by what
+  needs you.
+
 ## 0.5.0
 
 ### Minor Changes
