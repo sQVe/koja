@@ -37,6 +37,7 @@ Koja lives in its own public repository and uses the same base as Tikk and Mergi
   exist only inside the Herdr app, so tests reach the modules that import them through
   `mock.module()`. A patch on the Bun test runner turns off its import of the mutated files before
   the tests, and a runner upgrade must carry that patch forward.
+- `renovate.json` never automerges the Stryker Bun runner, because Koja patches it.
 - ADRs after 0003 and the architecture section of `AGENTS.md` belong to Koja.
 - A tool's tuning record, such as `scripts/mutation-tuning.md`, lives next to the tool's setup. It
   states why each setting has its value and the measured runs behind it, so a later change can be

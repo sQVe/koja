@@ -36,6 +36,19 @@
       "automerge": true
     },
     {
+      "description": "Do not automerge the Stryker Bun runner, because Koja patches it, Bun only warns when the patch no longer matches, and an unpatched runner fails the mutation dry run. See scripts/mutation-tuning.md.",
+      "matchPackageNames": ["@hughescr/stryker-bun-runner"],
+      "groupName": "Stryker Bun runner",
+      "automerge": false,
+      "prBodyNotes": [
+        "Koja patches this runner, so the patch must be carried forward:",
+        "1. In `package.json`, rename the `patchedDependencies` key and its path value to the new version.",
+        "2. Rename the patch file under `patches/` to the same version.",
+        "3. Run `bun install` and `bunx --bun stryker run --dryRunOnly`.",
+        "See `scripts/mutation-tuning.md`."
+      ]
+    },
+    {
       "description": "Require dashboard approval for major devDependency updates",
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["major"],
