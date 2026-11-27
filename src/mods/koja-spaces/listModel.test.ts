@@ -175,6 +175,25 @@ describe('listModelOf', () => {
     expect(row?.need).toBe('failing');
   });
 
+  test('a row keeps no stack, ticket title, or need when the data state is unavailable', () => {
+    // The guard checks the state, not only the row, so this row keeps the facts of an earlier read.
+    const read = stateOf(factsOf({ branches: ['me-1-one'], branch: 'me-1-one' }));
+
+    const model = listModelOf({
+      state: { kind: 'unavailable' },
+      listed: [listedOf(read, spaceOf('w', 'idle'))],
+      folds: noFolds,
+      view: 'projects',
+      lastNeeds: new Map(),
+    });
+
+    const row = model.rows.get('w');
+
+    expect(row?.stack).toBeNull();
+    expect(row?.ticketTitle).toBeNull();
+    expect(row?.need).toBeNull();
+  });
+
   test('a failed PR read keeps the last need on the row', () => {
     const lastNeeds = new Map<string, KeptNeed>();
     const read = stateOf(factsOf({ pulls: [failingPull] }));

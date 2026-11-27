@@ -235,6 +235,13 @@ describe('spaceStackOf', () => {
 
     expect(states).toEqual(['draft', 'closed']);
   });
+
+  test('a worktree key the facts do not hold has no stack', () => {
+    const facts = factsOf({ stack: ['me-1-one'], branch: 'me-1-one' });
+    const unknown = worktreeOf(null, '/code/absent');
+
+    expect(spaceStackOf(facts, unknown.key)).toBeNull();
+  });
 });
 
 describe('spaceNeedOf', () => {

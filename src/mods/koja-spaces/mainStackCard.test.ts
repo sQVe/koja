@@ -126,6 +126,20 @@ describe('koja-spaces stack card', () => {
     expect(texts).toContain('#505');
   });
 
+  test("a stack space's row wraps its card with the space's id and a left anchor", async () => {
+    anotherOwner();
+    useSpaces(true);
+
+    const view = await loadView();
+
+    const wrapper = elementsWithStyle(view.render(), 'content').find(
+      (element) => elementsWithId(element, 'space-w').length > 0,
+    );
+
+    expect(wrapper?.styles['hoverCardId']?.[0]).toBe('stack-card-w');
+    expect(wrapper?.styles['anchor']?.[0]).toBe('left_center');
+  });
+
   test('a space without a stack gets no card', async () => {
     anotherOwner();
     useSpaces(false);

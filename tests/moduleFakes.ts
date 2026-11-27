@@ -91,14 +91,21 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
 });
 
 // A HoverCard draws its trigger while the card is closed and its content only while it is open.
-// The fake draws the trigger as a child and records the content, so a test finds the row and reads
-// the card without hover timing.
-const hoverCardElement = (): DrawnElement => {
+// The fake draws the trigger as a child and records its id, its content, and its anchor, so a test
+// finds the row and reads the card without hover timing.
+const hoverCardElement = (id: string): DrawnElement => {
   const element = drawn();
+
+  element.styles['hoverCardId'] = [id];
 
   Object.assign(element, {
     trigger: (child: unknown) => {
       element.kids.push(child as DrawnElement);
+
+      return element;
+    },
+    anchor: (anchor: unknown) => {
+      element.styles['anchor'] = [anchor];
 
       return element;
     },
@@ -108,7 +115,7 @@ const hoverCardElement = (): DrawnElement => {
 };
 
 export const gpuiBaseFake = (overrides: ModuleFake = {}): ModuleFake => ({
-  HoverCard: { new: () => hoverCardElement() },
+  HoverCard: { new: (id: string) => hoverCardElement(id) },
   Input: { new: () => chainable() },
   InputState: { new: () => undefined },
   ScrollHandle: { new: () => chainable() },
