@@ -310,7 +310,7 @@ const mockHostModules = async (): Promise<void> => {
   );
 };
 
-const kitParts = [
+export const kitParts = [
   'button',
   'hoverTarget',
   'icon',

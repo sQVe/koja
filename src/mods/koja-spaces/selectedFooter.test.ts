@@ -174,10 +174,11 @@ describe('selectedFooter', () => {
       throw new Error('The selected space draws no footer.');
     }
 
-    const counts = drawnTexts(footer).filter((text) => /^\d+\/\d+ merged$/.test(text));
+    expect(drawnTexts(footer)).toEqual(['name-w']);
+  });
 
-    expect(drawnTexts(footer)).toContain('name-w');
-    expect(counts).toEqual([]);
+  test('an active space with no row model draws no footer', () => {
+    expect(selectedFooter(liveState, modelOf([rowModel({ id: 'w' })]), 'missing')).toBeNull();
   });
 
   test('no active space, or no data, gives no footer', () => {

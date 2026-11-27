@@ -22,4 +22,8 @@ describe('stackProgressOf', () => {
   test('a stack of one shows no count', () => {
     expect(stackProgressOf(stack(1))).toBeNull();
   });
+
+  test('a stack of two shows its count', () => {
+    expect(stackProgressOf(stack(2))).toEqual({ merged: 0, total: 2 });
+  });
 });
