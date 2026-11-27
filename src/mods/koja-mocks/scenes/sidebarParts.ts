@@ -2,7 +2,6 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
-import type { StackCardModel, StackCardPull } from '../../../kit/index.ts';
 import {
   colors,
   emptyWorkSlot,
@@ -20,8 +19,9 @@ import {
   viewSwitch,
   workIcon,
 } from '../../../kit/index.ts';
-import type { FakeLayer, FakeProject, FakeSpace, RowLook } from './sidebarPartsData.ts';
-import { fakeProjects, hoveredProject, selectedLinks, stackLayers } from './sidebarPartsData.ts';
+import { stackCardFixture } from '../stackCardFixture.ts';
+import type { FakeProject, FakeSpace, RowLook } from './sidebarPartsData.ts';
+import { fakeProjects, selectedLinks } from './sidebarPartsData.ts';
 
 const views = [
   { id: 'projects', label: 'Projects' },
@@ -136,35 +136,8 @@ const sidebar = (): Element => {
     .children(footers);
 };
 
-const pullEnd = (layer: FakeLayer): StackCardPull['end'] => {
-  if (layer.need !== undefined) {
-    return layer.need;
-  }
-
-  return layer.state === 'draft' ? 'draft' : null;
-};
-
-const stackCardModel = (space: FakeSpace): StackCardModel => {
-  const merged = stackLayers.filter((layer) => layer.state === 'merged');
-  const pulls = stackLayers.filter((layer) => layer.state !== 'merged');
-
-  return {
-    title: space.title,
-    project: hoveredProject,
-    merged: merged.map((layer) => layer.pull),
-    pulls: pulls.map((layer) => ({
-      number: layer.pull,
-      ticket: layer.ticket,
-      title: layer.title,
-      checkedOut: layer.state === 'checkedOut',
-      end: pullEnd(layer),
-    })),
-    total: stackLayers.length,
-  };
-};
-
 const stackCardOf = (space: FakeSpace): Element => {
-  const model = stackCardModel(space);
+  const model = { ...stackCardFixture, title: space.title };
 
   return div()
     .absolute()
