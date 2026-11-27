@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
+import { seededRandom } from '../../../tests/seeded.ts';
+
 interface SearchFocusInput {
   focus: () => void;
   on: (event: string, handler: () => void) => boolean;
@@ -26,6 +28,12 @@ interface FakeInput extends SearchFocusInput {
 interface FakeTask {
   cancel: () => void;
   is_done: () => boolean;
+}
+
+interface TimerEntry {
+  cancelled: boolean;
+  done: boolean;
+  run: () => void;
 }
 
 interface FakeTimer {
@@ -82,7 +90,7 @@ const setup = (): Harness => {
 
   const delays: number[] = [];
   const runs: (() => void)[] = [];
-  const queued: { cancelled: boolean; done: boolean; run: () => void }[] = [];
+  const queued: TimerEntry[] = [];
 
   const timer: FakeTimer = {
     delays,
@@ -90,25 +98,20 @@ const setup = (): Harness => {
     after: (delay, handler) => {
       delays.push(delay);
 
-      const entry = {
+      const entry: TimerEntry = {
         cancelled: false,
         done: false,
-        run: (): void => undefined,
+        run: () => {
+          if (entry.cancelled || entry.done) {
+            return;
+          }
+
+          entry.done = true;
+          handler(context);
+        },
       };
 
-      entry.run = () => {
-        if (entry.cancelled || entry.done) {
-          return;
-        }
-
-        entry.done = true;
-        handler(context);
-      };
-
-      runs.push(() => {
-        entry.run();
-      });
-
+      runs.push(entry.run);
       queued.push(entry);
 
       return {
@@ -215,5 +218,34 @@ describe('keepSearchFocused', () => {
 
     expect(input.focusCalls).toBe(3);
     expect(timer.pending()).toBe(1);
+  });
+
+  test('random focus, blur, and timer runs leave at most one retry pending', () => {
+    for (let seed = 1; seed <= 50; seed += 1) {
+      const { host, input, timer, context } = setup();
+      const random = seededRandom(seed);
+
+      keepSearchFocused(host, context);
+
+      for (let step = 0; step < 30; step += 1) {
+        const action = Math.floor(random() * 3);
+
+        if (action === 0) {
+          input.emit('focus');
+        } else if (action === 1) {
+          input.emit('blur');
+        } else {
+          const index = Math.floor(random() * timer.runs.length);
+
+          timer.runs[index]?.();
+        }
+
+        expect(timer.pending(), `seed ${seed}: more than one retry waits`).toBeLessThanOrEqual(1);
+
+        if (host.isSearchFocused()) {
+          expect(timer.pending(), `seed ${seed}: a retry waits while focused`).toBe(0);
+        }
+      }
+    }
   });
 });

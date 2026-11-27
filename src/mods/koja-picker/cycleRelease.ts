@@ -1,7 +1,6 @@
-export interface CycleRow {
-  key: string;
-  kind: string;
-}
+import type { PickerRow } from './rows.ts';
+
+export type CycleRow = Pick<PickerRow, 'key' | 'kind'>;
 
 export interface CycleRelease<Row extends CycleRow> {
   armRow: (rows: readonly Row[], index: number) => void;

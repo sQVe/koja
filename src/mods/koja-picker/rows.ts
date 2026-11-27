@@ -138,14 +138,14 @@ export const tabRowDisplay = (
   return { program, label: tabLabel(tab, program, paneList, terminalRecords) };
 };
 
+const statusInList = (status: Status | null, statuses: Status[]): boolean =>
+  status !== null && statuses.includes(status);
+
 const hasStatus = (pane: PaneInfo, statuses: Status[]): boolean =>
-  pane.status !== null && statuses.includes(pane.status);
+  statusInList(pane.status, statuses);
 
 const inStatus = (pane: PaneInfo, statuses: Status[] | null): boolean =>
   statuses === null || hasStatus(pane, statuses);
-
-const statusInList = (status: Status | null, statuses: Status[]): boolean =>
-  status !== null && statuses.includes(status);
 
 const matchesStatus = (status: Status | null, statuses: Status[] | null): boolean =>
   statuses === null || statusInList(status, statuses);

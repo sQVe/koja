@@ -58,6 +58,7 @@ describe('buildRows search cost', () => {
     buildRows('needle', null, many);
     const manyReads = counter.reads();
 
+    expect(oneReads).toBeGreaterThan(0);
     expect(manyReads).toBe(oneReads);
   });
 });

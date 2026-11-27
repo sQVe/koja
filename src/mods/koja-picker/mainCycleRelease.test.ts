@@ -264,7 +264,6 @@ describe('Control release', () => {
     typeQuery('zzzzzz');
     await cycle();
 
-    typeQuery('');
     releaseControl();
 
     expect(selectionCommands()).toEqual([]);

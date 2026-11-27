@@ -5,20 +5,8 @@ import { drawnTexts, numberStyle } from '../../../tests/drawn.ts';
 import { paneOf, pickerData, spaceOf, tabOf } from '../../../tests/pickerFixtures.ts';
 import { restorePickerRows, setupPickerRows } from '../../../tests/pickerRowsView.ts';
 import type { PickerData } from './rows.ts';
-import { buildRows } from './rows.ts';
 
-await setupPickerRows();
-
-const { list } = (await import('./rowElements.ts')) as unknown as {
-  list: (
-    rows: ReturnType<typeof buildRows>,
-    query: string,
-    selectedKey: string | null,
-    data: PickerData,
-    scroll: unknown,
-    onItemClick: (key: string) => void,
-  ) => DrawnElement;
-};
+const { listOf } = await setupPickerRows();
 
 afterAll(() => {
   restorePickerRows();
@@ -47,12 +35,23 @@ const rowWithText = (element: DrawnElement, text: string): DrawnElement => {
 describe('list layout under a status filter', () => {
   test('a filtered pane without a tab row aligns with other direct children', () => {
     const data = compoundFilterFixture();
-    const rows = buildRows('', ['done', 'blocked'], data);
-    const drawn = list(rows, '', null, data, {}, () => undefined);
+    const drawn = listOf('', data, ['done', 'blocked']);
 
     const pane = rowWithText(drawn, 'zsh · title p1');
     const tab = rowWithText(drawn, 'zsh');
 
     expect(numberStyle(pane, 'pl')).toBe(numberStyle(tab, 'pl'));
+  });
+});
+
+describe('list layout without a status filter', () => {
+  test('a pane under a shown tab row indents past that row', () => {
+    const data = compoundFilterFixture();
+    const drawn = listOf('', data);
+
+    const pane = rowWithText(drawn, 'zsh · title p1');
+    const tab = rowWithText(drawn, 'zsh');
+
+    expect(numberStyle(pane, 'pl')).toBeGreaterThan(numberStyle(tab, 'pl'));
   });
 });

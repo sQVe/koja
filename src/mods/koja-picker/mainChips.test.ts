@@ -4,8 +4,6 @@ import type { SpaceInfo } from 'herdr';
 
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
 
-type KeyHandler = (event: { key: string; modifiers: { control: boolean } }, cx: unknown) => void;
-
 type ActionHandler = (event: unknown, cx: unknown) => void;
 
 const palette = {
@@ -57,19 +55,11 @@ const listScroll = {
   release: () => true,
 };
 
-const chainable = (onKeyDown?: (handler: KeyHandler) => void): unknown => {
+const chainable = (): unknown => {
   const element: unknown = new Proxy(() => element, {
     get: (_target, key) => {
       if (key === 'then') {
         return undefined;
-      }
-
-      if (key === 'on_key_down') {
-        return (handler: KeyHandler) => {
-          onKeyDown?.(handler);
-
-          return element;
-        };
       }
 
       if (key === 'on_action') {
@@ -234,5 +224,6 @@ describe('filter chips', () => {
     press('shift-tab');
 
     expect(chipScrollCalls).toEqual([1, 0]);
+    expect(listScrollCalls).toEqual([0, 0]);
   });
 });
