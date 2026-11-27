@@ -45,7 +45,7 @@ const restarted = (gesture: WheelGesture, event: WheelEvent, now: number): boole
 
 const restart = (gesture: WheelGesture, event: WheelEvent, now: number): WheelGesture => {
   if (restarted(gesture, event, now)) {
-    return noWheelGesture;
+    return { ...noWheelGesture };
   }
 
   if (!reversed(gesture, event.delta.y)) {
@@ -59,7 +59,7 @@ export const wheelTurn = (gesture: WheelGesture, event: WheelEvent, now: number)
   if (event.delta_lines !== undefined) {
     const lines = event.delta_lines.y;
 
-    return { gesture, step: lines === 0 ? null : direction(lines) };
+    return { gesture: { ...gesture }, step: lines === 0 ? null : direction(lines) };
   }
 
   const start = restart(gesture, event, now);

@@ -150,4 +150,16 @@ describe('wheelTurn', () => {
     expect(after.steps).toBe(1);
     expect(after.accumulated).toBe(80);
   });
+
+  test('starts a new gesture from a default that a returned gesture cannot change', () => {
+    const lineTurn = wheelTurn(noWheelGesture, lines(3), 1000);
+
+    lineTurn.gesture.accumulated = 99;
+    lineTurn.gesture.direction = 'next';
+
+    const after = wheelTurn(noWheelGesture, pixels(20), 2000);
+
+    expect(after.gesture.accumulated).toBe(0);
+    expect(after.gesture.direction).toBe('prev');
+  });
 });
