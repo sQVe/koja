@@ -243,7 +243,7 @@ export default class Palette extends View {
       layouts,
       platform: currentWindow()?.platform ?? null,
       themes: themeChoices,
-      dark: Boolean(settings()['dark']),
+      dark: settings()['appearance'] === 'dark',
       layout: stringOf(shared('layout')),
     };
 

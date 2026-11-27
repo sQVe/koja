@@ -80,7 +80,7 @@ let submitInput: (() => void) | null = null;
 let keyBindings: KeyBinding[] = [];
 let homeDirectory = '';
 let themeList: { name: string; light: boolean; colors: Record<string, string> }[] = [];
-let darkSetting = false;
+let appearanceSetting = 'light';
 let tasks: Promise<void>[] = [];
 
 const inputStub = {
@@ -117,7 +117,7 @@ await mock.module('herdr', () =>
   herdrFake({
     appHome: () => homeDirectory,
     commands: () => catalogCommands,
-    settings: () => ({ dark: darkSetting }),
+    settings: () => ({ appearance: appearanceSetting }),
     themes: () => themeList,
     keys: () => keyBindings,
     layouts: () => [],
@@ -290,7 +290,7 @@ beforeEach(() => {
   catalogCommands = defaultCommands;
   homeDirectory = '';
   themeList = [];
-  darkSetting = false;
+  appearanceSetting = 'light';
   tasks = [];
 });
 
@@ -569,7 +569,7 @@ describe('mod palettes', () => {
 
   test('draws the key of a JSON action on its row', async () => {
     withCommand('app.theme');
-    darkSetting = true;
+    appearanceSetting = 'dark';
     themeList = [{ name: 'graphite', light: false, colors: {} }];
 
     keyBindings = [
@@ -585,5 +585,26 @@ describe('mod palettes', () => {
     const labels = row === null ? [] : keycapLabelsOf(row);
 
     expect(labels).toEqual(['Ctrl+Alt+T']);
+  });
+
+  test("offers the themes of the window's appearance", async () => {
+    withCommand('app.theme');
+
+    themeList = [
+      { name: 'graphite', light: false, colors: {} },
+      { name: 'catppuccin-latte', light: true, colors: {} },
+    ];
+
+    appearanceSetting = 'dark';
+    const darkTree = renderTree(await openPalette());
+
+    expect(rowWithText(darkTree, 'Theme: graphite')).not.toBeNull();
+    expect(rowWithText(darkTree, 'Theme: catppuccin latte')).toBeNull();
+
+    appearanceSetting = 'light';
+    const lightTree = renderTree(await openPalette());
+
+    expect(rowWithText(lightTree, 'Theme: catppuccin latte')).not.toBeNull();
+    expect(rowWithText(lightTree, 'Theme: graphite')).toBeNull();
   });
 });

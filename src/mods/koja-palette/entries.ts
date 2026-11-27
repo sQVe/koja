@@ -363,10 +363,10 @@ const otherEntries = (host: PaletteHost): Entry[] =>
     });
 
 const themeShows = (theme: ThemeChoice, host: PaletteHost, layouts: readonly string[]): boolean => {
-  const sameLightness = theme.light === host.dark;
+  const lightnessDiffers = theme.light !== host.dark;
   const ownLayout = theme.name === host.layout || !layouts.includes(theme.name);
 
-  return !sameLightness && ownLayout;
+  return lightnessDiffers && ownLayout;
 };
 
 const themeEntries = (known: ReadonlyMap<string, Command>, host: PaletteHost): Entry[] => {
