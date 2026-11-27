@@ -3,6 +3,7 @@ import type { InputState } from 'gpui-base';
 import type { AsyncContext, Context, Element, FocusHandle } from 'gpui-kit';
 import { View } from 'gpui-kit';
 import { checking, exec, watchFolder, window } from 'herdr';
+import type { ExecResult } from 'herdr';
 
 import { watchFolderChanges } from '../../data/folderWatch.ts';
 import type { FolderWatchHandle } from '../../data/folderWatch.ts';
@@ -42,6 +43,15 @@ const previewFailureNote = (error: unknown): string => {
   }
 
   return `Cannot preview this diff: ${oneLine}`;
+};
+
+const statusFailure = (result: ExecResult | null): string => {
+  const stderr = result?.stderr ?? '';
+  const stdout = result?.stdout ?? '';
+  const raw = stderr === '' ? stdout : stderr;
+  const detail = raw.trim();
+
+  return detail === '' ? 'git status failed' : detail;
 };
 
 const windowVisible = (): boolean => window()?.visible !== false;
@@ -392,7 +402,7 @@ export default class Changes extends View {
     }
 
     if (scan.status?.code !== 0) {
-      throw new Error(scan.status?.stderr ?? 'git status failed');
+      throw new Error(statusFailure(scan.status));
     }
 
     const snapshot = await changeSnapshot(exec, root, on, scan.status.stdout);

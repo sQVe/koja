@@ -63,6 +63,8 @@ let statusReads = 0;
 
 let statusText = ' M a.ts\0 M b.ts\0';
 
+let statusError = 'status unavailable';
+
 let blockStatus = false;
 
 let blockAfterReads = 0;
@@ -95,15 +97,11 @@ let renderedDiffDocument: {
 
 let renderedFontSize = 0;
 
-let windowActive = true;
-
 let windowVisible = true;
 
 const clock = { now: 1000000 };
 
 const realNow = Date.now;
-
-Date.now = () => clock.now;
 
 const commands: string[][] = [];
 
@@ -199,7 +197,7 @@ await mock.module('herdr', () =>
   herdrFake({
     checking: () => checkingNow,
     settings: () => ({ font_size: 13 }),
-    window: () => ({ active: windowActive, visible: windowVisible }),
+    window: () => ({ visible: windowVisible }),
     focused: () => ({ pane: null, cwd, terminal }),
     watchFolder: () => {
       let settle: Pick<Watch, 'resolve' | 'reject'> | null = null;
@@ -273,7 +271,7 @@ await mock.module('herdr', () =>
         }
 
         return failStatus
-          ? { code: 128, stdout: '', stderr: 'status unavailable' }
+          ? { code: 128, stdout: '', stderr: statusError }
           : { code: 0, stdout: text, stderr: '' };
       }
 
@@ -345,6 +343,8 @@ await mock.module('./rows.ts', () => ({
 }));
 
 afterEach(() => {
+  Date.now = realNow;
+
   // A test that stops early must not leave a read waiting on a scan that never lands.
   for (const task of spawned) {
     task.cancelled = true;
@@ -355,11 +355,11 @@ afterEach(() => {
 });
 
 afterAll(() => {
-  Date.now = realNow;
   mock.restore();
 });
 
 beforeEach(() => {
+  Date.now = () => clock.now;
   cwd = '/repo/a';
   terminal = null;
   checkingNow = false;
@@ -370,6 +370,7 @@ beforeEach(() => {
   identityGate = null;
   statusReads = 0;
   statusText = ' M a.ts\0 M b.ts\0';
+  statusError = 'status unavailable';
   blockStatus = false;
   blockAfterReads = 0;
   statusGate = null;
@@ -384,7 +385,6 @@ beforeEach(() => {
   renderedDiff = [];
   renderedDiffDocument = null;
   renderedFontSize = 0;
-  windowActive = true;
   windowVisible = true;
   clock.now = 1000000;
   clearSharedScans();
@@ -752,19 +752,17 @@ describe('Changes view', () => {
   });
 
   test('fails with the git error and reads no changes when git cannot read the folder', async () => {
-    const view = await boot();
-
-    const readsBefore = statusReads;
-    const numstatBefore = numstatCommands().length;
-
     failIdentity = 'fatal: detected dubious ownership in repository at /repo';
-    view.refresh(context, true);
-    await settle();
-    view.render(context);
 
-    expect(statusReads).toBe(readsBefore);
-    expect(numstatCommands()).toHaveLength(numstatBefore);
-    expect(renderedList?.line?.kind).toBe('error');
+    await boot();
+
+    expect(statusReads).toBe(0);
+    expect(numstatCommands()).toEqual([]);
+
+    expect(renderedList?.line).toEqual({
+      kind: 'error',
+      text: 'Error: fatal: detected dubious ownership in repository at /repo',
+    });
   });
 
   test('a folder outside a repository shows the not-a-repository line and reads no changes', async () => {
@@ -790,6 +788,15 @@ describe('Changes view', () => {
 
     expect(numstatCommands()).toEqual([]);
     expect(renderedList?.line).toEqual({ kind: 'error', text: 'Error: status unavailable' });
+  });
+
+  test('shows a readable line when a status failure carries no stderr', async () => {
+    failStatus = true;
+    statusError = '';
+
+    await boot();
+
+    expect(renderedList?.line).toEqual({ kind: 'error', text: 'Error: git status failed' });
   });
 
   test('reports a bare repository as not a git repository and reads no changes', async () => {
@@ -1188,7 +1195,7 @@ describe('Changes view', () => {
     expect(renderedList?.line).toBeNull();
   });
 
-  test('a hidden window reads nothing, and an unfocused but shown window reads again', async () => {
+  test('a hidden window reads nothing, and a shown window reads again', async () => {
     const view = await boot();
 
     expect(statusReads).toBe(1);
@@ -1201,7 +1208,6 @@ describe('Changes view', () => {
     expect(statusReads).toBe(1);
 
     windowVisible = true;
-    windowActive = false;
     timerHandler?.(context);
     await settle();
 
