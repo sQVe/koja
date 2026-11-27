@@ -93,6 +93,5 @@ export const setupPickerRows = async (): Promise<PickerRows> => {
 
 export const restorePickerRows = (): void => {
   restoreGlobals(savedGlobals);
-  savedGlobals = new Map();
   mock.restore();
 };

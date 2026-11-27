@@ -294,7 +294,6 @@ export const setupKojaSpaces = async (): Promise<void> => {
 
 export const restoreKojaSpaces = (): void => {
   restoreGlobals(savedGlobals);
-  savedGlobals = new Map();
   crypto.randomUUID = realRandomUuid;
   mock.restore();
 };
