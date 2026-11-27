@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import type { RepositoryIdentity } from '../src/data/gitIdentity.ts';
 import type { RepositoryStacks } from '../src/data/snapshot.ts';
+import type { StackBranch } from '../src/data/stacks.ts';
 
 export const ghStackRecord = (name: string): string =>
   readFileSync(join(import.meta.dir, '..', 'src', 'data', 'fixtures', 'gh-stack', `${name}.json`), {
@@ -23,12 +24,13 @@ export const severalStacksHeads = new Map([
 export const stacksOf = (
   repository: RepositoryIdentity,
   branches: readonly string[],
+  restack: StackBranch['restack'] = 'none',
 ): Record<string, RepositoryStacks> => ({
   [repository.key]: {
     stacks: [
       {
         trunk: 'main',
-        branches: branches.map((branch) => ({ branch, pullNumber: null, restack: 'none' })),
+        branches: branches.map((branch) => ({ branch, pullNumber: null, restack })),
       },
     ],
     failed: false,

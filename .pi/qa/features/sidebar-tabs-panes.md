@@ -24,6 +24,8 @@ first.
 
 - The sidebar lists every space under the name of its project, one line per space: its mark and its
   title. A space row shows no PR number and no branch.
+- A space row ends with one work icon for the most blocking need across its stack's pull requests,
+  such as `CI failing`, with a tooltip, and an empty slot when nothing is needed.
 - An unnamed space row shows the title of the Linear ticket of its branch, else the PR title of its
   branch, else the folder name. A named space row keeps its name.
 - The main checkout of a Git repository is the project header, not a row. The header shows the

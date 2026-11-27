@@ -1,4 +1,6 @@
 import { ticketIdOf } from './linearTickets.ts';
+import type { StackNeed } from './pullNeeds.ts';
+import { mostBlockingNeed, pullStackNeed } from './pullNeeds.ts';
 import type { Pull } from './pulls.ts';
 import type { Facts, TicketFacts } from './snapshot.ts';
 import { pullOfBranch } from './snapshot.ts';
@@ -13,6 +15,7 @@ export interface StackPull {
   state: 'open' | 'draft' | 'merged' | 'closed' | 'unknown';
   checkedOut: boolean;
   restack: StackBranch['restack'];
+  need: StackNeed | null;
 }
 
 export interface SpaceStack {
@@ -92,6 +95,7 @@ const stackPullOf = (
     state: stateOf(pull),
     checkedOut: entry.branch === branch,
     restack: entry.restack,
+    need: pullStackNeed(pull, entry.restack),
   };
 };
 
@@ -111,6 +115,32 @@ export const spaceStackOf = (facts: Facts, worktreeKey: string): SpaceStack | nu
     merged: pulls.filter((pull) => pull.state === 'merged').length,
     total: pulls.length,
   };
+};
+
+export const branchNeedOf = (
+  facts: Facts,
+  repositoryKey: string,
+  branch: string | null,
+): StackNeed | null => {
+  const pull = pullOfBranch(facts.pulls[repositoryKey] ?? null, branch);
+
+  return pullStackNeed(pull, 'none');
+};
+
+export const spaceNeedOf = (facts: Facts, worktreeKey: string): StackNeed | null => {
+  const worktree = facts.git.worktrees[worktreeKey];
+
+  if (worktree === undefined) {
+    return null;
+  }
+
+  const stack = spaceStackOf(facts, worktreeKey);
+
+  if (stack !== null) {
+    return mostBlockingNeed(stack.pulls.map((pull) => pull.need));
+  }
+
+  return branchNeedOf(facts, worktree.repository.key, worktree.branch);
 };
 
 const parentOf = (tickets: Record<string, TicketFacts>, branch: string): string | null => {

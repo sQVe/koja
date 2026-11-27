@@ -1,16 +1,24 @@
 import type { Context, Element } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
 
+import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine } from '../../kit/drag.ts';
 import type { DropMark } from '../../kit/index.ts';
-import { detailText, listRow, projectHeader, spaceMark } from '../../kit/index.ts';
+import {
+  detailText,
+  emptyWorkSlot,
+  listRow,
+  projectHeader,
+  spaceMark,
+  workIcon,
+} from '../../kit/index.ts';
 import type { Project } from './projects.ts';
 import { rowCut, rowTitleOf } from './rows.ts';
 import type { ListedSpace } from './tree.ts';
 
-export interface RowState {
+interface RowBaseState {
   drag: DragState;
   refused: string | null;
   cursor: string | null;
@@ -18,13 +26,22 @@ export interface RowState {
   attachDrag: (element: Element, space: SpaceInfo, ids: readonly string[]) => void;
 }
 
-export interface HeaderState extends RowState {
+export interface RowFacts {
+  ticketTitle: string | null;
+  need: StackNeed | null;
+}
+
+export interface RowState extends RowBaseState {
+  need: StackNeed | null;
+}
+
+export interface HeaderState extends RowBaseState {
   hovered: string | null;
   onHover: (spaceId: string, hovered: boolean, cx: Context) => void;
   toggleFold: (key: string, cx: Context) => void;
 }
 
-const dropMark = (state: RowState, id: string, ids: readonly string[]): DropMark | undefined =>
+const dropMark = (state: RowBaseState, id: string, ids: readonly string[]): DropMark | undefined =>
   state.refused === id ? 'refused' : dragLine(state.drag, id, ids);
 
 export const row = (
@@ -36,7 +53,10 @@ export const row = (
 ): Element => {
   const { space } = listed;
   const drop = dropMark(state, space.id, ids);
-  const end = state.age === null ? [] : [detailText(state.age)];
+  const end: Element[] = state.age === null ? [] : [detailText(state.age)];
+  const workSlot = state.need === null ? emptyWorkSlot() : workIcon(state.need);
+
+  end.push(workSlot);
 
   const rowState = space.active ? 'selected' : 'normal';
 

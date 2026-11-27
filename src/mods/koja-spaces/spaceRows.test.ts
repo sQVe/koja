@@ -18,6 +18,7 @@ import {
 } from '../../../tests/moduleFakes.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
+import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type { Project } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
@@ -29,6 +30,7 @@ interface RowStateLike {
   refused: string | null;
   cursor: string | null;
   age: string | null;
+  need: StackNeed | null;
   attachDrag: (element: unknown, space: SpaceInfo, ids: readonly string[]) => void;
 }
 
@@ -68,6 +70,7 @@ const kitParts = [
   'text',
   'textRole',
   'theme',
+  'workIcon',
 ];
 
 const kitFake = await realKitIndexFake(kitParts);
@@ -128,11 +131,12 @@ const listedSpace = (named: boolean): ListedSpace => ({
   place: placeOf(null, '/code/koja'),
 });
 
-const stateWith = (age: string | null = null): RowStateLike => ({
+const stateWith = (age: string | null = null, need: StackNeed | null = null): RowStateLike => ({
   drag: { source: null, over: null },
   refused: null,
   cursor: null,
   age,
+  need,
   attachDrag: () => undefined,
 });
 
@@ -154,6 +158,16 @@ describe('row', () => {
 
   test('titles an unnamed space without a PR with its name', () => {
     expect(textsOf(false, null)).toContain('login');
+  });
+
+  test('a row with no need ends with an empty work slot after its age', () => {
+    const rowElement = loaded.row(listedSpace(true), ['a'], stateWith('4m'), null, null);
+
+    const [age, slot] = rowElement.kids.slice(-2) as [DrawnElement, DrawnElement];
+
+    expect(drawnTexts(age)).toEqual(['4m']);
+    expect(elementsWithStyle(slot, 'size')).toHaveLength(1);
+    expect(drawnIcons(slot)).toEqual([]);
   });
 });
 

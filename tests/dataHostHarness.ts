@@ -13,7 +13,7 @@ import { snapshotVersion } from '../src/data/snapshot.ts';
 import { spaceOf } from './gitSchedulerHarness.ts';
 import { herdrFake } from './moduleFakes.ts';
 import { answerFrom, branchCountOf } from './pullAnswers.ts';
-import { pullFacts } from './pullFacts.ts';
+import { readyPull } from './pullFacts.ts';
 
 interface ExecCall {
   command: string;
@@ -264,15 +264,10 @@ const storedSnapshotOf = (pulls: Record<string, RepositoryPulls> = {}): Snapshot
 };
 
 const readPullOf = (number: number): Pull => {
-  return pullFacts({
+  return readyPull({
     number,
     headRefName: `feature-${number}`,
     title: `Pull ${number}`,
-    mergeable: 'mergeable',
-    mergeState: 'clean',
-    review: 'approved',
-    checks: { kind: 'read', value: 'passing' },
-    threads: { kind: 'read', value: { unresolved: 0, complete: true } },
   });
 };
 

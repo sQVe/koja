@@ -50,7 +50,8 @@ import type { SpaceOrder } from '../../kit/spaceOrder.ts';
 import { closedSpaceCommand } from '../../kit/spaceOrder.ts';
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
-import { answeredPlaces, gitInfoAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
+import type { KeptNeed } from './gitFacts.ts';
+import { answeredPlaces, gitInfoAt, needAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, shownSpaces } from './projects.ts';
@@ -59,7 +60,7 @@ import { showsTitle } from './rows.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
 import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
-import type { HeaderState, RowState } from './spaceRows.ts';
+import type { HeaderState, RowFacts, RowState } from './spaceRows.ts';
 import { headerRow, row as spaceRow } from './spaceRows.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
@@ -139,6 +140,8 @@ export default class Spaces extends View {
   private readonly order = createOrderPublisher(setShared);
 
   private waitTimes: WaitTimes = readWaitTimes(storage.get(waitTimesKey));
+
+  private readonly lastNeeds = new Map<string, KeptNeed>();
 
   private watched: SidebarWatch = {
     focused: null,
@@ -449,7 +452,7 @@ export default class Spaces extends View {
     cursor: string | null,
     now: number,
     pulls: Record<string, RepositoryPulls>,
-    ticketTitle: string | null,
+    facts: RowFacts,
   ): Element {
     const waiting = { id: row.space.id, status: row.status, active: row.space.active };
     const age = waitAge(this.waitTimes, waiting, now);
@@ -459,6 +462,7 @@ export default class Spaces extends View {
       refused: this.refused,
       cursor,
       age,
+      need: facts.need,
       attachDrag: (element, space, rowIds) => {
         this.addDragHandlers(element, space, rowIds);
       },
@@ -466,7 +470,7 @@ export default class Spaces extends View {
 
     const pull = pullOf(row.git, pulls);
 
-    return spaceRow(row, ids, state, pull, ticketTitle);
+    return spaceRow(row, ids, state, pull, facts.ticketTitle);
   }
 
   private drawMain(
@@ -538,9 +542,12 @@ export default class Spaces extends View {
       projects,
       loading: this.isWaiting(),
       draw: (row) => {
-        const ticketTitle = ticketTitleAt(state, row);
+        const facts = {
+          ticketTitle: ticketTitleAt(state, row),
+          need: needAt(state, row.git, this.lastNeeds),
+        };
 
-        return keepRow(row, this.draw(row, ids, cursor, now, pulls, ticketTitle));
+        return keepRow(row, this.draw(row, ids, cursor, now, pulls, facts));
       },
       drawMain: (project, main) =>
         keepRow(main, this.drawMain(project, main, ids, keys, cursor, now)),

@@ -7,8 +7,21 @@ import type {
 } from './pullAnswer.ts';
 import type { Pull } from './pulls.ts';
 import { partValueOf } from './pulls.ts';
+import type { StackBranch } from './stacks.ts';
 
 export type PullNeed = 'failing' | 'review' | 'conflict' | 'ready';
+
+export type StackNeed = 'conflict' | 'failing' | 'review' | 'restack' | 'merge';
+
+// The lowest rank is the single need a pull or a stack shows, so reordering this table changes
+// every work icon.
+const needRanks: Record<StackNeed, number> = {
+  conflict: 0,
+  failing: 1,
+  review: 2,
+  restack: 3,
+  merge: 4,
+};
 
 const hasFailingChecks = (checks: PullChecks | null): boolean => checks === 'failing';
 
@@ -30,6 +43,8 @@ const passOrAbsent = (checks: PullChecks): boolean => checks === 'passing' || ch
 const quietThreads = (threads: PullThreads): boolean =>
   threads.unresolved === 0 && threads.complete;
 
+const isOpenAndNotDraft = (pull: Pull): boolean => pull.state === 'OPEN' && !pull.isDraft;
+
 const isReady = (pull: Pull): boolean => {
   if (pull.mergeable !== 'mergeable' || !settles(pull.mergeState)) {
     return false;
@@ -45,7 +60,7 @@ const isReady = (pull: Pull): boolean => {
 };
 
 export const pullNeeds = (pull: Pull): PullNeed[] => {
-  if (pull.state !== 'OPEN' || pull.isDraft) {
+  if (!isOpenAndNotDraft(pull)) {
     return [];
   }
 
@@ -68,4 +83,43 @@ export const pullNeeds = (pull: Pull): PullNeed[] => {
   }
 
   return needs;
+};
+
+export const mostBlockingNeed = (needs: readonly (StackNeed | null)[]): StackNeed | null => {
+  let most: StackNeed | null = null;
+
+  for (const need of needs) {
+    if (need === null) {
+      continue;
+    }
+
+    if (most === null || needRanks[need] < needRanks[most]) {
+      most = need;
+    }
+  }
+
+  return most;
+};
+
+const stackNeedOf = (need: PullNeed): StackNeed => (need === 'ready' ? 'merge' : need);
+
+export const pullStackNeed = (
+  pull: Pull | null,
+  restack: StackBranch['restack'],
+): StackNeed | null => {
+  if (pull === null) {
+    return null;
+  }
+
+  if (!isOpenAndNotDraft(pull)) {
+    return null;
+  }
+
+  const withRestack: StackNeed[] = pullNeeds(pull).map(stackNeedOf);
+
+  if (restack === 'needed') {
+    withRestack.push('restack');
+  }
+
+  return mostBlockingNeed(withRestack);
 };

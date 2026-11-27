@@ -1,13 +1,6 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
 
-import type { DrawnElement } from '../../../tests/drawn.ts';
-import { drawn, drawnIcons, drawnTexts, drawnTree, elementWithText } from '../../../tests/drawn.ts';
-import {
-  gpuiBaseFake,
-  gpuiKitFake,
-  herdrFake,
-  realKitIndexFake,
-} from '../../../tests/moduleFakes.ts';
+import { drawnIcons, drawnTexts, elementWithText } from '../../../tests/drawn.ts';
 import {
   factsWithStack,
   mergedStack,
@@ -17,78 +10,13 @@ import {
   tabOf,
   ticketStack,
 } from '../../../tests/pickerFixtures.ts';
+import { restorePickerRows, setupPickerRows } from '../../../tests/pickerRowsView.ts';
 import type { PickerData } from './rows.ts';
-import { buildRows } from './rows.ts';
 
-interface Range {
-  start: number;
-  end: number;
-}
-
-type DrawRange = (range: Range) => DrawnElement[];
-
-const palette = {
-  blocked: '#c0392b',
-  border: '#999ca7',
-  dim: '#525460',
-  done: '#2e7d32',
-  foreground: '#1e2028',
-  muted: '#3a3d4c',
-  popover: '#dcdee5',
-  working: '#b8860b',
-  idle: '#525460',
-} as const;
-
-Object.assign(globalThis, { kojaModName: 'koja-picker' });
-
-const virtualList = (
-  _id: string,
-  count: number,
-  _height: number,
-  _keyOf: (index: number) => string,
-  draw: DrawRange,
-): DrawnElement => drawnTree(draw({ start: 0, end: count }));
-
-await mock.module('gpui-base', () =>
-  gpuiBaseFake({ h_flex: () => drawn(), v_virtual_list: virtualList }),
-);
-
-await mock.module('gpui-kit', () =>
-  gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
-);
-
-await mock.module('herdr', () => herdrFake({ theme: () => palette, shared: () => undefined }));
-
-await mock.module('../../kit/index.ts', () =>
-  realKitIndexFake([
-    'factLine',
-    'icon',
-    'listRow',
-    'modName',
-    'size',
-    'statusMark',
-    'text',
-    'textRole',
-    'theme',
-    'workIcon',
-  ]),
-);
-
-const modulePath = './rowElements.ts';
-
-const { list } = (await import(modulePath)) as {
-  list: (
-    rows: ReturnType<typeof buildRows>,
-    query: string,
-    selectedKey: string | null,
-    data: PickerData,
-    scroll: unknown,
-    onItemClick: (key: string) => void,
-  ) => DrawnElement;
-};
+const { listOf } = await setupPickerRows();
 
 afterAll(() => {
-  mock.restore();
+  restorePickerRows();
 });
 
 const dataWith = (): PickerData => {
@@ -101,9 +29,6 @@ const dataWith = (): PickerData => {
     facts: { a: { project: 'koja', pull: null, need: null } },
   });
 };
-
-const listOf = (query: string, data: PickerData): DrawnElement =>
-  list(buildRows(query, null, data), query, null, data, {}, () => undefined);
 
 const dataWithState = (state: 'open' | 'unknown'): PickerData => {
   const base = ticketStack();

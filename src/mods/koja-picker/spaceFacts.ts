@@ -6,21 +6,27 @@ import { folderNameOf } from '../../data/fields.ts';
 import type { Place, RepositoryIdentity } from '../../data/gitIdentity.ts';
 import { placeOf } from '../../data/gitIdentity.ts';
 import { placeOfSpace } from '../../data/places.ts';
-import type { PullNeed } from '../../data/pullNeeds.ts';
-import { pullNeeds } from '../../data/pullNeeds.ts';
-import type { Pull } from '../../data/pulls.ts';
+import type { StackNeed } from '../../data/pullNeeds.ts';
 import { repositoryNameOf } from '../../data/repositoryName.ts';
 import type { Facts, GitFacts, WorktreeGit } from '../../data/snapshot.ts';
 import { pullOfBranch, worktreeKeyAtPlace } from '../../data/snapshot.ts';
+import { branchNeedOf, spaceNeedOf } from '../../data/spaceStack.ts';
 
 export interface SpaceFacts {
   project: string;
   pull: number | null;
-  need: PullNeed | null;
+  need: StackNeed | null;
 }
 
-// A row shows one work icon, so the most urgent need wins.
-const needRanks: Record<PullNeed, number> = { conflict: 0, failing: 1, review: 2, ready: 3 };
+interface FoundWorktree {
+  key: string;
+  worktree: WorktreeGit;
+}
+
+interface PullFacts {
+  pull: number | null;
+  need: StackNeed | null;
+}
 
 const mainWorktreeOf = (git: GitFacts, repository: RepositoryIdentity): WorktreeGit | null =>
   Object.values(git.worktrees).find(
@@ -41,10 +47,30 @@ const projectAt = (git: GitFacts, worktree: WorktreeGit | null, folder: string):
   return repositoryNameOf(main?.root ?? null, worktree.repository.commonDirectory);
 };
 
-const needOf = (pull: Pull): PullNeed | null => {
-  const needs = pullNeeds(pull).toSorted((first, second) => needRanks[first] - needRanks[second]);
+const readFailed = (facts: Facts, found: FoundWorktree): boolean =>
+  facts.pulls[found.worktree.repository.key]?.failed === true;
 
-  return needs[0] ?? null;
+const pullFactsIn = (
+  facts: Facts,
+  found: FoundWorktree | null,
+  branch: string | null,
+): PullFacts => {
+  if (found === null || readFailed(facts, found)) {
+    return { pull: null, need: null };
+  }
+
+  const repositoryKey = found.worktree.repository.key;
+  const namedBranch = branch ?? found.worktree.branch;
+  const pull = pullOfBranch(facts.pulls[repositoryKey] ?? null, namedBranch);
+
+  // A space row shows its whole stack's need; pane facts keep the need of the pull of the branch
+  // the pane names, so a header cannot claim another branch's need.
+  const need =
+    branch === null
+      ? spaceNeedOf(facts, found.key)
+      : branchNeedOf(facts, repositoryKey, namedBranch);
+
+  return { pull: pull?.number ?? null, need };
 };
 
 export const storedFacts = (): Facts | null => {
@@ -53,42 +79,27 @@ export const storedFacts = (): Facts | null => {
   return state.kind === 'unavailable' ? null : state.snapshot.facts;
 };
 
-const worktreeAt = (place: Place, git: GitFacts): WorktreeGit | null => {
-  const worktreeKey = worktreeKeyAtPlace(git, place.key);
+const worktreeAt = (place: Place, git: GitFacts): FoundWorktree | null => {
+  const key = worktreeKeyAtPlace(git, place.key);
 
-  return worktreeKey === null ? null : (git.worktrees[worktreeKey] ?? null);
-};
-
-const pullOf = (facts: Facts, worktree: WorktreeGit | null, branch: string | null): Pull | null => {
-  if (worktree === null) {
+  if (key === null) {
     return null;
   }
 
-  const repository = facts.pulls[worktree.repository.key] ?? null;
+  const worktree = git.worktrees[key];
 
-  // A failed refresh keeps the last pulls it read, and drawing them would claim a need that is no
-  // longer known.
-  if (repository?.failed === true) {
-    return null;
-  }
-
-  return pullOfBranch(repository, branch ?? worktree.branch);
+  return worktree === undefined ? null : { key, worktree };
 };
 
 const factsIn = (
   facts: Facts,
-  worktree: WorktreeGit | null,
+  found: FoundWorktree | null,
   folder: string,
   branch: string | null,
-): SpaceFacts => {
-  const pull = pullOf(facts, worktree, branch);
-
-  return {
-    project: projectAt(facts.git, worktree, folder),
-    pull: pull?.number ?? null,
-    need: pull === null ? null : needOf(pull),
-  };
-};
+): SpaceFacts => ({
+  project: projectAt(facts.git, found?.worktree ?? null, folder),
+  ...pullFactsIn(facts, found, branch),
+});
 
 const factsAt = (facts: Facts, place: Place, branch: string | null): SpaceFacts | null =>
   Object.hasOwn(facts.git.places, place.key)
@@ -138,16 +149,20 @@ const worktreeAtFolder = (
   git: GitFacts,
   machine: string | null,
   folder: string,
-): WorktreeGit | null => {
+): FoundWorktree | null => {
   const insideCheckout = (entry: WorktreeGit): boolean => {
     const atOrUnderRoot = folder === entry.root || underFolder(folder, entry.root);
 
     return entry.repository.machine === machine && atOrUnderRoot;
   };
 
-  const inside = Object.values(git.worktrees).filter(insideCheckout);
+  const inside = Object.entries(git.worktrees).filter(([, entry]) => insideCheckout(entry));
 
-  return inside.toSorted((first, second) => second.root.length - first.root.length)[0] ?? null;
+  const [found] = inside.toSorted(
+    ([, first], [, second]) => second.root.length - first.root.length,
+  );
+
+  return found === undefined ? null : { key: found[0], worktree: found[1] };
 };
 
 const belowPlace = (place: Place | null, worktree: WorktreeGit): boolean =>
@@ -193,7 +208,7 @@ export const paneFacts = (
 
   // A worktree whose root sits deeper than the recorded place is the checkout the pane is in, so
   // an outer repository's place cannot answer for a nested one.
-  if (worktree !== null && belowPlace(place, worktree)) {
+  if (worktree !== null && belowPlace(place, worktree.worktree)) {
     return factsIn(facts, worktree, pane.cwd, branch);
   }
 

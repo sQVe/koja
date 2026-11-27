@@ -1,22 +1,42 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
 
+import type { PaneInfo } from 'herdr';
+
+import { drawnIcons } from '../../../tests/drawn.ts';
 import {
   factsWithStack,
   mergedStack,
   pickerData,
   spaceOf,
+  stackFacts,
   stackOf,
   stackPullOf,
   tabOf,
   ticketStack,
 } from '../../../tests/pickerFixtures.ts';
-import { pullFacts } from '../../../tests/pullFacts.ts';
+import { restorePickerRows, setupPickerRows } from '../../../tests/pickerRowsView.ts';
+import { pullFacts, readyPull } from '../../../tests/pullFacts.ts';
+import type { Pull } from '../../data/pulls.ts';
 import type { Facts } from '../../data/snapshot.ts';
 import type { SpaceStack } from '../../data/spaceStack.ts';
 import type { PickerData } from './rows.ts';
 import { buildRows } from './rows.ts';
 
 const folder = '/home/me/koja';
+
+const { listOf } = await setupPickerRows();
+
+const { spaceFacts } = (await import('./spaceFacts.ts')) as {
+  spaceFacts: (
+    facts: Facts | null,
+    spaceList: PickerData['spaces'],
+    paneList: PaneInfo[],
+  ) => PickerData['facts'];
+};
+
+afterAll(() => {
+  restorePickerRows();
+});
 
 const reasonOf = (rows: ReturnType<typeof buildRows>, index: number) => {
   const row = rows[index];
@@ -213,5 +233,50 @@ describe('buildRows with stacks', () => {
 
     expect(rows.map((row) => row.key)).toEqual(['space:a']);
     expect(reasonOf(rows, 0)).toBeNull();
+  });
+});
+
+const conflictAndReady = (): { stack: SpaceStack; pulls: Pull[] } => {
+  const stack = stackOf([
+    stackPullOf({ branch: 'me-1-lower', number: 701 }),
+    stackPullOf({ branch: 'me-2-top', number: 702 }),
+  ]);
+
+  const pulls = [
+    pullFacts({
+      number: 701,
+      headRefName: 'me-1-lower',
+      mergeable: 'conflicting',
+      mergeState: 'dirty',
+    }),
+    readyPull({
+      number: 702,
+      headRefName: 'me-2-top',
+    }),
+  ];
+
+  return { stack, pulls };
+};
+
+const dataForStack = (failed: boolean): PickerData => {
+  const { stack, pulls } = conflictAndReady();
+  const stored = stackFacts({ folder, branch: 'me-2-top', stack, livePulls: pulls, failed });
+  const spaces = [spaceOf('a', 1, 'koja', [tabOf('a1', 1, true)])];
+  const panes: PaneInfo[] = [];
+
+  return pickerData({ spaces, panes, stored, facts: spaceFacts(stored, spaces, panes) });
+};
+
+describe('the work icon of a space with a stack', () => {
+  test("a space's work icon covers its whole stack", () => {
+    const found = listOf('', dataForStack(false));
+
+    expect(drawnIcons(found)).toContain('triangle-alert.svg');
+  });
+
+  test('a failed PR read draws no work icon even when the stack has a need', () => {
+    const found = listOf('', dataForStack(true));
+
+    expect(drawnIcons(found)).toEqual([]);
   });
 });

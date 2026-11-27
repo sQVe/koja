@@ -3,7 +3,7 @@ import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
 import type { PullReadTimes } from '../src/data/pullReadTimes.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { GitFacts, RepositoryPulls } from '../src/data/snapshot.ts';
-import { pullFacts } from './pullFacts.ts';
+import { readyPull } from './pullFacts.ts';
 
 interface GitSource {
   repository: RepositoryIdentity;
@@ -20,15 +20,10 @@ export const seededRepositoryPulls: Record<string, RepositoryPulls> = {
 };
 
 export const pullList = (number: number): Pull[] => [
-  pullFacts({
+  readyPull({
     number,
     headRefName: `feature-${number}`,
     title: `Pull ${number}`,
-    mergeable: 'mergeable',
-    mergeState: 'clean',
-    review: 'approved',
-    checks: { kind: 'read', value: 'passing' },
-    threads: { kind: 'read', value: { unresolved: 0, complete: true } },
   }),
 ];
 
