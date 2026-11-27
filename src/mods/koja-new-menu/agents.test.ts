@@ -76,6 +76,17 @@ describe('cachedAgents', () => {
 
     expect(cachedAgents({ '': stored }, null)).toEqual([agent('pi', true)]);
   });
+
+  test('drops a stored entry whose launch command is missing or malformed', () => {
+    const stored = [
+      { key: 'pi', name: 'Pi', installed: true },
+      { key: 'pi', name: 'Pi', run: [], installed: true },
+      { key: 'pi', name: 'Pi', run: 'pi', installed: true },
+      { key: 'pi', name: 'Pi', run: ['pi', 1], installed: true },
+    ];
+
+    expect(cachedAgents({ '': stored }, null)).toEqual([]);
+  });
 });
 
 describe('rememberAgents', () => {

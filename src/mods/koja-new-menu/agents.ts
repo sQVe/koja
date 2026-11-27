@@ -40,17 +40,30 @@ export interface MenuActions {
 
 export const knownAgentsKey = 'new-menu.agents';
 
+const launchArguments = (value: unknown): string[] | null => {
+  const run = stringListOf(value);
+  const complete = listOf(value).length === run.length;
+  const empty = run.length === 0;
+
+  return complete && !empty ? run : null;
+};
+
 const cachedAgent = (value: unknown): Agent | null => {
   const record = recordOf(value);
   const key = stringOf(record['key']);
   const name = stringOf(record['name']);
+  const run = launchArguments(record['run']);
   const installed = record['installed'];
 
-  if (key === null || name === null || typeof installed !== 'boolean') {
+  if (key === null || name === null || run === null) {
     return null;
   }
 
-  return { key, name, run: stringListOf(record['run']), installed };
+  if (typeof installed !== 'boolean') {
+    return null;
+  }
+
+  return { key, name, run, installed };
 };
 
 const machineKey = (machine: string | null): string => machine ?? '';
