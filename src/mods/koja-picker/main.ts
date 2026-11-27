@@ -1,5 +1,10 @@
 import type { InputState } from 'gpui-base';
-import { InputState as InputStates, VirtualListScrollHandle, v_flex } from 'gpui-base';
+import {
+  InputState as InputStates,
+  ScrollHandle,
+  VirtualListScrollHandle,
+  v_flex,
+} from 'gpui-base';
 import type {
   AsyncContext,
   Context,
@@ -27,6 +32,7 @@ import {
 } from '../../kit/index.ts';
 import { recordSpaceSelection, runSpaceCommand } from '../../kit/space/spaceSelection.ts';
 import { chips } from './chips.ts';
+import { createCycleRelease, nextSpaceIndex } from './cycleRelease.ts';
 import type { StatusFilter } from './filters.ts';
 import { allFilter, statusFilters } from './filters.ts';
 import { footer } from './footer.ts';
@@ -56,7 +62,7 @@ export default class Picker extends View {
 
   private filterIndex = 0;
 
-  private cycled = false;
+  private readonly cycleRelease = createCycleRelease<PickerRow>();
 
   private selectedKey: string | null = null;
 
@@ -71,6 +77,8 @@ export default class Picker extends View {
   private handle: FocusHandle | null = null;
 
   private readonly scroll = VirtualListScrollHandle.new();
+
+  private readonly chipScroll = ScrollHandle.new();
 
   private readonly input: InputState = InputStates.new({
     placeholder: 'Go to a space, tab or pane',
@@ -259,7 +267,7 @@ export default class Picker extends View {
       })
       .child(searchField(this.input, 'search'))
       .child(
-        chips(this.filterIndex, data, (index, cx) => {
+        chips(this.filterIndex, data, this.chipScroll, (index, cx) => {
           this.changeStatusFilter(index, cx);
         }),
       )
@@ -304,8 +312,7 @@ export default class Picker extends View {
         } else if (command === 'filter-previous') {
           this.changeStatusFilter(this.filterIndex - 1, taskCx);
         } else if (command === 'next') {
-          this.cycled = true;
-          this.moveToNextSpace(taskCx);
+          this.cycleToNextSpace(taskCx);
         }
       }
     });
@@ -314,12 +321,14 @@ export default class Picker extends View {
   private changeStatusFilter(index: number, cx: Context): void {
     this.filterIndex = (index + statusFilters.length) % statusFilters.length;
     this.selectFirst(cx);
+    this.chipScroll.scroll_to_item(this.filterIndex);
   }
 
   private selectFirst(cx: Context): void {
     const data = pickerData();
     const rows = this.rowsFrom(data);
 
+    this.cycleRelease.disarm();
     this.selectedKey = rows[0]?.key ?? null;
     this.scroll.scroll_to_item(0);
     this.updatePreview(rows[0], data);
@@ -350,19 +359,20 @@ export default class Picker extends View {
     this.select(rows, index, data, cx);
   }
 
-  private moveToNextSpace(cx: Context): void {
+  private cycleToNextSpace(cx: Context): void {
     const data = pickerData();
     const rows = this.rowsFrom(data);
-    const index = this.selectedIndex(rows);
-    const ordered = [...rows.slice(index + 1), ...rows.slice(0, index + 1)];
-    const nextSpace = ordered.find((row) => row.kind === 'space');
+    const index = nextSpaceIndex(rows, this.selectedKey);
 
-    if (nextSpace !== undefined) {
-      this.select(rows, rows.indexOf(nextSpace), data, cx);
+    if (index !== -1) {
+      this.select(rows, index, data, cx);
     }
+
+    this.cycleRelease.armRow(rows, index);
   }
 
   private select(rows: PickerRow[], index: number, data: PickerData, cx: Context): void {
+    this.cycleRelease.disarm();
     this.selectedKey = rows[index]?.key ?? null;
     this.scroll.scroll_to_item(index);
     this.updatePreview(rows[index], data);
@@ -460,10 +470,15 @@ export default class Picker extends View {
   }
 
   private onModifiersChanged(event: ModifiersChangedEvent): void {
-    if (this.cycled && !event.modifiers.control) {
-      const data = pickerData();
+    if (event.modifiers.control) {
+      return;
+    }
 
-      this.go(this.selectedRow(this.rowsFrom(data)), data);
+    const data = pickerData();
+    const row = this.cycleRelease.releasedRow(this.rowsFrom(data));
+
+    if (row !== undefined) {
+      this.go(row, data);
     }
   }
 

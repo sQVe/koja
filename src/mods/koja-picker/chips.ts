@@ -1,3 +1,4 @@
+import type { ScrollHandle } from 'gpui-base';
 import { h_flex } from 'gpui-base';
 import type { Context, Element } from 'gpui-kit';
 
@@ -25,6 +26,7 @@ const countOf = (filter: StatusFilter, data: PickerData): number => {
 export const chips = (
   activeIndex: number,
   data: PickerData,
+  scroll: ScrollHandle,
   onChange: (index: number, cx: Context) => void,
 ): Element => {
   const draw = (filter: StatusFilter, index: number): Element => {
@@ -43,6 +45,7 @@ export const chips = (
   };
 
   return h_flex()
+    .id(`${modName}-filter-scroll`)
     .h(chipLineHeight)
     .flex_none()
     .min_w(0)
@@ -50,7 +53,8 @@ export const chips = (
     .pb(spacing.xsmall)
     .gap(spacing.xsmall)
     .items_center()
-    .overflow_hidden()
+    .overflow_x_scroll()
+    .track_scroll(scroll)
     .border_b(spacing.hairline)
     .border_color(colors().border)
     .children(statusFilters.map(draw));

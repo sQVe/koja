@@ -23,10 +23,16 @@ interface FakeInput extends SearchFocusInput {
   emit: (event: string) => void;
 }
 
+interface FakeTask {
+  cancel: () => void;
+  is_done: () => boolean;
+}
+
 interface FakeTimer {
   delays: number[];
   runs: (() => void)[];
-  after: (delay: number, handler: (cx: Context) => void) => unknown;
+  after: (delay: number, handler: (cx: Context) => void) => FakeTask;
+  pending: () => number;
 }
 
 interface Harness {
@@ -76,6 +82,7 @@ const setup = (): Harness => {
 
   const delays: number[] = [];
   const runs: (() => void)[] = [];
+  const queued: { cancelled: boolean; done: boolean; run: () => void }[] = [];
 
   const timer: FakeTimer = {
     delays,
@@ -83,12 +90,35 @@ const setup = (): Harness => {
     after: (delay, handler) => {
       delays.push(delay);
 
-      runs.push(() => {
+      const entry = {
+        cancelled: false,
+        done: false,
+        run: (): void => undefined,
+      };
+
+      entry.run = () => {
+        if (entry.cancelled || entry.done) {
+          return;
+        }
+
+        entry.done = true;
         handler(context);
+      };
+
+      runs.push(() => {
+        entry.run();
       });
 
-      return { cancel: () => {}, is_done: () => true };
+      queued.push(entry);
+
+      return {
+        cancel: () => {
+          entry.cancelled = true;
+        },
+        is_done: () => entry.done,
+      };
     },
+    pending: () => queued.filter((entry) => !entry.cancelled && !entry.done).length,
   };
 
   const context = { timer } as unknown as Context;
@@ -170,5 +200,20 @@ describe('keepSearchFocused', () => {
     expect(state.focused).toBe(false);
     expect(input.focusCalls).toBe(2);
     expect(timer.runs).toHaveLength(2);
+  });
+
+  test('a blur supersedes retries still pending from an earlier focus attempt', () => {
+    const { host, input, timer, context } = setup();
+
+    keepSearchFocused(host, context);
+    input.emit('blur');
+
+    expect(timer.pending()).toBe(1);
+
+    timer.runs[0]?.();
+    timer.runs[1]?.();
+
+    expect(input.focusCalls).toBe(3);
+    expect(timer.pending()).toBe(1);
   });
 });

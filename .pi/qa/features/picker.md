@@ -34,6 +34,8 @@ Press `key b Control_L` first to enter normal mode.
 - The preview header names the selected row's space, pane, whole branch, and pull request, and the
   terminal below it follows the selection.
 - A query filters, and `Tab`, shift-tab, and a chip click change the filter.
+- Every chip can be reached by scrolling the chip line and by `Tab`, and the active chip is in view
+  after `Tab`.
 - `Return` goes to the row.
 - `Escape` returns focus to the pane that had it.
 - The picker preview types nothing into the source terminal.

@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, mock, test } from 'bun:test';
 
+import type { ScrollHandle } from 'gpui-base';
 import type { SpaceInfo, Status } from 'herdr';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
@@ -42,9 +43,12 @@ const { chips } = (await import(modulePath)) as {
   chips: (
     activeIndex: number,
     data: PickerData,
+    scroll: ScrollHandle,
     onChange: (index: number, cx: unknown) => void,
   ) => DrawnElement;
 };
+
+const scroll = { scroll_to_item: () => undefined } as unknown as ScrollHandle;
 
 afterAll(() => {
   mock.restore();
@@ -80,7 +84,7 @@ const dataWith = (statuses: (Status | null)[]): PickerData => ({
 describe('chips', () => {
   test('each chip counts the spaces in its status', () => {
     const data = dataWith(['blocked', 'done', 'working', 'working', 'idle', 'idle', null]);
-    const row = chips(0, data, () => undefined);
+    const row = chips(0, data, scroll, () => undefined);
 
     expect(drawnTexts(row)).toEqual([
       'All',
@@ -97,7 +101,7 @@ describe('chips', () => {
   });
 
   test('a filter with no space still shows its chip with a count of zero', () => {
-    const row = chips(0, dataWith(['idle']), () => undefined);
+    const row = chips(0, dataWith(['idle']), scroll, () => undefined);
     const waiting = clickablesWithText(row, 'Waiting').at(0);
     const texts = waiting === undefined ? [] : drawnTexts(waiting);
 
@@ -107,7 +111,7 @@ describe('chips', () => {
   test('a click on a chip asks for that filter', () => {
     const asked: number[] = [];
 
-    const row = chips(0, dataWith(['blocked']), (index) => {
+    const row = chips(0, dataWith(['blocked']), scroll, (index) => {
       asked.push(index);
     });
 
