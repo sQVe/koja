@@ -22,6 +22,20 @@ const malformedPulls: [string, (snapshot: RawSnapshot) => void][] = [
     },
   ],
   [
+    'a pull without a url',
+    (snapshot) => {
+      const { url: _url, ...withoutUrl } = pull();
+
+      pullsAt(snapshot)[repositoryKey] = { pulls: [withoutUrl], failed: false };
+    },
+  ],
+  [
+    'a pull with an empty url',
+    (snapshot) => {
+      pullsAt(snapshot)[repositoryKey] = { pulls: [pull({ url: '' })], failed: false };
+    },
+  ],
+  [
     'a failed flag that is not a boolean',
     (snapshot) => {
       pullsAt(snapshot)[repositoryKey] = { pulls: [], failed: 'no' };

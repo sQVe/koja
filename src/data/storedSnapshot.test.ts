@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { fixture } from '../../tests/fixtureJson.ts';
+import { pull, pullsAt, rawSnapshotOf } from '../../tests/snapshotRaw.ts';
 import { repositoryOf } from './gitIdentity.ts';
 import type { RecordNotices, RecordRejection } from './recordNotices.ts';
 import { createRecordNotices } from './recordNotices.ts';
@@ -133,6 +134,16 @@ describe('readStoredSnapshot', () => {
 
     expect(readStoredSnapshot(read, notices)).toBeNull();
     expect(readStoredSnapshot(read, notices)).toBeNull();
+    expect(messages).toEqual([malformedMessage()]);
+  });
+
+  test('reports a version 8 snapshot with a malformed pull as malformed', () => {
+    const { messages, notices } = logged();
+    const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
+
+    pullsAt(stored)[repositoryOf(null, '/code/koja/.git').key] = { pulls: [pull()], failed: false };
+
+    expect(readStoredSnapshot(memoryStore(stored), notices)).toBeNull();
     expect(messages).toEqual([malformedMessage()]);
   });
 

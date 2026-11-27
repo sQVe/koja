@@ -2,11 +2,15 @@ import { describe, expect, test } from 'bun:test';
 
 import { fixture } from '../../tests/fixtureJson.ts';
 import {
+  pull,
+  pullsAt,
+  rawSnapshotOf,
   recordIn,
   repositoryKey,
   version3GitFacts,
   withBareFalse,
 } from '../../tests/snapshotRaw.ts';
+import { repositoryOf } from './gitIdentity.ts';
 import { parseSnapshot } from './snapshot.ts';
 
 describe('parseSnapshot versions', () => {
@@ -69,6 +73,22 @@ describe('parseSnapshot versions', () => {
         },
       },
     };
+
+    expect(parseSnapshot(stored)).toBeNull();
+  });
+
+  test('rejects a version 8 pull that carries a URL', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
+
+    pullsAt(stored)[repositoryOf(null, '/code/koja/.git').key] = { pulls: [pull()], failed: false };
+
+    expect(parseSnapshot(stored)).toBeNull();
+  });
+
+  test('rejects a version 8 pulls value that is not a map', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
+
+    recordIn(stored.facts, 'facts').pulls = [];
 
     expect(parseSnapshot(stored)).toBeNull();
   });

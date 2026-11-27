@@ -141,19 +141,7 @@ describe('parseSnapshot', () => {
     const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
     const facts = recordIn(stored.facts, 'facts');
     const key = repositoryOf(null, '/code/koja/.git').key;
-
-    pullsAt(stored)[key] = {
-      pulls: [
-        {
-          number: 41,
-          state: 'OPEN',
-          isDraft: false,
-          title: 'Read the theme once per turn',
-          headRefName: 'main',
-        },
-      ],
-      failed: false,
-    };
+    const storedPulls = recordIn(pullsAt(stored)[key], 'repository pulls').pulls;
 
     const parsed = parseSnapshot(stored);
     const storedGit: unknown = facts.git;
@@ -163,11 +151,26 @@ describe('parseSnapshot', () => {
     const parsedTrackers: unknown = parsed?.facts.trackers;
     const parsedStacks: unknown = parsed?.facts.stacks;
 
+    expect(storedPulls).toHaveLength(1);
     expect(parsed?.version).toBe(9);
     expect(parsed?.facts.pulls).toEqual({});
     expect(parsedGit).toEqual(withBareFalse(storedGit));
     expect(parsedTrackers).toEqual(storedTrackers);
     expect(parsedStacks).toEqual(storedStacks);
+  });
+
+  test('reads the frozen version 9 fixture with its pull URL', () => {
+    const stored = recordIn(fixture('snapshot-v9.json'), 'snapshot');
+    const key = repositoryOf(null, '/code/koja/.git').key;
+    const parsed = parseSnapshot(stored);
+    const pulls = parsed?.facts.pulls[key]?.pulls ?? [];
+    const parsedFacts: unknown = parsed?.facts;
+    const storedFacts: unknown = stored.facts;
+
+    expect(parsed?.version).toBe(9);
+    expect(parsed?.revision).toBe(12);
+    expect(parsedFacts).toEqual(storedFacts);
+    expect(pulls.map((entry) => entry.url)).toEqual(['https://github.com/sqve/koja/pull/143']);
   });
 
   test("a version 9 snapshot round-trips each pull's URL", () => {
