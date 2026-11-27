@@ -1,6 +1,8 @@
 import type { DataState } from '../../data/consumer.ts';
 import type { Place } from '../../data/gitIdentity.ts';
+import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { GitFacts, RepositoryPulls } from '../../data/snapshot.ts';
+import { spaceNeedOf } from '../../data/spaceStack.ts';
 import type { GitInfo } from './tree.ts';
 
 const factsOf = (state: DataState): GitFacts | null =>
@@ -36,6 +38,14 @@ export const gitInfoAt = (state: DataState, place: Place): GitInfo | null | unde
     root: worktree.root,
     linked: worktree.linked,
   };
+};
+
+export const needAt = (state: DataState, git: GitInfo | null): StackNeed | null => {
+  if (state.kind === 'unavailable' || git === null) {
+    return null;
+  }
+
+  return spaceNeedOf(state.snapshot.facts, git.worktreeKey);
 };
 
 export const answeredPlaces = (state: DataState): Set<string> => {

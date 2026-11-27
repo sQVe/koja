@@ -11,7 +11,7 @@ import type {
   WorktreeGit,
 } from '../../data/snapshot.ts';
 import { emptyFacts, snapshotVersion } from '../../data/snapshot.ts';
-import { answeredPlaces, gitInfoAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
+import { answeredPlaces, gitInfoAt, needAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
 import type { GitInfo } from './tree.ts';
 
 interface Checkout {
@@ -128,6 +128,13 @@ const kojaGit: GitInfo = {
   root: '/code/koja',
   linked: false,
 };
+
+describe('needAt', () => {
+  test('gives null when the state is unavailable or the row has no checkout', () => {
+    expect(needAt({ kind: 'unavailable' }, kojaGit)).toBeNull();
+    expect(needAt(stateOf(kojaFacts()), null)).toBeNull();
+  });
+});
 
 describe('pullFactsOf', () => {
   test('gives the PR facts of the snapshot and none when unavailable', () => {

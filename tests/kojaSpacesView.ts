@@ -283,6 +283,7 @@ const kitParts = [
   'textRole',
   'theme',
   'timer',
+  'workIcon',
 ];
 
 const mockKit = async (): Promise<void> => {
