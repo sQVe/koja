@@ -363,10 +363,10 @@ const otherEntries = (host: PaletteHost): Entry[] =>
     });
 
 const themeShows = (theme: ThemeChoice, host: PaletteHost, layouts: readonly string[]): boolean => {
-  const lightnessDiffers = theme.light !== host.dark;
+  const lightnessMatchesAppearance = theme.light !== host.dark;
   const ownLayout = theme.name === host.layout || !layouts.includes(theme.name);
 
-  return lightnessDiffers && ownLayout;
+  return lightnessMatchesAppearance && ownLayout;
 };
 
 const themeEntries = (known: ReadonlyMap<string, Command>, host: PaletteHost): Entry[] => {
@@ -398,9 +398,14 @@ const fillsInName = (command: string): boolean =>
 
 const hasRequiredArg = (command: string, args: Record<string, unknown>, name: string): boolean => {
   const value = args[name];
+  const fillsName = name === 'name' && fillsInName(command);
 
-  if (value === null || value === undefined) {
-    return name === 'name' && fillsInName(command);
+  if (value === undefined) {
+    return fillsName;
+  }
+
+  if (value === null) {
+    return targetArgs.has(name) || fillsName;
   }
 
   if (typeof value === 'string') {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
+import { commandIdentity } from '../../kit/commandTitles.ts';
 import type { OverlayHint } from '../../kit/shortcutBinding.ts';
 import type { ThemeChoice } from '../../kit/themes.ts';
 import type { Entry, PaletteHost } from './entries.ts';
@@ -191,7 +192,7 @@ describe('allEntries', () => {
 
     const item = allEntries(host()).find((entryItem) => entryItem.name === 'tab.new');
 
-    expect(item?.id).toBe('tab.new:{}');
+    expect(item?.id).toBe('tab.new');
   });
 
   test('keeps each entry id as its command and arguments, which Recent saves', () => {
@@ -203,9 +204,7 @@ describe('allEntries', () => {
     expect(ids).toContain('pane.split:{"direction":"right"}');
     expect(ids).toContain('mod.open:{"name":"koja-picker"}');
 
-    expect(entries.every((item) => item.id === `${item.name}:${JSON.stringify(item.args)}`)).toBe(
-      true,
-    );
+    expect(entries.every((item) => item.id === commandIdentity(item.name, item.args))).toBe(true);
 
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -461,6 +460,14 @@ describe('mod entries', () => {
     expect(added({ title: 'Do the thing', command: 'pane.split', args: { pane: 'pane-1' } })).toBe(
       true,
     );
+
+    expect(added({ title: 'Do the thing', command: 'pane.split', args: { pane: null } })).toBe(
+      true,
+    );
+  });
+
+  test('accepts a null required target argument as the live focus', () => {
+    commandList = [{ name: 'pane.split', args: [{ name: 'pane', required: true }], about: '' }];
 
     expect(added({ title: 'Do the thing', command: 'pane.split', args: { pane: null } })).toBe(
       true,
