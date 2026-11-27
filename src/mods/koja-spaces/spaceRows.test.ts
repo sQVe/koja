@@ -20,6 +20,7 @@ import { pullFacts } from '../../../tests/pullFacts.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
+import { controlSize } from '../../kit/size.ts';
 import type { Project } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import type { WaitTimes } from './waitTimes.ts';
@@ -86,6 +87,7 @@ const loaded = (await import(modulePath)) as {
     state: RowStateLike,
     pull: Pull | null,
     ticketTitle: string | null,
+    projectName: string | null,
   ) => DrawnElement;
   headerRow: (
     project: Project,
@@ -141,7 +143,7 @@ const stateWith = (age: string | null = null, need: StackNeed | null = null): Ro
 });
 
 const textsOf = (named: boolean, found: Pull | null): string[] =>
-  drawnTexts(loaded.row(listedSpace(named), ['a'], stateWith(), found, null));
+  drawnTexts(loaded.row(listedSpace(named), ['a'], stateWith(), found, null, null));
 
 describe('row', () => {
   test('draws the space title and no PR number and no branch', () => {
@@ -161,13 +163,73 @@ describe('row', () => {
   });
 
   test('a row with no need ends with an empty work slot after its age', () => {
-    const rowElement = loaded.row(listedSpace(true), ['a'], stateWith('4m'), null, null);
+    const rowElement = loaded.row(listedSpace(true), ['a'], stateWith('4m'), null, null, null);
 
     const [age, slot] = rowElement.kids.slice(-2) as [DrawnElement, DrawnElement];
 
     expect(drawnTexts(age)).toEqual(['4m']);
     expect(elementsWithStyle(slot, 'size')).toHaveLength(1);
     expect(drawnIcons(slot)).toEqual([]);
+  });
+
+  test('a row with a project name ends with it before its age', () => {
+    const rowElement = loaded.row(listedSpace(true), ['a'], stateWith('4m'), null, null, 'koja');
+
+    const [project, age, slot] = rowElement.kids.slice(-3) as [
+      DrawnElement,
+      DrawnElement,
+      DrawnElement,
+    ];
+
+    expect(drawnTexts(project)).toEqual(['koja']);
+    expect(drawnTexts(age)).toEqual(['4m']);
+    expect(elementsWithStyle(slot, 'size')).toHaveLength(1);
+    expect(project.styles['max_w']).toEqual([controlSize.factValueMaxWidth]);
+  });
+
+  test('a row with a project name attaches no drag', () => {
+    const drags: unknown[] = [];
+
+    loaded.row(
+      listedSpace(true),
+      ['a'],
+      {
+        ...stateWith(),
+        attachDrag: (...args) => {
+          drags.push(args);
+        },
+      },
+      null,
+      null,
+      'koja',
+    );
+
+    expect(drags).toEqual([]);
+  });
+
+  test('a row with no project name attaches the drag with the ids it was given', () => {
+    const drags: unknown[] = [];
+
+    loaded.row(
+      listedSpace(true),
+      ['a', 'b'],
+      {
+        ...stateWith(),
+        attachDrag: (...args) => {
+          drags.push(args);
+        },
+      },
+      null,
+      null,
+      null,
+    );
+
+    expect(drags).toHaveLength(1);
+
+    const [, draggedSpace, ids] = drags[0] as [unknown, SpaceInfo, readonly string[]];
+
+    expect(draggedSpace.id).toBe('a');
+    expect(ids).toEqual(['a', 'b']);
   });
 });
 
@@ -329,7 +391,7 @@ const drawnRow = (times: WaitTimes, listed: ListedSpace, now: number): string[] 
     now,
   );
 
-  return drawnTexts(loaded.row(listed, [listed.space.id], stateWith(age), null, null));
+  return drawnTexts(loaded.row(listed, [listed.space.id], stateWith(age), null, null, null));
 };
 
 const advanced = (

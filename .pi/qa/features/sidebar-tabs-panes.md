@@ -11,6 +11,7 @@ first.
 | Entry point | How to use it                                                                    |
 | ----------- | -------------------------------------------------------------------------------- |
 | Sidebar     | A click on a space row or a project header, a drag on a space row, and a chevron |
+| View switch | A click on `Projects` or `Inbox` above the sidebar list                          |
 | Tab strip   | A click or a drag on a tab, and a click on the plus button                       |
 | Menus       | A right click on a space, a project header, or a tab. Button 3 is the right one  |
 
@@ -24,6 +25,17 @@ first.
 
 - The sidebar lists every space under the name of its project, one line per space: its mark and its
   title. A space row shows no PR number and no branch.
+- `Projects` and `Inbox` sit on the only line above the list. The active view has the filled pill.
+  The sidebar opens in the view of the last choice, and that choice survives a restart.
+- `Inbox` regroups the same spaces into `Agent asks`, `PR needs you`, `Running`, and `Quiet`, in
+  that order, with a dim count beside each header. A space sits in the first group that holds it: a
+  blocked agent first, else a PR need, else a working agent, else Quiet. Empty groups are left out.
+  Project folds do not apply, and the main checkout is a plain row.
+- An Inbox row shows the agent mark and the title, then at the right the project name in dim text,
+  the age, and the work icon. The project name is capped in width and cuts at its end. Inbox has no
+  drag and drop and no folds. A click selects the space, and a right click opens its menu.
+- A view switch scrolls the active space into view again. In the sidebar's mark mode, the cursor
+  moves through the rows in the order they are drawn.
 - A space row ends with one work icon for the most blocking need across its stack's pull requests,
   such as `CI failing`, with a tooltip, and an empty slot when nothing is needed.
 - An unnamed space row shows the title of the Linear ticket of its branch, else the PR title of its

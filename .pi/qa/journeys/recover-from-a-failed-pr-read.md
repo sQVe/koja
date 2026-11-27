@@ -18,8 +18,8 @@ fake `gh` and fixture repository under [Before a launch](../../qa.md#before-a-la
 
 1. Take a shot after the fixture opens. Under the `pr-fixture` project header, `Could not read PRs`
    appears with `Retry`. The header and the one space row under it still show `pr-fixture` on one
-   line. The header shows no agent mark, and the row shows a hollow one. Neither shows a PR number
-   or branch.
+   line. The header shows no agent mark, and the row shows the red blocked bubble. Neither shows a
+   PR number or branch.
 2. Restore the fixture read by running `touch /var/tmp/ruta-<name>/home/pr-read-ok` in the host
    shell, using the sandbox name from the brief. This is the only fixture write for the worker. Take
    a fresh shot, then click `Retry` using its coordinates. Wait for the error line to vanish and

@@ -1,8 +1,8 @@
 import type { Context, Element } from 'gpui-kit';
-import { div } from 'gpui-kit';
 
 import type { DropMark } from '../../kit/index.ts';
-import { projectHeader, sidebarSize, spacing, stateLine, toggleButton } from '../../kit/index.ts';
+import { projectHeader, stateLine, toggleButton } from '../../kit/index.ts';
+import { groupedList } from './groupedList.ts';
 import type { Project } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 
@@ -21,14 +21,6 @@ export interface ProjectRowsHost {
 }
 
 const pullErrorText = 'Could not read PRs';
-
-// The list puts the row gap on both sides of this spacer, so the projects sit a group gap apart.
-const projectGap = (): Element =>
-  div()
-    .flex_none()
-    .h(sidebarSize.groupGap - 2 * spacing.xxsmall);
-
-const loadingRow = (): Element => stateLine({ kind: 'loading', text: 'Loading…' });
 
 const pullErrorRow = (git: GitInfo, host: ProjectRowsHost): Element => {
   const retry = toggleButton({ label: 'Retry', active: false }).on_click((_event, cx) => {
@@ -79,13 +71,7 @@ const projectBlock = (project: Project, host: ProjectRowsHost): Element[] => {
 };
 
 export const projectRows = (host: ProjectRowsHost): Element[] => {
-  if (host.projects.length === 0) {
-    return host.loading ? [loadingRow()] : [];
-  }
+  const blocks = host.projects.map((project) => projectBlock(project, host));
 
-  return host.projects.flatMap((project, index) => {
-    const block = projectBlock(project, host);
-
-    return index === 0 ? block : [projectGap(), ...block];
-  });
+  return groupedList(blocks, host.loading);
 };

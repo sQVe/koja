@@ -16,23 +16,30 @@ export interface Project {
 
 type ProjectRows = [ListedSpace, ...ListedSpace[]];
 
+export interface ShownRow {
+  row: ListedSpace;
+  project: string;
+}
+
 const projectKey = (row: ListedSpace): string => row.git?.repo.key ?? row.place.key;
 
 const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
   row.git !== null && !row.git.linked;
 
+const projectNameOf = (row: ListedSpace): string => {
+  if (row.git !== null) {
+    const root = row.git.linked ? null : row.git.root;
+
+    return repositoryNameOf(root, row.git.repo.commonDirectory);
+  }
+
+  return folderNameOf(row.place.folder) || row.space.name;
+};
+
 const projectName = (rows: ProjectRows, main: ListedSpace | null): string => {
   const [first] = rows;
 
-  if (main?.git) {
-    return repositoryNameOf(main.git.root, main.git.repo.commonDirectory);
-  }
-
-  if (first.git !== null) {
-    return repositoryNameOf(null, first.git.repo.commonDirectory);
-  }
-
-  return folderNameOf(first.place.folder) || first.space.name;
+  return projectNameOf(main ?? first);
 };
 
 const shownWhenFolded = (row: ListedSpace): boolean => row.space.active || needsYou(row.status);
@@ -56,6 +63,8 @@ const projectOf = (key: string, rows: ProjectRows, foldedKeys: FoldedKeys): Proj
   };
 };
 
+export const noFolds: FoldedKeys = { has: (): boolean => false };
+
 export const groupProjects = (list: ListedSpace[], foldedKeys: FoldedKeys): Project[] => {
   const byKey = new Map<string, ProjectRows>();
 
@@ -73,14 +82,19 @@ export const groupProjects = (list: ListedSpace[], foldedKeys: FoldedKeys): Proj
   return [...byKey].map(([key, rows]) => projectOf(key, rows, foldedKeys));
 };
 
-const shownRows = (project: Project): ListedSpace[] =>
+const rowsOfProject = (project: Project): ListedSpace[] =>
   project.main === null ? project.spaces : [project.main, ...project.spaces];
 
-export const shownSpaces = (projects: Project[]): ListedSpace[] => projects.flatMap(shownRows);
+export const shownRows = (projects: Project[]): ShownRow[] =>
+  projects.flatMap((project) =>
+    rowsOfProject(project).map((row) => ({ row, project: project.name })),
+  );
+
+export const shownSpaces = (projects: Project[]): ListedSpace[] => projects.flatMap(rowsOfProject);
 
 export const rootSpaceIds = (projects: Project[]): string[] =>
   projects.flatMap((project) => {
-    const root = shownRows(project)[0];
+    const root = rowsOfProject(project)[0];
 
     return root === undefined ? [] : [root.space.id];
   });

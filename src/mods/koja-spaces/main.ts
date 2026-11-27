@@ -52,17 +52,20 @@ import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import type { KeptNeed } from './gitFacts.ts';
 import { answeredPlaces, gitInfoAt, needAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
+import { inboxGroupsOf, inboxIdsOf, inboxRows } from './inbox/inboxRows.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
-import { groupProjects, shownSpaces } from './projects.ts';
+import { groupProjects, noFolds, shownSpaces } from './projects.ts';
 import { pullOf } from './pulls.ts';
 import { showsTitle } from './rows.ts';
+import { sidebarViewKey, storedViewIsInbox } from './sidebarView.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
 import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
 import type { HeaderState, RowFacts, RowState } from './spaceRows.ts';
 import { headerRow, row as spaceRow } from './spaceRows.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
+import { viewBar } from './viewBar.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
 import { advanceVisibility, initialVisibility } from './visibility.ts';
 import type { WaitTimes } from './waitTimes.ts';
@@ -86,8 +89,6 @@ const ageMilliseconds = 60_000;
 const waitTimesKey = 'wait.times';
 
 const projectsFoldedKey = 'repos.folded';
-
-const noFolds = { has: (): boolean => false };
 
 const isSidebarMarked = (): boolean => readSection(shared) === 'sidebar';
 
@@ -207,6 +208,12 @@ export default class Spaces extends View {
 
     const topStrip = div().flex_none().h(topStripHeight());
 
+    const switchLine = viewBar(storage, (cx) => {
+      this.endDrag();
+      this.revealedActive = null;
+      cx.notify();
+    });
+
     const list = v_flex()
       .id('spaces-list')
       .flex_1()
@@ -238,6 +245,7 @@ export default class Spaces extends View {
       .min_h(0)
       .bg(palette.chrome)
       .child(topStrip)
+      .child(switchLine)
       .child(list);
   }
 
@@ -311,7 +319,7 @@ export default class Spaces extends View {
     const state = readDataState(shared, Date.now());
 
     const result = moveCursor({
-      shown: shownIdsOf(this.projects(state)),
+      shown: this.shownIds(state),
       cursor: this.cursor,
       active: activeSpaceId(),
       action,
@@ -331,12 +339,12 @@ export default class Spaces extends View {
     cx.notify();
   }
 
-  private cursorRow(projects: Project[]): string | null {
+  private cursorRow(state: DataState): string | null {
     if (!isSidebarMarked()) {
       return null;
     }
 
-    return cursorRow(shownIdsOf(projects), this.cursor, activeSpaceId());
+    return cursorRow(this.shownIds(state), this.cursor, activeSpaceId());
   }
 
   private advance(state: DataState): VisibilityResult {
@@ -412,6 +420,12 @@ export default class Spaces extends View {
     return groupProjects(this.listedSpaces(state), this.foldedProjects);
   }
 
+  private shownIds(state: DataState): string[] {
+    return storedViewIsInbox(storage.get(sidebarViewKey))
+      ? inboxIdsOf(state, this.listedSpaces(state), this.lastNeeds)
+      : shownIdsOf(this.projects(state));
+  }
+
   private projectChildren(state: DataState): ProjectChildren[] {
     return groupProjects(this.listedSpaces(state), noFolds).map((project) =>
       project.spaces.map((row) => row.space.id),
@@ -453,6 +467,7 @@ export default class Spaces extends View {
     now: number,
     pulls: Record<string, RepositoryPulls>,
     facts: RowFacts,
+    projectName: string | null,
   ): Element {
     const waiting = { id: row.space.id, status: row.status, active: row.space.active };
     const age = waitAge(this.waitTimes, waiting, now);
@@ -470,7 +485,7 @@ export default class Spaces extends View {
 
     const pull = pullOf(row.git, pulls);
 
-    return spaceRow(row, ids, state, pull, facts.ticketTitle);
+    return spaceRow(row, ids, state, pull, facts.ticketTitle, projectName);
   }
 
   private drawMain(
@@ -515,7 +530,7 @@ export default class Spaces extends View {
   };
 
   private listRows(state: DataState, projects: Project[], ids: readonly string[]): Element[] {
-    const cursor = this.cursorRow(projects);
+    const cursor = this.cursorRow(state);
     const active = activeSpaceId();
     const now = Date.now();
     const pulls = pullFactsOf(state);
@@ -538,6 +553,24 @@ export default class Spaces extends View {
 
     const keys = projects.map((project) => project.key);
 
+    const factsOf = (row: ListedSpace): RowFacts => ({
+      ticketTitle: ticketTitleAt(state, row),
+      need: needAt(state, row.git, this.lastNeeds),
+    });
+
+    if (storedViewIsInbox(storage.get(sidebarViewKey))) {
+      const elements = inboxRows({
+        groups: inboxGroupsOf(state, this.listedSpaces(state), this.lastNeeds),
+        loading: this.isWaiting(),
+        draw: (row, project) =>
+          keepRow(row, this.draw(row, ids, cursor, now, pulls, factsOf(row), project)),
+      });
+
+      this.showRows(elements, cursorElement, activeElement, active);
+
+      return elements;
+    }
+
     const elements = projectRows({
       projects,
       loading: this.isWaiting(),
@@ -547,7 +580,7 @@ export default class Spaces extends View {
           need: needAt(state, row.git, this.lastNeeds),
         };
 
-        return keepRow(row, this.draw(row, ids, cursor, now, pulls, facts));
+        return keepRow(row, this.draw(row, ids, cursor, now, pulls, facts, null));
       },
       drawMain: (project, main) =>
         keepRow(main, this.drawMain(project, main, ids, keys, cursor, now)),

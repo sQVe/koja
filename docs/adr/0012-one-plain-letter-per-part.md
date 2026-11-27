@@ -88,6 +88,8 @@ an action has one.
   form.
 - `w w` `w W` break step 6: they keep Neovim's pane cycle in Herdr's pane order, which is not shown.
 - `z l` breaks step 6: it keeps layout cycling even though the layout order is not shown.
+- `s j` `s k`, `]` `[`, and `}` `{` break step 6: they keep the Projects order in both views, so a
+  key does not jump when the view changes.
 
 ## Consequences
 

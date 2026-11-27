@@ -41,12 +41,12 @@ No launch, and unclear impact:
 
 ## Journeys
 
-| Journey                                                                                             | Goal                                                         | Run it when the change touches                                                                    | Test    |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------- |
-| [Triage the spaces that need you](qa/journeys/triage-the-spaces-that-need-you.md)                   | Read one-line space rows and switch spaces.                  | `src/mods/koja-spaces/`, `src/kit/space.ts`, `src/kit/statusMark.ts`, `src/kit/spaceOrder.ts`     | by hand |
-| [Recover from a failed PR read](qa/journeys/recover-from-a-failed-pr-read.md)                       | Retry a failed read without losing the space rows.           | `src/mods/koja-spaces/`, `src/kit/stateLine.ts`, `src/kit/button.ts`, `src/data/pull*.ts`         | by hand |
-| [Find the space that holds a pull request](qa/journeys/find-the-space-that-holds-a-pull-request.md) | Find a space by a PR number in its stack, then switch to it. | `koja-picker`, `src/data/spaceStack.ts`, `src/data/stacks.ts`                                     | by hand |
-| [Check how far a stack has come](qa/journeys/check-how-far-a-stack-has-come.md)                     | Read what a stack's PRs need from its sidebar row.           | `src/mods/koja-spaces/`, `src/kit/workIcon.ts`, `src/data/pullNeeds.ts`, `src/data/spaceStack.ts` | by hand |
+| Journey                                                                                             | Goal                                                                       | Run it when the change touches                                                                                                                           | Test    |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| [Triage the spaces that need you](qa/journeys/triage-the-spaces-that-need-you.md)                   | Read the space rows, switch to Inbox, and choose the space that needs you. | `src/mods/koja-spaces/`, `src/mods/koja-spaces/inbox*.ts`, `src/kit/viewSwitch.ts`, `src/kit/space.ts`, `src/kit/statusMark.ts`, `src/kit/spaceOrder.ts` | by hand |
+| [Recover from a failed PR read](qa/journeys/recover-from-a-failed-pr-read.md)                       | Retry a failed read without losing the space rows.                         | `src/mods/koja-spaces/`, `src/kit/stateLine.ts`, `src/kit/button.ts`, `src/data/pull*.ts`                                                                | by hand |
+| [Find the space that holds a pull request](qa/journeys/find-the-space-that-holds-a-pull-request.md) | Find a space by a PR number in its stack, then switch to it.               | `koja-picker`, `src/data/spaceStack.ts`, `src/data/stacks.ts`                                                                                            | by hand |
+| [Check how far a stack has come](qa/journeys/check-how-far-a-stack-has-come.md)                     | Read what a stack's PRs need from its sidebar row.                         | `src/mods/koja-spaces/`, `src/kit/workIcon.ts`, `src/data/pullNeeds.ts`, `src/data/spaceStack.ts`                                                        | by hand |
 
 ## Features
 
@@ -105,15 +105,16 @@ SH
 chmod +x "$fixtureHome/fake-gh"
 ln -s "$fixtureHome/fake-gh" "/var/tmp/ruta-$RUTA_NAME/bin/gh"
 bun run sandbox do space.new --folder "$fixtureHome/pr-fixture"
-bun run sandbox do space.new --folder "$fixtureHome/pr-fixture"
+terminal=$(bun run sandbox do space.new --folder "$fixtureHome/pr-fixture" | jq -er .terminal)
+bun run sandbox hc send "$terminal" "exec sh -c 'printf %b \"\$1\"; exec sleep 86400' qa '\033]7501;state=blocked:app=pi:kind=question\033\\\\'"
 bun run sandbox identity
 ```
 
 - Start: the commands above create two spaces on an empty fixture repository. No commit is needed.
   The sandbox puts its `bin` first on `PATH`; the fake `gh` never calls GitHub or the real `gh`.
 - Check that it is up: identity exits 0. Wait for `Could not read PRs` and `Retry` under
-  `pr-fixture`. The `pr-fixture` header shows no agent mark, and its one row shows a hollow one.
-  `$fixtureHome/gh-calls` records `api graphql`.
+  `pr-fixture`. The `pr-fixture` header shows no agent mark, and its one row, the second space,
+  shows the red blocked mark. `$fixtureHome/gh-calls` records `api graphql`.
 
 The manager stops the run with the `verification` tool after the worker reports.
 
@@ -372,8 +373,9 @@ Same as [Normal mode keys](#normal-mode-keys).
 - A double click, such as the rename of a tab: the sandbox input sends single clicks only.
 - A pane close that also ends other panes: no fixture step makes a terminal with a live child
   terminal in another pane.
-- Agent launch and live agent status: they need real agents. The journey fixture shows only idle
-  spaces, with no mark on the header and a hollow one on the row, not live status changes.
+- Agent launch and live agent status: they need real agents. The journey fixture shows one idle
+  space and one blocked space, whose terminal reports the blocked status and then sleeps. It shows
+  no live status changes.
 - Real SSH machines, machine login, and a rebuilt machine: they need a real server and credentials.
   The [second machine](#second-machine) fixture tests only the sidebar header of a project on
   `qa-remote`.

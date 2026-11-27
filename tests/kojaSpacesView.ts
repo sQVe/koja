@@ -1,6 +1,6 @@
 import { mock } from 'bun:test';
 
-import type { SpaceInfo } from 'herdr';
+import type { PaneInfo, SpaceInfo, Status, TabInfo } from 'herdr';
 
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
 import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
@@ -121,10 +121,51 @@ export const state = {
   sharedValues: {} as Record<string, unknown>,
   sharedWrites: [] as string[],
   sidebarWidth: null as number | null,
+  paneList: [] as PaneInfo[],
   spaceList: [] as SpaceInfo[],
   timers: [] as Timer[],
   store: new Map<string, string>(),
 };
+
+const tab = (id: string): TabInfo => ({
+  id: `tab-${id}`,
+  index: 1,
+  name: '1',
+  named: false,
+  active: true,
+  status: null,
+  panes: 1,
+  zoomed: false,
+  settled: false,
+  settled_at: null,
+  changed_at: null,
+  working_since: null,
+});
+
+const pane = (id: string, status: Status | null): PaneInfo => ({
+  pane: `pane-${id}`,
+  terminal: `terminal-${id}`,
+  tab: `tab-${id}`,
+  title: id,
+  name: null,
+  cwd: '/code/notes',
+  branch: null,
+  status,
+  app: null,
+  program: {
+    key: 'agent',
+    name: 'Agent',
+    icon: null,
+    tint: false,
+    tile: null,
+    color: null,
+    shell: false,
+    agent: true,
+  },
+  focused: false,
+  zoomed: false,
+  movable: false,
+});
 
 export const space = (
   id: string,
@@ -143,6 +184,18 @@ export const space = (
   status: null,
   tabs: [],
 });
+
+export const showSpaces = (statuses: Record<string, Status | null>, active: string): void => {
+  state.spaceList = Object.entries(statuses).map(([id]) => {
+    const shown = space(id, id === active);
+
+    shown.tabs = [tab(id)];
+
+    return shown;
+  });
+
+  state.paneList = Object.entries(statuses).map(([id, status]) => pane(id, status));
+};
 
 export const storedFacts = (
   checkouts: readonly Checkout[],
@@ -233,6 +286,7 @@ const mockHostModules = async (): Promise<void> => {
       },
       layout: () => ({ id: 'sidebar', size: { px: state.sidebarWidth } }),
       nextCommand,
+      panes: () => state.paneList,
       openOverlay: (options: unknown) => {
         state.overlayCalls.push(options);
 
@@ -273,6 +327,7 @@ const kitParts = [
   'textRole',
   'theme',
   'timer',
+  'viewSwitch',
   'workIcon',
 ];
 
@@ -317,6 +372,7 @@ export const resetKojaSpaces = (): void => {
   commandQueue.length = 0;
   commandWaiters.length = 0;
   state.store.clear();
+  state.paneList = [];
   state.spaceList = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => space(id, id === 'b'));
   state.timers = [];
   crypto.randomUUID = realRandomUuid;
@@ -409,20 +465,16 @@ export const cursorNames = (view: FakeView): string[] =>
 export const spaceNames = (view: FakeView): string[] =>
   drawnTexts(view.render()).filter((text) => text.startsWith('name-'));
 
+// The direct children of the scrolling list.
+export const listChildren = (view: FakeView): DrawnElement[] =>
+  elementsWithSizeHandler(view.render())[0]?.kids ?? [];
+
 // The place of the outlined row among the direct children of the scrolling list.
-export const cursorChildIndex = (view: FakeView): number => {
-  const list = elementsWithSizeHandler(view.render())[0];
+export const cursorChildIndex = (view: FakeView): number =>
+  listChildren(view).findIndex((child) => elementsWithBorder(child, themeColors.accent).length > 0);
 
-  return (list?.kids ?? []).findIndex(
-    (child) => elementsWithBorder(child, themeColors.accent).length > 0,
-  );
-};
-
-export const spaceChildIndex = (view: FakeView, id: string): number => {
-  const list = elementsWithSizeHandler(view.render())[0];
-
-  return (list?.kids ?? []).findIndex((child) => elementsWithId(child, `space-${id}`).length > 0);
-};
+export const spaceChildIndex = (view: FakeView, id: string): number =>
+  listChildren(view).findIndex((child) => elementsWithId(child, `space-${id}`).length > 0);
 
 export const reportSize = (view: FakeView, width: number, height: number): void => {
   for (const element of elementsWithSizeHandler(view.render())) {

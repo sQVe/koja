@@ -75,9 +75,12 @@
     "!src/mods/koja-picker/previewSession.ts",
     "!src/mods/koja-picker/rowElements.ts",
     "!src/mods/koja-picker/spaceFacts.ts",
+    "!src/mods/koja-spaces/groupedList.ts",
+    "!src/mods/koja-spaces/inbox/inboxRows.ts",
     "!src/mods/koja-spaces/projectRows.ts",
     "!src/mods/koja-spaces/rail.ts",
     "!src/mods/koja-spaces/spaceRows.ts",
+    "!src/mods/koja-spaces/viewBar.ts",
     "!src/mods/koja-worktree/workspace.ts"
   ],
   "tsconfigFile": "stryker-no-tsconfig.json",
