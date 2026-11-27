@@ -20,6 +20,7 @@ import { pullFacts } from '../../../tests/pullFacts.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
+import { controlSize } from '../../kit/size.ts';
 import type { Project } from './projects.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import type { WaitTimes } from './waitTimes.ts';
@@ -86,6 +87,7 @@ const loaded = (await import(modulePath)) as {
     state: RowStateLike,
     pull: Pull | null,
     ticketTitle: string | null,
+    project?: string | null,
   ) => DrawnElement;
   headerRow: (
     project: Project,
@@ -168,6 +170,41 @@ describe('row', () => {
     expect(drawnTexts(age)).toEqual(['4m']);
     expect(elementsWithStyle(slot, 'size')).toHaveLength(1);
     expect(drawnIcons(slot)).toEqual([]);
+  });
+
+  test('a row with a project name ends with it before its age', () => {
+    const rowElement = loaded.row(listedSpace(true), ['a'], stateWith('4m'), null, null, 'koja');
+
+    const [project, age, slot] = rowElement.kids.slice(-3) as [
+      DrawnElement,
+      DrawnElement,
+      DrawnElement,
+    ];
+
+    expect(drawnTexts(project)).toEqual(['koja']);
+    expect(drawnTexts(age)).toEqual(['4m']);
+    expect(elementsWithStyle(slot, 'size')).toHaveLength(1);
+    expect(project.styles['max_w']).toEqual([controlSize.factValueMaxWidth]);
+  });
+
+  test('a row with a project name attaches no drag', () => {
+    const drags: unknown[] = [];
+
+    loaded.row(
+      listedSpace(true),
+      ['a'],
+      {
+        ...stateWith(),
+        attachDrag: (...args) => {
+          drags.push(args);
+        },
+      },
+      null,
+      null,
+      'koja',
+    );
+
+    expect(drags).toEqual([]);
   });
 });
 

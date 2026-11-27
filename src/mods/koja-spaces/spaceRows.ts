@@ -7,6 +7,7 @@ import type { DragState } from '../../kit/drag.ts';
 import { dragLine } from '../../kit/drag.ts';
 import type { DropMark } from '../../kit/index.ts';
 import {
+  controlSize,
   detailText,
   emptyWorkSlot,
   listRow,
@@ -44,16 +45,25 @@ export interface HeaderState extends RowBaseState {
 const dropMark = (state: RowBaseState, id: string, ids: readonly string[]): DropMark | undefined =>
   state.refused === id ? 'refused' : dragLine(state.drag, id, ids);
 
+const projectDetail = (project: string): Element =>
+  detailText(project).max_w(controlSize.factValueMaxWidth).truncate();
+
 export const row = (
   listed: ListedSpace,
   ids: readonly string[],
   state: RowState,
   pull: Pull | null,
   ticketTitle: string | null,
+  project: string | null = null,
 ): Element => {
   const { space } = listed;
   const drop = dropMark(state, space.id, ids);
-  const end: Element[] = state.age === null ? [] : [detailText(state.age)];
+  const end: Element[] = project === null ? [] : [projectDetail(project)];
+
+  if (state.age !== null) {
+    end.push(detailText(state.age));
+  }
+
   const workSlot = state.need === null ? emptyWorkSlot() : workIcon(state.need);
 
   end.push(workSlot);
@@ -73,7 +83,10 @@ export const row = (
     end,
   }).id(`space-${space.id}`);
 
-  state.attachDrag(element, space, ids);
+  // An Inbox row shows a project and has no drag.
+  if (project === null) {
+    state.attachDrag(element, space, ids);
+  }
 
   return element;
 };

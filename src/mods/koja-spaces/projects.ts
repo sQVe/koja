@@ -21,18 +21,20 @@ const projectKey = (row: ListedSpace): string => row.git?.repo.key ?? row.place.
 const isMain = (row: ListedSpace): row is ListedSpace & { git: GitInfo } =>
   row.git !== null && !row.git.linked;
 
+export const projectNameOf = (row: ListedSpace): string => {
+  if (row.git !== null) {
+    const root = row.git.linked ? null : row.git.root;
+
+    return repositoryNameOf(root, row.git.repo.commonDirectory);
+  }
+
+  return folderNameOf(row.place.folder) || row.space.name;
+};
+
 const projectName = (rows: ProjectRows, main: ListedSpace | null): string => {
   const [first] = rows;
 
-  if (main?.git) {
-    return repositoryNameOf(main.git.root, main.git.repo.commonDirectory);
-  }
-
-  if (first.git !== null) {
-    return repositoryNameOf(null, first.git.repo.commonDirectory);
-  }
-
-  return folderNameOf(first.place.folder) || first.space.name;
+  return projectNameOf(main ?? first);
 };
 
 const shownWhenFolded = (row: ListedSpace): boolean => row.space.active || needsYou(row.status);

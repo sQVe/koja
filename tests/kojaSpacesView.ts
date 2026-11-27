@@ -1,6 +1,6 @@
 import { mock } from 'bun:test';
 
-import type { SpaceInfo } from 'herdr';
+import type { PaneInfo, SpaceInfo } from 'herdr';
 
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
 import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
@@ -121,6 +121,7 @@ export const state = {
   sharedValues: {} as Record<string, unknown>,
   sharedWrites: [] as string[],
   sidebarWidth: null as number | null,
+  paneList: [] as PaneInfo[],
   spaceList: [] as SpaceInfo[],
   timers: [] as Timer[],
   store: new Map<string, string>(),
@@ -233,6 +234,7 @@ const mockHostModules = async (): Promise<void> => {
       },
       layout: () => ({ id: 'sidebar', size: { px: state.sidebarWidth } }),
       nextCommand,
+      panes: () => state.paneList,
       openOverlay: (options: unknown) => {
         state.overlayCalls.push(options);
 
@@ -273,6 +275,7 @@ const kitParts = [
   'textRole',
   'theme',
   'timer',
+  'viewSwitch',
   'workIcon',
 ];
 
@@ -317,6 +320,7 @@ export const resetKojaSpaces = (): void => {
   commandQueue.length = 0;
   commandWaiters.length = 0;
   state.store.clear();
+  state.paneList = [];
   state.spaceList = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => space(id, id === 'b'));
   state.timers = [];
   crypto.randomUUID = realRandomUuid;

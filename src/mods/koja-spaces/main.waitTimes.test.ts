@@ -153,6 +153,7 @@ const kitParts = [
   'textRole',
   'theme',
   'timer',
+  'viewSwitch',
 ];
 
 const kitFake = await realKitIndexFake(kitParts);
