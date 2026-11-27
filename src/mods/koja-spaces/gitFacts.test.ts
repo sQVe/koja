@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import type { DataState } from '../../data/consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
+import type { Pull } from '../../data/pulls.ts';
 import type {
   Facts,
   GitFacts,
@@ -138,8 +139,14 @@ describe('needAt', () => {
     mergeable: 'conflicting',
   });
 
-  const readState = (failed: boolean): DataState =>
-    stateOf(kojaFacts({ [kojaGit.repo.key]: { pulls: [conflictingPull], failed } }));
+  const failingPull = pullFacts({
+    number: 12,
+    headRefName: 'main',
+    checks: { kind: 'read', value: 'failing' },
+  });
+
+  const readState = (failed: boolean, pulls: Pull[] = [conflictingPull]): DataState =>
+    stateOf(kojaFacts({ [kojaGit.repo.key]: { pulls, failed } }));
 
   test('gives null when the state is unavailable or the row has no checkout', () => {
     expect(needAt({ kind: 'unavailable' }, kojaGit, new Map())).toBeNull();
@@ -151,6 +158,11 @@ describe('needAt', () => {
 
     expect(needAt(readState(false), kojaGit, lastNeeds)).toBe('conflict');
     expect(needAt(readState(true), kojaGit, lastNeeds)).toBe('conflict');
+
+    expect(needAt(readState(false, [failingPull]), kojaGit, lastNeeds)).toBe('failing');
+    expect(lastNeeds.get(kojaGit.worktreeKey)?.need).toBe('failing');
+    expect(needAt(readState(true), kojaGit, lastNeeds)).toBe('failing');
+
     expect(needAt(stateOf(kojaFacts()), kojaGit, lastNeeds)).toBeNull();
     expect(lastNeeds.has(kojaGit.worktreeKey)).toBe(false);
     expect(needAt(readState(true), kojaGit, lastNeeds)).toBeNull();
