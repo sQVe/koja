@@ -465,20 +465,16 @@ export const cursorNames = (view: FakeView): string[] =>
 export const spaceNames = (view: FakeView): string[] =>
   drawnTexts(view.render()).filter((text) => text.startsWith('name-'));
 
+// The direct children of the scrolling list.
+export const listChildren = (view: FakeView): DrawnElement[] =>
+  elementsWithSizeHandler(view.render())[0]?.kids ?? [];
+
 // The place of the outlined row among the direct children of the scrolling list.
-export const cursorChildIndex = (view: FakeView): number => {
-  const list = elementsWithSizeHandler(view.render())[0];
+export const cursorChildIndex = (view: FakeView): number =>
+  listChildren(view).findIndex((child) => elementsWithBorder(child, themeColors.accent).length > 0);
 
-  return (list?.kids ?? []).findIndex(
-    (child) => elementsWithBorder(child, themeColors.accent).length > 0,
-  );
-};
-
-export const spaceChildIndex = (view: FakeView, id: string): number => {
-  const list = elementsWithSizeHandler(view.render())[0];
-
-  return (list?.kids ?? []).findIndex((child) => elementsWithId(child, `space-${id}`).length > 0);
-};
+export const spaceChildIndex = (view: FakeView, id: string): number =>
+  listChildren(view).findIndex((child) => elementsWithId(child, `space-${id}`).length > 0);
 
 export const reportSize = (view: FakeView, width: number, height: number): void => {
   for (const element of elementsWithSizeHandler(view.render())) {

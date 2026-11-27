@@ -71,4 +71,29 @@ describe('inboxGroups', () => {
     expect(groups.map((group) => group.id)).toEqual(['quiet']);
     expect(inboxIds(groups)).toEqual(['first', 'second', 'third']);
   });
+
+  test('regroups an interleaved Projects order into the fixed group order', () => {
+    const quietFirst = listed('quiet-first', 'done');
+    const runningFirst = listed('running-first', 'working');
+    const quietSecond = listed('quiet-second', 'done');
+    const askFirst = listed('ask-first', 'blocked');
+    const runningSecond = listed('running-second', 'working');
+    const askSecond = listed('ask-second', 'blocked');
+
+    const groups = inboxGroups(
+      [quietFirst, runningFirst, quietSecond, askFirst, runningSecond, askSecond],
+      () => null,
+    );
+
+    expect(groups.map((group) => group.id)).toEqual(['asks', 'running', 'quiet']);
+
+    expect(inboxIds(groups)).toEqual([
+      'ask-first',
+      'ask-second',
+      'running-first',
+      'running-second',
+      'quiet-first',
+      'quiet-second',
+    ]);
+  });
 });

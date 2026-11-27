@@ -1,15 +1,10 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 
-import {
-  click,
-  clickablesWithText,
-  drawnTexts,
-  elementsWithId,
-  elementsWithSizeHandler,
-} from '../../../tests/drawn.ts';
+import { click, clickablesWithText, drawnTexts, elementsWithId } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import type { FakeView } from '../../../tests/kojaSpacesView.ts';
 import {
+  listChildren,
   loadView,
   resetKojaSpaces,
   restoreKojaSpaces,
@@ -23,6 +18,7 @@ import {
   storedFacts,
 } from '../../../tests/kojaSpacesView.ts';
 import { placeOf } from '../../data/gitIdentity.ts';
+import { sidebarViewKey } from './sidebarView.ts';
 
 await setupKojaSpaces();
 
@@ -41,9 +37,6 @@ const clickContext = {
   },
 };
 
-const listChildren = (view: FakeView): DrawnElement[] =>
-  elementsWithSizeHandler(view.render())[0]?.kids ?? [];
-
 const clickInbox = (view: FakeView): void => {
   click(clickablesWithText(view.render(), 'Inbox')[0] as DrawnElement, clickContext);
 };
@@ -59,14 +52,15 @@ describe('koja-spaces Inbox view', () => {
     const texts = listChildren(view).flatMap(drawnTexts);
 
     expect(texts).toContain('Agent asks');
+    expect(texts).toContain('name-a');
     expect(texts.indexOf('Agent asks')).toBeLessThan(texts.indexOf('name-a'));
     expect(texts.indexOf('name-a')).toBeLessThan(texts.indexOf('Quiet'));
     expect(texts.indexOf('Quiet')).toBeLessThan(texts.indexOf('name-b'));
-    expect(state.store.get('sidebar.view')).toBe('inbox');
+    expect(state.store.get(sidebarViewKey)).toBe('inbox');
   });
 
   test('a stored Inbox view opens in Inbox', async () => {
-    state.store.set('sidebar.view', 'inbox');
+    state.store.set(sidebarViewKey, 'inbox');
 
     const view = await loadView();
     const children = listChildren(view);
@@ -79,7 +73,7 @@ describe('koja-spaces Inbox view', () => {
   });
 
   test('a click on an Inbox row selects its space', async () => {
-    state.store.set('sidebar.view', 'inbox');
+    state.store.set(sidebarViewKey, 'inbox');
 
     const view = await loadView();
 
@@ -110,7 +104,7 @@ describe('koja-spaces Inbox view', () => {
 
     expect(drawnTexts(header)).toContain('herdr');
 
-    state.store.set('sidebar.view', 'inbox');
+    state.store.set(sidebarViewKey, 'inbox');
 
     const inboxView = await loadView();
     const row = elementsWithId(inboxView.render(), 'space-feature')[0] as DrawnElement;
@@ -121,7 +115,7 @@ describe('koja-spaces Inbox view', () => {
 
   test('the cursor moves in Inbox order', async () => {
     showSpaces({ a: null, b: 'blocked', c: null }, 'b');
-    state.store.set('sidebar.view', 'inbox');
+    state.store.set(sidebarViewKey, 'inbox');
 
     await loadView();
 

@@ -87,7 +87,7 @@ const loaded = (await import(modulePath)) as {
     state: RowStateLike,
     pull: Pull | null,
     ticketTitle: string | null,
-    project: string | null,
+    projectName: string | null,
   ) => DrawnElement;
   headerRow: (
     project: Project,
