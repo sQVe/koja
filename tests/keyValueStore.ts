@@ -1,11 +1,11 @@
 import type { KeyValueStore } from '../src/mods/koja-spaces/storage.ts';
 
-interface MemoryStore {
+interface KeyValueStoreFixture {
   values: Record<string, string>;
   store: KeyValueStore;
 }
 
-export const memoryStore = (initial: Record<string, string> = {}): MemoryStore => {
+export const keyValueStore = (initial: Record<string, string> = {}): KeyValueStoreFixture => {
   const values = { ...initial };
 
   return {

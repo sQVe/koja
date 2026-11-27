@@ -2,7 +2,7 @@ import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 import { click, clickablesWithText, drawn } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { memoryStore } from '../../../tests/memoryStore.ts';
+import { keyValueStore } from '../../../tests/keyValueStore.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -46,7 +46,7 @@ const optionButton = (element: DrawnElement, label: string): DrawnElement | unde
 
 describe('viewBar', () => {
   test('the stored view is the active option', () => {
-    const { store } = memoryStore({ [sidebarViewKey]: 'inbox' });
+    const { store } = keyValueStore({ [sidebarViewKey]: 'inbox' });
 
     const element = viewBar(store, () => undefined);
 
@@ -55,7 +55,7 @@ describe('viewBar', () => {
   });
 
   test('a select stores the chosen view', () => {
-    const { values, store } = memoryStore();
+    const { values, store } = keyValueStore();
 
     const element = viewBar(store, () => undefined);
 
@@ -69,7 +69,7 @@ describe('viewBar', () => {
   });
 
   test('a select asks for one redraw', () => {
-    const { store } = memoryStore();
+    const { store } = keyValueStore();
     const changes: unknown[] = [];
     const context = { stop_propagation: () => undefined };
 

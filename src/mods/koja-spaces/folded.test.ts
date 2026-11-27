@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
-import { memoryStore } from '../../../tests/memoryStore.ts';
+import { keyValueStore } from '../../../tests/keyValueStore.ts';
 import { foldedSet } from './folded.ts';
 
 describe('foldedSet', () => {
   test('toggles an item on and off, persisting each time', () => {
-    const { values, store: storage } = memoryStore();
+    const { values, store: storage } = keyValueStore();
     const folded = foldedSet('machines.folded', storage);
 
     expect(folded.has('work')).toBe(false);
@@ -22,7 +22,7 @@ describe('foldedSet', () => {
   });
 
   test('recovers from invalid saved JSON and persists a later toggle', () => {
-    const { values, store: storage } = memoryStore();
+    const { values, store: storage } = keyValueStore();
 
     storage.set('repos.folded', '{{{not json');
 
@@ -37,7 +37,7 @@ describe('foldedSet', () => {
   });
 
   test('reads an existing folded set', () => {
-    const { store: storage } = memoryStore();
+    const { store: storage } = keyValueStore();
 
     storage.set('repos.folded', '["a","b"]');
 
@@ -48,7 +48,7 @@ describe('foldedSet', () => {
   });
 
   test('drops saved items that are not strings', () => {
-    const { values, store: storage } = memoryStore();
+    const { values, store: storage } = keyValueStore();
 
     storage.set('repos.folded', '["a",1,null,{"b":true},["c"],"d"]');
 
