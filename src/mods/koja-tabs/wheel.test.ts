@@ -137,6 +137,14 @@ describe('wheelTurn', () => {
   });
 
   test('keeps a gesture that holds no travel yet', () => {
+    const still = wheelTurn(noWheelGesture, pixels(0), 1000);
+
+    expect(still.step).toBeNull();
+    expect(still.gesture.accumulated).toBe(0);
+    expect(still.gesture.steps).toBe(0);
+  });
+
+  test('keeps the travel left after a step', () => {
     const after = turned(noWheelGesture, [pixels(100)], 1000);
 
     expect(after.steps).toBe(1);

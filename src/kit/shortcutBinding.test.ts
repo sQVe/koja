@@ -47,6 +47,14 @@ describe('hintFor', () => {
       insert: ['Ctrl+Alt+O'],
     });
   });
+
+  test('draws no hint for a JSON action that names no command', () => {
+    const bindings = [{ section: 'global', keys: 'ctrl-alt-y', action: '{"args":{"px":240}}' }];
+
+    expect(hintFor(bindings, 'linux', commandIdentity('layout.resize', { px: 240 }))).toEqual({
+      normal: [],
+    });
+  });
 });
 
 describe('bindingFor', () => {
@@ -100,17 +108,16 @@ describe('bindingFor', () => {
     expect(bindingFor(bindings, commandIdentity('tab.new', { px: 240 }))).toBeNull();
   });
 
-  test('ignores a JSON action that does not parse or names no command', () => {
-    const bindings = [
-      { section: 'global', keys: 'ctrl-alt-x', action: '{"command":' },
-      { section: 'global', keys: 'ctrl-alt-y', action: '{"args":{"px":240}}' },
-    ];
+  test('ignores a JSON action that does not parse', () => {
+    const bindings = [{ section: 'global', keys: 'ctrl-alt-x', action: '{"command":' }];
 
     expect(bindingFor(bindings, commandIdentity('layout.resize', { px: 240 }))).toBeNull();
+  });
 
-    expect(hintFor(bindings, 'linux', commandIdentity('layout.resize', { px: 240 }))).toEqual({
-      normal: [],
-    });
+  test('ignores a JSON action that names no command', () => {
+    const bindings = [{ section: 'global', keys: 'ctrl-alt-y', action: '{"args":{"px":240}}' }];
+
+    expect(bindingFor(bindings, commandIdentity('layout.resize', { px: 240 }))).toBeNull();
   });
 
   test('draws the key of a JSON action in the row hint', () => {

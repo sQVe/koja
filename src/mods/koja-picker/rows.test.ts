@@ -486,9 +486,15 @@ describe('tabRowDisplay', () => {
   });
 
   test('labels an unnamed tab by the program it runs', () => {
-    const named = { ...tuicrPane, title: 'tuicr' };
+    const pathTitled = { ...tuicrPane, title: '~/code/koja' };
 
-    expect(tabRowDisplay(tabOf('k1', 1), [named], []).label).toBe('tuicr');
+    expect(tabRowDisplay(tabOf('k1', 1), [pathTitled], []).label).toBe('tuicr');
+  });
+
+  test('labels an unnamed tab whose pane is titled after its program', () => {
+    const titledAfterProgram = { ...tuicrPane, title: 'tuicr' };
+
+    expect(tabRowDisplay(tabOf('k1', 1), [titledAfterProgram], []).label).toBe('tuicr');
   });
 
   test('takes the icon program from the same program as the label', () => {
