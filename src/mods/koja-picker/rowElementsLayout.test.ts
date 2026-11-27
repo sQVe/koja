@@ -33,9 +33,11 @@ const rowWithText = (element: DrawnElement, text: string): DrawnElement => {
 };
 
 const rowWithExactText = (element: DrawnElement, text: string): DrawnElement => {
-  const row = element.kids.find(
-    (kid) => drawnTexts(kid).length === 1 && drawnTexts(kid)[0] === text,
-  );
+  const row = element.kids.find((kid) => {
+    const texts = drawnTexts(kid);
+
+    return texts.length === 1 && texts[0] === text;
+  });
 
   if (row === undefined) {
     throw new Error(`no row with only ${text}`);

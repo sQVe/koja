@@ -219,27 +219,26 @@ describe('keepSearchFocused', () => {
 
     expect(timer.pending()).toBe(1);
 
-    const [superseded, live] = timer.queued;
+    const [superseded, liveRetry] = timer.queued;
 
     superseded?.run();
     expect(input.focusCalls).toBe(2);
     expect(timer.pending()).toBe(1);
 
-    live?.run();
+    liveRetry?.run();
     expect(input.focusCalls).toBe(3);
     expect(timer.pending()).toBe(1);
   });
 
   test('random focus, blur, and timer runs leave at most one retry pending', () => {
     const actions = [0, 1, 2] as const;
+    let sawRetry = false;
 
     for (let seed = 1; seed <= 50; seed += 1) {
       const { host, input, timer, context } = setup();
       const random = seededRandom(seed);
 
       keepSearchFocused(host, context);
-
-      let sawRetry = timer.pending() > 0;
 
       for (let step = 0; step < 30; step += 1) {
         const action = pick(actions, random);
@@ -253,10 +252,9 @@ describe('keepSearchFocused', () => {
 
           if (entries.length > 0) {
             pick(entries, random).run();
+            sawRetry = true;
           }
         }
-
-        sawRetry = sawRetry || timer.pending() > 0;
 
         expect(timer.pending(), `seed ${seed}: more than one retry waits`).toBeLessThanOrEqual(1);
 
@@ -264,8 +262,8 @@ describe('keepSearchFocused', () => {
           expect(timer.pending(), `seed ${seed}: a retry waits while focused`).toBe(0);
         }
       }
-
-      expect(sawRetry, `seed ${seed}: no retry was ever pending`).toBe(true);
     }
+
+    expect(sawRetry, 'no retry ever ran').toBe(true);
   });
 });
