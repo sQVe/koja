@@ -5,32 +5,28 @@ import { div } from 'gpui-kit';
 import {
   colors,
   emptyWorkSlot,
-  hoverCard,
-  hoverCardSize,
-  icon,
   linkText,
   listRow,
   projectHeader,
-  roleText,
   rowHeight,
   sidebarSize,
   spaceFooter,
   spaceMark,
   spacing,
+  stackCard,
+  stackCardHeight,
   stackProgress,
-  statusMark,
   viewSwitch,
   workIcon,
 } from '../../../kit/index.ts';
-import type { FakeLayer, FakeSpace, FakeProject, RowLook } from './sidebarPartsData.ts';
-import { fakeProjects, hoveredProject, selectedLinks, stackLayers } from './sidebarPartsData.ts';
+import { stackCardFixture } from '../stackCardFixture.ts';
+import type { FakeProject, FakeSpace, RowLook } from './sidebarPartsData.ts';
+import { fakeProjects, selectedLinks } from './sidebarPartsData.ts';
 
 const views = [
   { id: 'projects', label: 'Projects' },
   { id: 'inbox', label: 'Inbox' },
 ];
-
-const pullLabel = (pull: number): string => `#${pull}`;
 
 const rowPitch = (): number => rowHeight.small + spacing.xxsmall;
 
@@ -140,87 +136,18 @@ const sidebar = (): Element => {
     .children(footers);
 };
 
-const cardLine = (start: Element, end: string): Element =>
-  h_flex()
-    .flex_1()
-    .min_w(0)
-    .gap(spacing.small)
-    .items_center()
-    .child(start.flex_1())
-    .child(roleText('detail', end));
-
-const layerMark = (layer: FakeLayer): Element =>
-  layer.state === 'checkedOut' ? icon('git-branch', 'small') : statusMark(null);
-
-const layerEnd = (layer: FakeLayer): Element => {
-  if (layer.need !== undefined) {
-    return workIcon(layer.need);
-  }
-
-  return layer.state === 'draft' ? roleText('detail', 'draft') : emptyWorkSlot();
-};
-
-const layerLabel = (layer: FakeLayer): Element => {
-  const pull = roleText('detail', pullLabel(layer.pull), 'muted').w(hoverCardSize.pullColumn);
-  const ticket = roleText('detail', layer.ticket).w(hoverCardSize.ticketColumn);
-  const title = div().flex_1().min_w(0).truncate().child(layer.title);
-
-  return h_flex()
-    .flex_1()
-    .min_w(0)
-    .gap(spacing.small)
-    .items_center()
-    .child(pull)
-    .child(ticket)
-    .child(title);
-};
-
-const layerRow = (layer: FakeLayer): Element =>
-  listRow({
-    size: 'small',
-    inset: false,
-    state: 'normal',
-    muted: layer.state === 'draft',
-    start: layerMark(layer),
-    label: layerLabel(layer),
-    end: [layerEnd(layer)],
-  });
-
-const mergedRow = (merged: FakeLayer[]): Element => {
-  const checkIcon = icon('check', 'small').text_color(colors().dim);
-  const pulls = merged.map((layer) => pullLabel(layer.pull)).join(' · ');
-
-  return listRow({
-    size: 'small',
-    inset: false,
-    state: 'normal',
-    start: checkIcon,
-    label: roleText('detail', pulls, 'muted'),
-    end: [roleText('detail', `${merged.length} merged`)],
-  });
-};
-
-const stackCard = (hovered: FakeSpace): Element => {
-  const merged = stackLayers.filter((layer) => layer.state === 'merged');
-  const open = stackLayers.filter((layer) => layer.state !== 'merged');
-  const arrowTop = hoverCardSize.headerCenter;
+const stackCardOf = (space: FakeSpace): Element => {
+  const model = { ...stackCardFixture, title: space.title };
 
   return div()
     .absolute()
     .left(sidebarSize.width - spacing.xxsmall)
-    .top(hoveredRowCenter() - arrowTop)
-    .child(
-      hoverCard({
-        arrowTop,
-        header: cardLine(roleText('title', hovered.title), hoveredProject),
-        body: [mergedRow(merged), ...open.map((layer) => layerRow(layer))],
-        footer: cardLine(roleText('detail', `${stackLayers.length} PRs`), 'Open stack ›'),
-      }),
-    );
+    .top(hoveredRowCenter() - stackCardHeight(model) / 2)
+    .child(stackCard(model));
 };
 
 export const sidebarPartsScene = (): Element => {
-  const cards = spacesWithLook('hovered').map((space) => stackCard(space));
+  const cards = spacesWithLook('hovered').map((space) => stackCardOf(space));
 
   return div().relative().flex_1().min_h(0).bg(colors().chrome).child(sidebar()).children(cards);
 };

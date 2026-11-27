@@ -2,27 +2,13 @@ import { ScrollHandle, v_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { PaneInfo, SpaceInfo } from 'herdr';
-import {
-  checking,
-  nextCommand,
-  openOverlay,
-  panes,
-  run,
-  setShared,
-  shared,
-  spaces,
-  terminals,
-} from 'herdr';
+import { checking, nextCommand, panes, run, setShared, shared, spaces, terminals } from 'herdr';
 
 import type { DataState } from '../../data/consumer.ts';
 import { readDataState } from '../../data/consumer.ts';
-import { folderNameOf } from '../../data/fields.ts';
 import { startDataHost } from '../../data/host.ts';
-import { ticketIdOf } from '../../data/linearTickets.ts';
 import { placeOfSpace, placesOf } from '../../data/places.ts';
 import { createPullRetryClient } from '../../data/pullRetry/pullRetry.ts';
-import type { RepositoryPulls } from '../../data/snapshot.ts';
-import { stackTitleOf } from '../../data/spaceStack.ts';
 import type { DragState } from '../../kit/drag.ts';
 import { dragLine, dropAction, noDrag, setDragOver, startDrag } from '../../kit/drag.ts';
 import type { StatusRollup } from '../../kit/index.ts';
@@ -32,7 +18,6 @@ import {
   hoveredAfter,
   layoutRoot,
   listActionOf,
-  overlaySize,
   readSection,
   repeat,
   rollupStatuses,
@@ -51,19 +36,21 @@ import { closedSpaceCommand } from '../../kit/spaceOrder.ts';
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import type { KeptNeed } from './gitFacts.ts';
-import { answeredPlaces, gitInfoAt, needAt, pullFailedAt, pullFactsOf } from './gitFacts.ts';
-import { inboxGroupsOf, inboxIdsOf, inboxRows } from './inbox/inboxRows.ts';
+import { answeredPlaces, gitInfoAt, pullFailedAt } from './gitFacts.ts';
+import { inboxRows } from './inbox/inboxRows.ts';
+import type { ListModel, RowModel } from './listModel.ts';
+import { listModelOf } from './listModel.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
-import { groupProjects, noFolds, shownSpaces } from './projects.ts';
-import { pullOf } from './pulls.ts';
-import { showsTitle } from './rows.ts';
-import { sidebarViewKey, storedViewIsInbox } from './sidebarView.ts';
+import { groupProjects, noFolds } from './projects.ts';
+import { rowTitleOf } from './rows.ts';
+import { sidebarViewKey, readSidebarView } from './sidebarView.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
 import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
-import type { HeaderState, RowFacts, RowState } from './spaceRows.ts';
-import { headerRow, row as spaceRow } from './spaceRows.ts';
+import type { HeaderState, ReorderCallbacks, RowInteraction, RowState } from './spaceRows.ts';
+import { attachReorder, headerRow, row as spaceRow } from './spaceRows.ts';
+import { stackCardOf } from './stackCard.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import { viewBar } from './viewBar.ts';
 import type { VisibilityResult, VisibilityState } from './visibility.ts';
@@ -94,9 +81,6 @@ const isSidebarMarked = (): boolean => readSection(shared) === 'sidebar';
 
 const liveSpaceIds = (): string[] => spaces().map((space) => space.id);
 
-const shownIdsOf = (projects: Project[]): string[] =>
-  shownSpaces(projects).map((row) => row.space.id);
-
 const activeSpaceId = (): string | null => spaces().find((space) => space.active)?.id ?? null;
 
 const topStripHeight = (): number =>
@@ -107,26 +91,6 @@ const storage = {
   set: (key: string, value: string): void => {
     localStorage.setItem(key, value);
   },
-};
-
-const ticketTitleAt = (state: DataState, row: ListedSpace): string | null => {
-  if (state.kind === 'unavailable' || row.git === null) {
-    return null;
-  }
-
-  const stackTitle = stackTitleOf(state.snapshot.facts, row.git.worktreeKey);
-
-  if (showsTitle(stackTitle)) {
-    return stackTitle;
-  }
-
-  const id = ticketIdOf(row.git.branch, folderNameOf(row.git.root));
-
-  if (id === null) {
-    return null;
-  }
-
-  return state.snapshot.facts.trackers[row.git.repo.key]?.tickets[id]?.title ?? null;
 };
 
 export default class Spaces extends View {
@@ -199,12 +163,15 @@ export default class Spaces extends View {
     this.statuses = rollupStatuses(spaces(), panes(), terminals());
     this.visibility = this.advance(state);
 
-    const projects = this.projects(state);
+    const listed = this.listedSpaces(state);
+    const projects = groupProjects(listed, this.foldedProjects);
     const ids = liveSpaceIds();
     const order = this.order.publish(projects, ids);
 
     this.followClose(order);
     this.followMark(isSidebarMarked());
+
+    const model = this.currentModel(state, listed);
 
     const topStrip = div().flex_none().h(topStripHeight());
 
@@ -238,7 +205,7 @@ export default class Spaces extends View {
         this.endDrag();
         cx.notify();
       })
-      .children(this.listRows(state, projects, ids));
+      .children(this.listRows(state, model, ids));
 
     return withTextRole(v_flex(), 'body')
       .size_full()
@@ -309,6 +276,12 @@ export default class Spaces extends View {
     return { run, get: shared, set: setShared, shown: activeSpaceId };
   }
 
+  private readonly selectSpace = (id: string, cx: Context): void => {
+    runSpaceCommand(this.selectionDeps(), { name: 'space.select', args: { id } });
+
+    cx.notify();
+  };
+
   private applyCommand(command: string, cx: Context): void {
     const action = listActionOf(command);
 
@@ -339,12 +312,12 @@ export default class Spaces extends View {
     cx.notify();
   }
 
-  private cursorRow(state: DataState): string | null {
+  private cursorAt(ids: readonly string[]): string | null {
     if (!isSidebarMarked()) {
       return null;
     }
 
-    return cursorRow(this.shownIds(state), this.cursor, activeSpaceId());
+    return cursorRow(ids, this.cursor, activeSpaceId());
   }
 
   private advance(state: DataState): VisibilityResult {
@@ -387,17 +360,6 @@ export default class Spaces extends View {
     }
   }
 
-  private openMenu(space: SpaceInfo): void {
-    // A popup is as tall as its items; the height is only the most.
-    openOverlay({
-      mod: 'koja-menu',
-      kind: 'popup',
-      width: overlaySize.menuWidth,
-      height: overlaySize.menuHeight,
-      props: { tab: 'space', target: { id: space.id } },
-    });
-  }
-
   private listedSpaces(state: DataState): ListedSpace[] {
     const spaceList = spaces();
     const paneList = panes();
@@ -420,10 +382,18 @@ export default class Spaces extends View {
     return groupProjects(this.listedSpaces(state), this.foldedProjects);
   }
 
+  private currentModel(state: DataState, listed: ListedSpace[]): ListModel {
+    return listModelOf({
+      state,
+      listed,
+      folds: this.foldedProjects,
+      view: readSidebarView(storage.get(sidebarViewKey)),
+      lastNeeds: this.lastNeeds,
+    });
+  }
+
   private shownIds(state: DataState): string[] {
-    return storedViewIsInbox(storage.get(sidebarViewKey))
-      ? inboxIdsOf(state, this.listedSpaces(state), this.lastNeeds)
-      : shownIdsOf(this.projects(state));
+    return this.currentModel(state, this.listedSpaces(state)).ids;
   }
 
   private projectChildren(state: DataState): ProjectChildren[] {
@@ -460,32 +430,75 @@ export default class Spaces extends View {
     return spaces().some((space) => !this.visibility.shown.has(space.id));
   }
 
-  private draw(
-    row: ListedSpace,
-    ids: readonly string[],
+  private rowState(
+    model: RowModel,
     cursor: string | null,
     now: number,
-    pulls: Record<string, RepositoryPulls>,
-    facts: RowFacts,
-    projectName: string | null,
-  ): Element {
-    const waiting = { id: row.space.id, status: row.status, active: row.space.active };
-    const age = waitAge(this.waitTimes, waiting, now);
+    interaction: RowInteraction,
+  ): RowState {
+    const waiting = {
+      id: model.row.space.id,
+      status: model.row.status,
+      active: model.row.space.active,
+    };
 
-    const state: RowState = {
+    const title = rowTitleOf(
+      model.row.space.named,
+      model.row.space.name,
+      model.pull,
+      model.ticketTitle,
+    );
+
+    return {
+      title,
       drag: this.dragFor('space'),
       refused: this.refused,
       cursor,
-      age,
-      need: facts.need,
-      attachDrag: (element, space, rowIds) => {
-        this.addDragHandlers(element, space, rowIds);
+      age: waitAge(this.waitTimes, waiting, now),
+      need: model.need,
+      card: stackCardOf(model, title),
+      interaction,
+    };
+  }
+
+  private draw(
+    model: RowModel,
+    ids: readonly string[],
+    cursor: string | null,
+    now: number,
+  ): Element {
+    const interaction: RowInteraction = {
+      kind: 'select',
+      select: this.selectSpace,
+    };
+
+    const state = this.rowState(model, cursor, now, interaction);
+
+    return spaceRow(model.row, ids, state, model.pull, model.ticketTitle, model.project);
+  }
+
+  private drawProjectRow(
+    model: RowModel,
+    ids: readonly string[],
+    cursor: string | null,
+    now: number,
+  ): Element {
+    const interaction: RowInteraction = {
+      kind: 'reorder',
+      start: (space, rowIds) => {
+        this.drag = { kind: 'space', state: startDrag(rowIds, rowIds.indexOf(space.id)) };
+      },
+      move: (space, cx) => {
+        this.dragOver(space, cx);
+      },
+      drop: (space, rowIds, cx) => {
+        this.drop(space, rowIds, cx);
       },
     };
 
-    const pull = pullOf(row.git, pulls);
+    const state = this.rowState(model, cursor, now, interaction);
 
-    return spaceRow(row, ids, state, pull, facts.ticketTitle, projectName);
+    return spaceRow(model.row, ids, state, model.pull, model.ticketTitle, null);
   }
 
   private drawMain(
@@ -504,9 +517,7 @@ export default class Spaces extends View {
       cursor,
       age: waitAge(this.waitTimes, waiting, now),
       hovered: this.hovered,
-      attachDrag: (element) => {
-        this.addProjectDragHandlers(element, project, ids);
-      },
+      reorder: this.projectReorder(project, ids),
       onHover: this.setHovered,
       toggleFold: this.toggleFold,
     };
@@ -529,11 +540,10 @@ export default class Spaces extends View {
     this.pullRetries.request(git.repo.key, Date.now());
   };
 
-  private listRows(state: DataState, projects: Project[], ids: readonly string[]): Element[] {
-    const cursor = this.cursorRow(state);
+  private listRows(state: DataState, model: ListModel, ids: readonly string[]): Element[] {
+    const cursor = this.cursorAt(model.ids);
     const active = activeSpaceId();
     const now = Date.now();
-    const pulls = pullFactsOf(state);
 
     let cursorElement: Element | null = null;
 
@@ -551,19 +561,21 @@ export default class Spaces extends View {
       return element;
     };
 
-    const keys = projects.map((project) => project.key);
+    const modelOf = (row: ListedSpace): RowModel => {
+      const found = model.rows.get(row.space.id);
 
-    const factsOf = (row: ListedSpace): RowFacts => ({
-      ticketTitle: ticketTitleAt(state, row),
-      need: needAt(state, row.git, this.lastNeeds),
-    });
+      if (found === undefined) {
+        throw new Error(`No row model for space ${row.space.id}`);
+      }
 
-    if (storedViewIsInbox(storage.get(sidebarViewKey))) {
+      return found;
+    };
+
+    if (model.view === 'inbox') {
       const elements = inboxRows({
-        groups: inboxGroupsOf(state, this.listedSpaces(state), this.lastNeeds),
+        groups: model.groups,
         loading: this.isWaiting(),
-        draw: (row, project) =>
-          keepRow(row, this.draw(row, ids, cursor, now, pulls, factsOf(row), project)),
+        draw: (row) => keepRow(row, this.draw(modelOf(row), ids, cursor, now)),
       });
 
       this.showRows(elements, cursorElement, activeElement, active);
@@ -571,17 +583,12 @@ export default class Spaces extends View {
       return elements;
     }
 
-    const elements = projectRows({
-      projects,
-      loading: this.isWaiting(),
-      draw: (row) => {
-        const facts = {
-          ticketTitle: ticketTitleAt(state, row),
-          need: needAt(state, row.git, this.lastNeeds),
-        };
+    const keys = model.projects.map((project) => project.key);
 
-        return keepRow(row, this.draw(row, ids, cursor, now, pulls, facts, null));
-      },
+    const elements = projectRows({
+      projects: model.projects,
+      loading: this.isWaiting(),
+      draw: (row) => keepRow(row, this.drawProjectRow(modelOf(row), ids, cursor, now)),
       drawMain: (project, main) =>
         keepRow(main, this.drawMain(project, main, ids, keys, cursor, now)),
       foldDrag: (project) => {
@@ -595,7 +602,7 @@ export default class Spaces extends View {
         };
       },
       attachFoldDrag: (element, project) => {
-        this.addProjectDragHandlers(element, project, ids);
+        attachReorder(element, this.projectReorder(project, ids));
       },
       pullFailed: (git) => pullFailedAt(state, git),
       retryPull: this.retryPull,
@@ -675,43 +682,20 @@ export default class Spaces extends View {
     cx.notify();
   }
 
-  private addProjectDragHandlers(element: Element, project: Project, ids: readonly string[]): void {
-    element
-      .on_mouse_down('left', () => {
+  private projectReorder(project: Project, ids: readonly string[]): ReorderCallbacks {
+    return {
+      start: () => {
         const keys = this.projectKeys(readDataState(shared, Date.now()));
 
         this.drag = { kind: 'project', state: startDrag(keys, keys.indexOf(project.key)) };
-      })
-      .on_mouse_move((_event, cx) => {
+      },
+      move: (cx) => {
         this.projectDragOver(project, cx);
-      })
-      .on_mouse_up('left', (_event, cx) => {
+      },
+      drop: (cx) => {
         this.dropProject(project, ids, cx);
-      });
-
-    const { main } = project;
-
-    if (main !== null) {
-      element.on_mouse_down('right', () => {
-        this.openMenu(main.space);
-      });
-    }
-  }
-
-  private addDragHandlers(element: Element, space: SpaceInfo, ids: readonly string[]): void {
-    element
-      .on_mouse_down('left', () => {
-        this.drag = { kind: 'space', state: startDrag(ids, ids.indexOf(space.id)) };
-      })
-      .on_mouse_move((_event, cx) => {
-        this.dragOver(space, cx);
-      })
-      .on_mouse_up('left', (_event, cx) => {
-        this.drop(space, ids, cx);
-      })
-      .on_mouse_down('right', () => {
-        this.openMenu(space);
-      });
+      },
+    };
   }
 
   private endDrag(): void {

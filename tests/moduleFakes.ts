@@ -1,3 +1,6 @@
+import { drawn } from './drawn.ts';
+import type { DrawnElement } from './drawn.ts';
+
 export type ModuleFake = Record<string, unknown>;
 
 type KeyHandler = (
@@ -87,7 +90,27 @@ export const herdrFake = (overrides: ModuleFake = {}): ModuleFake => ({
   ...overrides,
 });
 
+// A HoverCard draws its trigger while the card is closed and its content only while it is open.
+// The fake draws the trigger as a child and records its id, its content, and its anchor, so a test
+// finds the row and reads the card without hover timing.
+const hoverCardElement = (id: string): DrawnElement => {
+  const element = drawn();
+
+  element.styles['hoverCardId'] = [id];
+
+  Object.assign(element, {
+    trigger: (child: unknown) => {
+      element.kids.push(child as DrawnElement);
+
+      return element;
+    },
+  });
+
+  return element;
+};
+
 export const gpuiBaseFake = (overrides: ModuleFake = {}): ModuleFake => ({
+  HoverCard: { new: (id: string) => hoverCardElement(id) },
   Input: { new: () => chainable() },
   InputState: { new: () => undefined },
   ScrollHandle: { new: () => chainable() },
@@ -141,8 +164,6 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   footerLineHeight: 0,
   highlightedText: noop,
   hintFor: () => ({ normal: [] }),
-  hoverCard: noop,
-  hoverCardSize: {},
   hoveredAfter: () => null,
   icon: noop,
   iconButton: noop,
@@ -231,6 +252,8 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   spinner: noop,
   splitButton: noop,
   splitButtonOpenHeight: () => 0,
+  stackCard: noop,
+  stackCardHeight: () => 0,
   stackProgress: noop,
   stateLine: noop,
   statusMark: noop,

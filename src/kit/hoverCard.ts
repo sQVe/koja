@@ -3,12 +3,11 @@ import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
 import type { Color } from './palette.ts';
-import { hoverCardSize, radius, rowHeight, spacing } from './size.ts';
+import { hoverCardSize, radius, rowHeight, separatorHeight, spacing } from './size.ts';
 import { separator } from './text.ts';
 import { colors } from './theme.ts';
 
 export interface HoverCardOptions {
-  arrowTop: number;
   header: Element;
   body: Element[];
   footer: Element;
@@ -16,13 +15,22 @@ export interface HoverCardOptions {
 
 const arrowColumns = hoverCardSize.arrowDepth - 1;
 
+// The height counts the border, the vertical padding, the header and footer rows, both separators,
+// and the body rows at rowHeight.small, so a body row of another height throws the arrow tip off.
+export const hoverCardHeight = (bodyRows: number): number =>
+  spacing.hairline * 2 +
+  spacing.xsmall * 2 +
+  rowHeight.small * 2 +
+  separatorHeight * 2 +
+  bodyRows * rowHeight.small;
+
 // One layer of the arrow: 1 px columns that grow 2 px each, so both edges run at 45 degrees and
 // stay crisp. GPUI cannot rotate a box.
-const arrowLayer = (left: number, arrowTop: number, color: Color): Element =>
+const arrowLayer = (left: number, tipTop: number, color: Color): Element =>
   h_flex()
     .absolute()
     .left(left)
-    .top(arrowTop - arrowColumns)
+    .top(tipTop - arrowColumns)
     .h(arrowColumns * 2 + 1)
     .items_center()
     .children(
@@ -60,12 +68,13 @@ const card = (options: HoverCardOptions): Element => {
 // arrow and card read as one shape.
 export const hoverCard = (options: HoverCardOptions): Element => {
   const palette = colors();
+  const tipTop = hoverCardHeight(options.body.length) / 2;
 
   return div()
     .relative()
     .flex_none()
     .pl(hoverCardSize.arrowDepth)
     .child(card(options))
-    .child(arrowLayer(spacing.none, options.arrowTop, palette.border))
-    .child(arrowLayer(spacing.hairline, options.arrowTop, palette.popover));
+    .child(arrowLayer(spacing.none, tipTop, palette.border))
+    .child(arrowLayer(spacing.hairline, tipTop, palette.popover));
 };

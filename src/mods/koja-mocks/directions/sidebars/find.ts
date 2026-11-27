@@ -1,90 +1,25 @@
 import { h_flex } from 'gpui-base';
-import type { Color, Element } from 'gpui-kit';
+import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
-import type { IconName } from '../../../../kit/index.ts';
-import { icon } from '../../../../kit/index.ts';
+import { icon, sidebarSize, spacing, stackCard, stackCardHeight } from '../../../../kit/index.ts';
+import { stackCardFixture } from '../../stackCardFixture.ts';
 import { floating, withFloating } from '../floating.ts';
-import { fixedLabel, label } from '../parts.ts';
+import { fixedLabel } from '../parts.ts';
 import type { DirectionTokens } from '../tokens.ts';
-import type { WorkNeed } from './content.ts';
 import { fakeProjects } from './content.ts';
 import { agentMark, dimFact, divider, joinedFacts } from './facts.ts';
 import { mapSidebar, mapSidebarHovering } from './sidebar.ts';
 
-type LayerState = 'merged' | 'open' | 'draft';
-
-interface FakeLayer {
-  pull: number;
-  ticket: string;
-  title: string;
-  state: LayerState;
-  checkedOut: boolean;
-  need?: WorkNeed;
-}
-
 const hoveredTitle = 'Tau workflow sidebar';
 const searchQuery = '504';
 
-const cardWidth = 312;
 const hoveredRowCenter = 134;
-const arrowDepth = 4;
-const arrowTip = 266;
-const cardLeft = arrowTip + arrowDepth;
-const titleCenter = 19;
-const cardTop = hoveredRowCenter - titleCenter;
 const pickerWidth = 480;
 const pickerLeft = 390;
 const pickerTop = 56;
 const cardPadding = 6;
-const layerHeight = 22;
-const markWidth = 14;
-const pullWidth = 34;
-const ticketWidth = 58;
 const lineGap = 6;
-
-const stackLayers: FakeLayer[] = [
-  { pull: 502, ticket: 'ME-1032', title: 'Data layer', state: 'merged', checkedOut: false },
-  { pull: 504, ticket: 'ME-1033', title: 'Two-line rows', state: 'merged', checkedOut: false },
-  { pull: 505, ticket: 'ME-1034', title: 'Status marks', state: 'merged', checkedOut: false },
-  {
-    pull: 507,
-    ticket: 'ME-1035',
-    title: 'Stack panel',
-    state: 'open',
-    checkedOut: false,
-    need: 'merge',
-  },
-  {
-    pull: 509,
-    ticket: 'ME-1036',
-    title: 'Row menu',
-    state: 'open',
-    checkedOut: false,
-    need: 'review',
-  },
-  { pull: 511, ticket: 'ME-1037', title: 'Narrow rail', state: 'draft', checkedOut: false },
-  { pull: 512, ticket: 'ME-1038', title: 'Keys', state: 'draft', checkedOut: false },
-  { pull: 514, ticket: 'ME-1031', title: 'Tau workflow sidebar', state: 'open', checkedOut: true },
-];
-
-const needIcons: Record<WorkNeed, IconName> = {
-  conflict: 'triangle-alert',
-  failing: 'circle-x',
-  review: 'message-square',
-  restack: 'layers',
-  merge: 'git-merge',
-};
-
-const needColor = (need: WorkNeed, tokens: DirectionTokens): Color => {
-  if (need === 'merge') {
-    return tokens.marks.done;
-  }
-
-  const waits = need === 'review' || need === 'restack';
-
-  return waits ? tokens.marks.modified : tokens.marks.blocked;
-};
 
 const cardLine = (start: Element[], end: Element[], tokens: DirectionTokens): Element => {
   const spacer = h_flex().flex_1();
@@ -101,125 +36,20 @@ const cardLine = (start: Element[], end: Element[], tokens: DirectionTokens): El
     .children(end);
 };
 
-const layerMark = (layer: FakeLayer, tokens: DirectionTokens): Element => {
-  const slot = h_flex().w(markWidth).flex_none().items_center().justify_center();
+const stackCardOf = (): Element => {
+  const model = { ...stackCardFixture, title: hoveredTitle };
 
-  if (layer.checkedOut) {
-    const branchIcon = icon('git-branch', 'small').text_color(tokens.ink.text);
-
-    return slot.child(branchIcon);
-  }
-
-  return slot;
-};
-
-const layerEnd = (layer: FakeLayer, tokens: DirectionTokens): Element[] => {
-  if (layer.need !== undefined) {
-    return [icon(needIcons[layer.need], 'small').text_color(needColor(layer.need, tokens))];
-  }
-
-  return layer.state === 'draft' ? [dimFact('draft', tokens)] : [];
-};
-
-const layerRow = (layer: FakeLayer, tokens: DirectionTokens): Element => {
-  const ink = layer.state === 'draft' ? tokens.ink.dim : tokens.ink.text;
-
-  const pullNumber = fixedLabel(`#${layer.pull}`, tokens.text.detail, tokens.ink.muted).w(
-    pullWidth,
-  );
-
-  const ticket = fixedLabel(layer.ticket, tokens.text.detail, tokens.ink.dim).w(ticketWidth);
-
-  const title = label(layer.title, tokens.text.body, ink).flex_1();
-
-  return h_flex()
-    .h(layerHeight)
-    .flex_none()
-    .min_w(0)
-    .px(tokens.rows.paddingX)
-    .gap(lineGap)
-    .items_center()
-    .child(layerMark(layer, tokens))
-    .child(pullNumber)
-    .child(ticket)
-    .child(title)
-    .children(layerEnd(layer, tokens));
-};
-
-const mergedRow = (merged: FakeLayer[], tokens: DirectionTokens): Element => {
-  const checkIcon = icon('check', 'small').text_color(tokens.ink.dim);
-  const checkSlot = h_flex().w(markWidth).flex_none().justify_center().child(checkIcon);
-  const spacer = h_flex().flex_1();
-
-  return h_flex()
-    .h(layerHeight)
-    .flex_none()
-    .min_w(0)
-    .px(tokens.rows.paddingX)
-    .gap(lineGap)
-    .items_center()
-    .child(checkSlot)
-    .child(
-      joinedFacts(
-        merged.map((layer) => fixedLabel(`#${layer.pull}`, tokens.text.detail, tokens.ink.muted)),
-        tokens,
-      ),
-    )
-    .child(spacer)
-    .child(dimFact(`${merged.length} merged`, tokens));
-};
-
-// One layer of the arrow: 1 px columns that grow 2 px each, so both edges run at 45 degrees and
-// stay crisp. GPUI cannot rotate a box.
-const arrowLayer = (from: number, columns: number, color: Color): Element =>
-  h_flex()
+  return div()
     .absolute()
-    .left(from)
-    .top(hoveredRowCenter - columns)
-    .h(columns * 2 + 1)
-    .items_center()
-    .children(
-      Array.from({ length: columns + 1 }, (_unused, column) =>
-        div()
-          .w(1)
-          .h(column * 2 + 1)
-          .flex_none()
-          .bg(color),
-      ),
-    );
-
-// The border layer draws the outline; the fill layer sits 1 px inside it and reaches over the
-// card's left border, so arrow and card read as one shape.
-const hoverArrow = (tokens: DirectionTokens): Element[] => [
-  arrowLayer(arrowTip, arrowDepth - 1, tokens.pane.border),
-  arrowLayer(arrowTip + 1, arrowDepth - 1, tokens.pane.fill),
-];
-
-const stackCard = (tokens: DirectionTokens): Element => {
-  const merged = stackLayers.filter((layer) => layer.state === 'merged');
-  const open = stackLayers.filter((layer) => layer.state !== 'merged');
-
-  return floating(cardWidth, tokens)
-    .left(cardLeft)
-    .top(cardTop)
-    .child(
-      cardLine(
-        [fixedLabel(hoveredTitle, tokens.text.title, tokens.ink.text)],
-        [dimFact('koja', tokens)],
-        tokens,
-      ),
-    )
-    .child(divider(tokens))
-    .child(mergedRow(merged, tokens))
-    .children(open.map((layer) => layerRow(layer, tokens)))
-    .child(divider(tokens))
-    .child(cardLine([dimFact('8 PRs', tokens)], [dimFact('Open stack ›', tokens)], tokens));
+    .left(sidebarSize.width - spacing.xxsmall)
+    .top(hoveredRowCenter - stackCardHeight(model) / 2)
+    .child(stackCard(model));
 };
 
 export const hoverScene = (tokens: DirectionTokens): Element =>
   withFloating(
     (sidebarTokens) => mapSidebarHovering(hoveredTitle, sidebarTokens),
-    [stackCard(tokens), ...hoverArrow(tokens)],
+    [stackCardOf()],
     tokens,
   );
 

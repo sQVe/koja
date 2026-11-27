@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { SpaceInfo, Status } from 'herdr';
 
@@ -22,23 +22,46 @@ import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { Pull } from '../../data/pulls.ts';
 import { controlSize } from '../../kit/size.ts';
 import type { Project } from './projects.ts';
+import { rowTitleOf } from './rows.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import type { WaitTimes } from './waitTimes.ts';
 import { advanceWaitTimes, emptyWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
 
-interface RowStateLike {
+interface BaseStateLike {
   drag: { source: string | null; over: string | null };
   refused: string | null;
   cursor: string | null;
   age: string | null;
-  need: StackNeed | null;
-  attachDrag: (element: unknown, space: SpaceInfo, ids: readonly string[]) => void;
 }
 
-interface HeaderStateLike extends RowStateLike {
+type ReorderStart = (space: SpaceInfo, ids: readonly string[]) => void;
+type ReorderMove = (space: SpaceInfo, cx: unknown) => void;
+type ReorderDrop = (space: SpaceInfo, ids: readonly string[], cx: unknown) => void;
+
+type InteractionLike =
+  | {
+      kind: 'reorder';
+      start: ReorderStart;
+      move: ReorderMove;
+      drop: ReorderDrop;
+    }
+  | {
+      kind: 'select';
+      select: (id: string, cx: unknown) => void;
+    };
+
+interface RowStateLike extends BaseStateLike {
+  title: string;
+  need: StackNeed | null;
+  card: null;
+  interaction: InteractionLike;
+}
+
+interface HeaderStateLike extends BaseStateLike {
   hovered: string | null;
   onHover: (spaceId: string, hovered: boolean, cx: unknown) => void;
   toggleFold: (key: string, cx: unknown) => void;
+  reorder: { start: () => void; move: (cx: unknown) => void; drop: (cx: unknown) => void };
 }
 
 const themeColors = {
@@ -59,7 +82,18 @@ await mock.module('gpui-kit', () =>
   gpuiKitFake({ div: () => drawn(), svg: (path: string) => drawn(path) }),
 );
 
-await mock.module('herdr', () => herdrFake({ theme: () => themeColors }));
+const overlays: unknown[] = [];
+
+await mock.module('herdr', () =>
+  herdrFake({
+    theme: () => themeColors,
+    openOverlay: (options: unknown) => {
+      overlays.push(options);
+
+      return null;
+    },
+  }),
+);
 
 const kitParts = [
   'age',
@@ -101,6 +135,10 @@ afterAll(() => {
   mock.restore();
 });
 
+beforeEach(() => {
+  overlays.length = 0;
+});
+
 const git: GitInfo = {
   branch: 'feature-login',
   worktreeKey: worktreeOf(null, '/code/koja').key,
@@ -133,17 +171,42 @@ const listedSpace = (named: boolean): ListedSpace => ({
   place: placeOf(null, '/code/koja'),
 });
 
-const stateWith = (age: string | null = null, need: StackNeed | null = null): RowStateLike => ({
+const baseState = (age: string | null = null): BaseStateLike => ({
   drag: { source: null, over: null },
   refused: null,
   cursor: null,
   age,
+});
+
+const reorder = (
+  start: ReorderStart = () => undefined,
+  move: ReorderMove = () => undefined,
+  drop: ReorderDrop = () => undefined,
+): InteractionLike => ({ kind: 'reorder', start, move, drop });
+
+const stateWith = (
+  age: string | null = null,
+  need: StackNeed | null = null,
+  title = 'login',
+): RowStateLike => ({
+  ...baseState(age),
+  title,
   need,
-  attachDrag: () => undefined,
+  card: null,
+  interaction: reorder(),
 });
 
 const textsOf = (named: boolean, found: Pull | null): string[] =>
-  drawnTexts(loaded.row(listedSpace(named), ['a'], stateWith(), found, null, null));
+  drawnTexts(
+    loaded.row(
+      listedSpace(named),
+      ['a'],
+      stateWith(null, null, rowTitleOf(named, 'login', found, null)),
+      found,
+      null,
+      null,
+    ),
+  );
 
 describe('row', () => {
   test('draws the space title and no PR number and no branch', () => {
@@ -188,15 +251,18 @@ describe('row', () => {
   });
 
   test('a row with a project name attaches no drag', () => {
-    const drags: unknown[] = [];
+    const selected: string[] = [];
 
-    loaded.row(
+    const rowElement = loaded.row(
       listedSpace(true),
       ['a'],
       {
         ...stateWith(),
-        attachDrag: (...args) => {
-          drags.push(args);
+        interaction: {
+          kind: 'select',
+          select: (id) => {
+            selected.push(id);
+          },
         },
       },
       null,
@@ -204,32 +270,65 @@ describe('row', () => {
       'koja',
     );
 
-    expect(drags).toEqual([]);
+    expect(rowElement.mouseHandlers['on_mouse_down:left']).toBeUndefined();
+
+    rowElement.clickHandlers[0]?.({}, {});
+    rowElement.mouseHandlers['on_mouse_down:right']?.[0]?.({}, {});
+
+    expect(selected).toEqual(['a']);
+
+    expect(overlays).toEqual([
+      expect.objectContaining({
+        mod: 'koja-menu',
+        props: { tab: 'space', target: { id: 'a' } },
+      }),
+    ]);
   });
 
   test('a row with no project name attaches the drag with the ids it was given', () => {
-    const drags: unknown[] = [];
+    const starts: [SpaceInfo, readonly string[]][] = [];
+    const moves: SpaceInfo[] = [];
+    const drops: [SpaceInfo, readonly string[]][] = [];
 
-    loaded.row(
+    const rowElement = loaded.row(
       listedSpace(true),
       ['a', 'b'],
       {
         ...stateWith(),
-        attachDrag: (...args) => {
-          drags.push(args);
-        },
+        interaction: reorder(
+          (space, ids) => {
+            starts.push([space, ids]);
+          },
+          (space) => {
+            moves.push(space);
+          },
+          (space, ids) => {
+            drops.push([space, ids]);
+          },
+        ),
       },
       null,
       null,
       null,
     );
 
-    expect(drags).toHaveLength(1);
+    rowElement.mouseHandlers['on_mouse_down:left']?.[0]?.({}, {});
 
-    const [, draggedSpace, ids] = drags[0] as [unknown, SpaceInfo, readonly string[]];
+    const move = rowElement.styles['on_mouse_move']?.[0] as
+      | ((event: unknown, cx: unknown) => void)
+      | undefined;
 
-    expect(draggedSpace.id).toBe('a');
-    expect(ids).toEqual(['a', 'b']);
+    move?.({}, {});
+
+    rowElement.mouseHandlers['on_mouse_up:left']?.[0]?.({}, {});
+
+    expect(starts).toHaveLength(1);
+    expect(starts[0]?.[0].id).toBe('a');
+    expect(starts[0]?.[1]).toEqual(['a', 'b']);
+    expect(moves.map((space) => space.id)).toEqual(['a']);
+    expect(drops).toHaveLength(1);
+    expect(drops[0]?.[0].id).toBe('a');
+    expect(drops[0]?.[1]).toEqual(['a', 'b']);
   });
 });
 
@@ -252,12 +351,13 @@ const projectWith = (spaces: ListedSpace[]): Project => ({
 });
 
 const headerState = (hovers: string[]): HeaderStateLike => ({
-  ...stateWith(),
+  ...baseState(),
   hovered: null,
   onHover: (spaceId, hovered) => {
     hovers.push(`${spaceId} ${String(hovered)}`);
   },
   toggleFold: () => undefined,
+  reorder: { start: () => undefined, move: () => undefined, drop: () => undefined },
 });
 
 describe('headerRow', () => {

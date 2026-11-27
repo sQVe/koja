@@ -17,16 +17,6 @@ export interface FakeProject {
   spaces: FakeSpace[];
 }
 
-type LayerState = 'merged' | 'open' | 'draft' | 'checkedOut';
-
-export interface FakeLayer {
-  pull: number;
-  ticket: string;
-  title: string;
-  state: LayerState;
-  need?: WorkNeed;
-}
-
 export const fakeProjects: FakeProject[] = [
   {
     name: 'koja',
@@ -76,16 +66,3 @@ export const fakeProjects: FakeProject[] = [
 ];
 
 export const selectedLinks = ['ME-1090', '#41'];
-
-export const hoveredProject = 'koja';
-
-export const stackLayers: FakeLayer[] = [
-  { pull: 502, ticket: 'ME-1032', title: 'Data layer', state: 'merged' },
-  { pull: 504, ticket: 'ME-1033', title: 'Two-line rows', state: 'merged' },
-  { pull: 505, ticket: 'ME-1034', title: 'Status marks', state: 'merged' },
-  { pull: 507, ticket: 'ME-1035', title: 'Stack panel', state: 'open', need: 'merge' },
-  { pull: 509, ticket: 'ME-1036', title: 'Row menu', state: 'open', need: 'review' },
-  { pull: 511, ticket: 'ME-1037', title: 'Narrow rail', state: 'draft' },
-  { pull: 512, ticket: 'ME-1038', title: 'Keys', state: 'draft' },
-  { pull: 514, ticket: 'ME-1031', title: 'Tau workflow sidebar', state: 'checkedOut' },
-];

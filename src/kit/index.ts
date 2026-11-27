@@ -35,8 +35,6 @@ export type { Fact } from './factRows.ts';
 
 export { terminalFont, terminalFontSize, terminalFontStyle } from './font.ts';
 
-export { hoverCard } from './hoverCard.ts';
-
 export { icon, iconSlot, programIcon, spinner } from './icon.ts';
 
 export { iconNames } from './iconNames.ts';
@@ -116,6 +114,10 @@ export { sectionHeader } from './sectionHeader.ts';
 
 export { spaceFooter } from './spaceFooter.ts';
 
+export { stackCard, stackCardHeight } from './stackCard.ts';
+
+export type { StackCardModel, StackCardPull } from './stackCard.ts';
+
 export { stackProgress } from './stackProgress.ts';
 
 export { viewSwitch } from './viewSwitch.ts';
@@ -134,7 +136,6 @@ export {
   controlSize,
   contentSize,
   diffSize,
-  hoverCardSize,
   overlaySize,
   paneHeaderWidth,
   popupFrameRadius,

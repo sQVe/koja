@@ -2,7 +2,6 @@ import type { DataState } from '../../data/consumer.ts';
 import type { Place } from '../../data/gitIdentity.ts';
 import type { StackNeed } from '../../data/pullNeeds.ts';
 import type { GitFacts, RepositoryPulls } from '../../data/snapshot.ts';
-import { spaceNeedOf } from '../../data/spaceStack.ts';
 import type { GitInfo } from './tree.ts';
 
 export interface KeptNeed {
@@ -73,6 +72,7 @@ const dropNeedsOfGoneWorktrees = (
 export const needAt = (
   state: DataState,
   git: GitInfo | null,
+  freshNeed: StackNeed | null,
   lastNeeds: Map<string, KeptNeed>,
 ): StackNeed | null => {
   if (state.kind === 'unavailable' || git === null) {
@@ -91,17 +91,19 @@ export const needAt = (
     return last.need;
   }
 
-  const need = spaceNeedOf(state.snapshot.facts, git.worktreeKey);
-
   dropNeedsOfGoneWorktrees(lastNeeds, state.snapshot.facts.git.worktrees);
 
-  if (need === null) {
+  if (freshNeed === null) {
     lastNeeds.delete(git.worktreeKey);
   } else {
-    lastNeeds.set(git.worktreeKey, { branch: git.branch, repositoryKey: git.repo.key, need });
+    lastNeeds.set(git.worktreeKey, {
+      branch: git.branch,
+      repositoryKey: git.repo.key,
+      need: freshNeed,
+    });
   }
 
-  return need;
+  return freshNeed;
 };
 
 export const answeredPlaces = (state: DataState): Set<string> => {

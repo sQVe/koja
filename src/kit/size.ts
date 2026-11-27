@@ -195,7 +195,6 @@ export const progressSize = {
 export const hoverCardSize = {
   width: 312,
   arrowDepth: 4,
-  headerCenter: spacing.hairline + spacing.xsmall + rowHeight.small / 2,
   pullColumn: 34,
   ticketColumn: 58,
 } as const;
