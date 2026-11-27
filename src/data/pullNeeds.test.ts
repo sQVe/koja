@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { pullFacts } from '../../tests/pullFacts.ts';
 import type { StackNeed } from './pullNeeds.ts';
-import { pullNeeds, pullStackNeed } from './pullNeeds.ts';
+import { mostBlockingNeed, pullNeeds, pullStackNeed } from './pullNeeds.ts';
 import type { Pull } from './pulls.ts';
 import type { StackBranch } from './stacks.ts';
 
@@ -81,6 +81,12 @@ describe('pullNeeds', () => {
   });
 });
 
+describe('mostBlockingNeed', () => {
+  test('a missing need never outranks a real one', () => {
+    expect(mostBlockingNeed([null, 'merge'])).toBe('merge');
+  });
+});
+
 describe('pullStackNeed', () => {
   test('the most blocking need of a pull wins', () => {
     const rows = [
@@ -118,5 +124,13 @@ describe('pullStackNeed', () => {
     expect(pullStackNeed(draft, 'needed')).toBeNull();
     expect(pullStackNeed(merged, 'none')).toBeNull();
     expect(pullStackNeed(null, 'needed')).toBeNull();
+  });
+
+  test('a merged or closed PR needs nothing even when its branch needs a restack', () => {
+    const merged = readyPull({ state: 'MERGED' });
+    const closed = readyPull({ state: 'CLOSED' });
+
+    expect(pullStackNeed(merged, 'needed')).toBeNull();
+    expect(pullStackNeed(closed, 'needed')).toBeNull();
   });
 });

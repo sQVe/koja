@@ -279,6 +279,13 @@ describe('spaceNeedOf', () => {
 
     expect(spaceNeedOf(facts, worktree.key)).toBe('review');
   });
+
+  test('a worktree key the facts do not hold needs nothing', () => {
+    const facts = factsOf({ stack: ['me-1-one'], branch: 'me-1-one' });
+    const unknown = worktreeOf(null, '/code/absent');
+
+    expect(spaceNeedOf(facts, unknown.key)).toBeNull();
+  });
 });
 
 describe('stackTitleOf', () => {
