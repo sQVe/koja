@@ -34,9 +34,17 @@ const kojaRepository = repositoryOf(null, '/code/koja/.git');
 const rowEndOf = (view: FakeView, id: string): DrawnElement => {
   const [row] = elementsWithId(view.render(), id);
 
-  expect(row).toBeDefined();
+  if (row === undefined) {
+    throw new Error(`No drawn row with id ${id}`);
+  }
 
-  return (row as DrawnElement).kids.at(-1) as DrawnElement;
+  const rowEnd = row.kids.at(-1);
+
+  if (rowEnd === undefined) {
+    throw new Error(`The drawn row ${id} has no trailing slot`);
+  }
+
+  return rowEnd;
 };
 
 const checkouts = [

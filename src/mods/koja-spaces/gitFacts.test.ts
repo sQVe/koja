@@ -146,19 +146,11 @@ describe('needAt', () => {
     expect(needAt(stateOf(kojaFacts()), null, new Map())).toBeNull();
   });
 
-  test('keeps the last need through a failed PR read and replaces it on a successful one', () => {
+  test('keeps the last need through a failed read, then replaces or drops it on a successful one', () => {
     const lastNeeds = new Map<string, KeptNeed>();
 
     expect(needAt(readState(false), kojaGit, lastNeeds)).toBe('conflict');
     expect(needAt(readState(true), kojaGit, lastNeeds)).toBe('conflict');
-    expect(needAt(stateOf(kojaFacts()), kojaGit, lastNeeds)).toBeNull();
-    expect(needAt(readState(true), kojaGit, lastNeeds)).toBeNull();
-  });
-
-  test('a successful read with no need drops the kept need', () => {
-    const lastNeeds = new Map<string, KeptNeed>();
-
-    expect(needAt(readState(false), kojaGit, lastNeeds)).toBe('conflict');
     expect(needAt(stateOf(kojaFacts()), kojaGit, lastNeeds)).toBeNull();
     expect(lastNeeds.has(kojaGit.worktreeKey)).toBe(false);
     expect(needAt(readState(true), kojaGit, lastNeeds)).toBeNull();
