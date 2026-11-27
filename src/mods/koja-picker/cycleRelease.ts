@@ -9,8 +9,6 @@ export interface CycleRelease<Row extends CycleRow> {
   releasedRow: (rows: readonly Row[]) => Row | undefined;
 }
 
-// The space a Control cycle lands on: the next space row after the selected one, wrapping to the
-// first, and -1 when the rows hold no space.
 export const nextSpaceIndex = (rows: readonly CycleRow[], selectedKey: string | null): number => {
   const selected = Math.max(
     0,
@@ -23,8 +21,6 @@ export const nextSpaceIndex = (rows: readonly CycleRow[], selectedKey: string | 
   return nextSpace === undefined ? -1 : rows.indexOf(nextSpace);
 };
 
-// Only a cycle that lands on a space row may commit when Control is released, and only while that
-// row is still listed.
 export const createCycleRelease = <Row extends CycleRow>(): CycleRelease<Row> => {
   let armedKey: string | null = null;
 
