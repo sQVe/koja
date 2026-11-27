@@ -270,6 +270,8 @@ describe('row', () => {
       'koja',
     );
 
+    expect(rowElement.mouseHandlers['on_mouse_down:left']).toBeUndefined();
+
     rowElement.clickHandlers[0]?.({}, {});
     rowElement.mouseHandlers['on_mouse_down:right']?.[0]?.({}, {});
 

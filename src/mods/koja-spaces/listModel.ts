@@ -46,7 +46,11 @@ const readableRowOf = (state: DataState, row: ListedSpace): ReadableRow | null =
 const stackFactsOf = (readable: ReadableRow): WorktreeStackFacts | null =>
   worktreeStackFactsOf(readable.facts, readable.git.worktreeKey);
 
-const ticketTitleOf = (readable: ReadableRow, stackTitle: string | null): string | null => {
+const ticketTitleOf = (readable: ReadableRow | null, stackTitle: string | null): string | null => {
+  if (readable === null) {
+    return null;
+  }
+
   if (showsTitle(stackTitle)) {
     return stackTitle;
   }
@@ -67,15 +71,15 @@ const rowModelOf = (
   lastNeeds: Map<string, KeptNeed>,
 ): RowModel => {
   const readable = readableRowOf(state, row);
-  const facts = readable === null ? null : stackFactsOf(readable);
+  const stackFacts = readable === null ? null : stackFactsOf(readable);
 
   return {
     row,
     project,
     pull: pullOf(row.git, pullFactsOf(state)),
-    ticketTitle: readable === null ? null : ticketTitleOf(readable, facts?.title ?? null),
-    need: needAt(state, row.git, facts?.need ?? null, lastNeeds),
-    stack: facts?.stack ?? null,
+    ticketTitle: ticketTitleOf(readable, stackFacts?.title ?? null),
+    need: needAt(state, row.git, stackFacts?.need ?? null, lastNeeds),
+    stack: stackFacts?.stack ?? null,
   };
 };
 
