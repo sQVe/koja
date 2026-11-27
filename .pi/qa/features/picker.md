@@ -26,7 +26,8 @@ Press `key b Control_L` first to enter normal mode.
 
 - `g p` opens the picker as one card: the search line, a chip per status with its count of spaces, a
   `Spaces` heading, the rows, and a footer with `tab` and `↵`.
-- Each space row draws its agent mark, the space name, the project, and one work icon.
+- Each space row draws its agent mark, the space name, the project, and one work icon. The work icon
+  names the most blocking need across the space's stack.
 - A query holding a PR number, a ticket ID, or a branch from a space's stack lists that space, and
   its row draws a reason line at the right end: the matched value, then its position in the stack,
   then the state of that PR, such as `#504 · PR 2 of 8 · merged`.
