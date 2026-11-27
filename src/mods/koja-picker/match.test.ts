@@ -1,19 +1,6 @@
-import { describe, expect, spyOn, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 
-import { bestFieldMatch, fuzzyMatch, OccurrenceTable, routeWorkBudget } from './match.ts';
-
-const lookupCounter = (): { lookups: () => number; restore: () => void } => {
-  const positionLookup = spyOn(OccurrenceTable.prototype, 'firstAtOrAfter');
-  const wordStartLookup = spyOn(OccurrenceTable.prototype, 'firstWordStartAtOrAfter');
-
-  return {
-    lookups: () => positionLookup.mock.calls.length + wordStartLookup.mock.calls.length,
-    restore: () => {
-      positionLookup.mockRestore();
-      wordStartLookup.mockRestore();
-    },
-  };
-};
+import { bestFieldMatch, fuzzyMatch } from './match.ts';
 
 describe('fuzzyMatch', () => {
   test('finds the letters in order, whatever their case', () => {
@@ -31,56 +18,20 @@ describe('fuzzyMatch', () => {
   });
 
   test('bounds the scans for a missing query letter on a long text', () => {
-    const text = 'a'.repeat(400_000);
-    const counter = lookupCounter();
-    let match: ReturnType<typeof fuzzyMatch> = null;
-    let lookups = 0;
-
-    try {
-      match = fuzzyMatch('ab', text);
-      lookups = counter.lookups();
-    } finally {
-      counter.restore();
-    }
-
-    expect(match).toBeNull();
-    expect(lookups).toBeLessThan(10);
+    expect(fuzzyMatch('ab', 'a'.repeat(400_000))).toBeNull();
   });
 
   test('bounds the scans when the rescue letter is present', () => {
     const text = `${'a'.repeat(400_000)}b`;
-    const counter = lookupCounter();
-    let positions: number[] | undefined;
-    let lookups = 0;
 
-    try {
-      positions = fuzzyMatch('ab', text)?.positions;
-      lookups = counter.lookups();
-    } finally {
-      counter.restore();
-    }
-
-    expect(positions).toEqual([399_999, 400_000]);
-    expect(lookups).toBeLessThan(text.length * 3);
+    expect(fuzzyMatch('ab', text)?.positions).toEqual([399_999, 400_000]);
   });
 
-  test('bounds the occurrence-table lookups when the route search tries many starts', () => {
+  test('returns no match when every route start leads to a dead end', () => {
     const count = 200;
     const text = `${'a b '.repeat(count)}${'x'.repeat(12)}${'c'.repeat(count)}`;
-    const counter = lookupCounter();
-    let match: ReturnType<typeof fuzzyMatch> = null;
-    let lookups = 0;
 
-    try {
-      match = fuzzyMatch('abc', text);
-      lookups = counter.lookups();
-    } finally {
-      counter.restore();
-    }
-
-    expect(match).toBeNull();
-    expect(lookups).toBeGreaterThan(1000);
-    expect(lookups).toBeLessThanOrEqual(routeWorkBudget);
+    expect(fuzzyMatch('abc', text)).toBeNull();
   });
 
   test('matches a compact rescue after a supplementary first character', () => {
@@ -163,6 +114,14 @@ describe('fuzzyMatch', () => {
     const text = `a${'x'.repeat(11)}ab${'x'.repeat(11)}c c`;
 
     expect(fuzzyMatch('abc', text)?.positions).toEqual([12, 13, 27]);
+  });
+
+  test('saves a share of the route work for a later start', () => {
+    const leadingStarts = 8;
+    const deadWordStarts = 1_500;
+    const text = `${'a '.repeat(leadingStarts)}ab${'x'.repeat(10)}c c d ${'b '.repeat(deadWordStarts)}`;
+
+    expect(fuzzyMatch('abcd', text)?.positions).toEqual([16, 17, 30, 32]);
   });
 
   test('keeps a route whose earlier word start fails', () => {

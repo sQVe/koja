@@ -16,6 +16,7 @@ interface FoldedText {
   originalOffsets: readonly number[];
   // Original character index to its first folded code point index.
   foldedStarts: readonly number[];
+  startsWord: readonly boolean[];
 }
 
 interface RouteState {
@@ -27,6 +28,7 @@ interface RouteState {
 
 interface RouteBudget {
   spent: number;
+  limit: number;
 }
 
 interface RouteSearch {
@@ -49,10 +51,13 @@ const spreadPerLetter = 2;
 
 const spreadSlack = 4;
 
-export const routeWorkBudget = 4096;
+const routeWorkBudget = 4096;
 
 const isWordStart = (text: string, index: number): boolean =>
   index === 0 || /[\s/_.\-~]/.test(text.charAt(index - 1));
+
+const startsWordAt = (folded: FoldedText, originalIndex: number): boolean =>
+  folded.startsWord[folded.foldedStarts[originalIndex] ?? 0] ?? false;
 
 const isRunOrWordStart = (
   folded: FoldedText,
@@ -60,7 +65,7 @@ const isRunOrWordStart = (
   previousOriginal: number,
 ): boolean => {
   const follows = originalIndex === previousOriginal + 1;
-  const startsWord = isWordStart(folded.text, folded.originalOffsets[originalIndex] ?? 0);
+  const startsWord = startsWordAt(folded, originalIndex);
 
   return follows || startsWord;
 };
@@ -77,6 +82,7 @@ const foldText = (text: string): FoldedText => {
   const originalOffsets: number[] = [];
   const foldedStarts: number[] = [];
   const originalOf: number[] = [];
+  const startsWord: boolean[] = [];
   let offset = 0;
   let foldedStart = 0;
 
@@ -88,13 +94,14 @@ const foldText = (text: string): FoldedText => {
 
     for (let count = 0; count < foldedLength; count += 1) {
       originalOf.push(index);
+      startsWord.push(isWordStart(text, offset));
     }
 
     offset += character.length;
     foldedStart += foldedLength;
   }
 
-  return { text, folded, originalOf, originalOffsets, foldedStarts };
+  return { text, folded, originalOf, originalOffsets, foldedStarts, startsWord };
 };
 
 const isCompact = (folded: FoldedText, positions: readonly number[]): boolean => {
@@ -129,7 +136,7 @@ const firstAtOrAfter = (positions: readonly number[], from: number): number => {
   return positions[low] ?? -1;
 };
 
-export class OccurrenceTable {
+class OccurrenceTable {
   readonly positions: readonly number[];
   readonly wordStarts: readonly number[];
 
@@ -169,10 +176,7 @@ const occurrenceTables = (
 
     letterPositions.push(foldedIndex);
 
-    const originalIndex = folded.originalOf[foldedIndex] ?? 0;
-    const startsWord = isWordStart(folded.text, folded.originalOffsets[originalIndex] ?? 0);
-
-    if (startsWord) {
+    if (folded.startsWord[foldedIndex] === true) {
       wordStarts.get(letter)?.push(foldedIndex);
     }
   }
@@ -191,7 +195,7 @@ const occurrenceTables = (
 const scoreStep = (folded: FoldedText, originalIndex: number, previous: number | null): number => {
   const from = previous === null ? 0 : previous + 1;
   const follows = previous !== null && originalIndex === from;
-  const startsWord = isWordStart(folded.text, folded.originalOffsets[originalIndex] ?? 0);
+  const startsWord = startsWordAt(folded, originalIndex);
   const gap = Math.min(originalIndex - from, longestCountedGap);
 
   return (follows ? runScore : 1) + (startsWord ? wordStartScore : 0) - gap * gapPenalty;
@@ -265,7 +269,7 @@ const extendRoute = (
   };
 };
 
-const hasRouteWork = (budget: RouteBudget): boolean => budget.spent < routeWorkBudget;
+const hasRouteWork = (budget: RouteBudget): boolean => budget.spent < budget.limit;
 
 const nearestRouteCandidate = (
   search: RouteSearch,
@@ -323,7 +327,6 @@ const routeFromWordStarts = (
   search: RouteSearch,
   state: RouteState,
   table: OccurrenceTable,
-  skip: readonly number[],
   tryCandidate: (foldedIndex: number) => Match | null,
 ): Match | null => {
   const { budget } = search;
@@ -336,12 +339,10 @@ const routeFromWordStarts = (
   let wordStart = table.firstWordStartAtOrAfter(state.nextFolded);
 
   while (wordStart !== -1) {
-    if (!skip.includes(wordStart)) {
-      const result = tryCandidate(wordStart);
+    const result = tryCandidate(wordStart);
 
-      if (result !== null) {
-        return result;
-      }
+    if (result !== null) {
+      return result;
     }
 
     if (!hasRouteWork(budget)) {
@@ -383,9 +384,12 @@ const routeFromOccurrences = (
     }
   }
 
-  const skip = [nearest, adjacent];
+  const skip = new Set([nearest, adjacent]);
 
-  return routeFromWordStarts(search, state, table, skip, tryCandidate);
+  const tryWordStart = (foldedIndex: number): Match | null =>
+    skip.has(foldedIndex) ? null : tryCandidate(foldedIndex);
+
+  return routeFromWordStarts(search, state, table, tryWordStart);
 };
 
 // Explores the word-start and adjacent occurrences a greedy pass skipped. A failed state is
@@ -430,7 +434,7 @@ const routeFrom = (search: RouteSearch, queryAt: number, state: RouteState): Mat
 
   const result = routeFromOccurrences(search, state, table, tryCandidate);
 
-  if (result === null) {
+  if (result === null && hasRouteWork(budget)) {
     failed.add(failedKey);
   }
 
@@ -448,13 +452,20 @@ const routeMatch = (
     folded,
     tables,
     failed: new Set<number>(),
-    budget: { spent: 0 },
+    budget: { spent: 0, limit: routeWorkBudget },
   };
 
-  for (const firstFolded of firstPositions) {
-    if (!hasRouteWork(search.budget)) {
+  for (const [index, firstFolded] of firstPositions.entries()) {
+    const remainingWork = routeWorkBudget - search.budget.spent;
+
+    if (remainingWork <= 0) {
       break;
     }
+
+    const remainingStarts = firstPositions.length - index;
+    const share = Math.max(1, Math.floor(remainingWork / remainingStarts));
+
+    search.budget.limit = search.budget.spent + share;
 
     const firstOriginal = folded.originalOf[firstFolded] ?? 0;
 
