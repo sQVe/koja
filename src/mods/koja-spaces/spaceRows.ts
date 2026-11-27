@@ -15,6 +15,7 @@ import {
   projectHeader,
   spaceMark,
   stackCard,
+  stackProgress,
   workIcon,
 } from '../../kit/index.ts';
 import type { Project } from './projects.ts';
@@ -44,6 +45,7 @@ export type RowInteraction =
 export interface RowState extends RowBaseState {
   title: string;
   need: StackNeed | null;
+  progress: { merged: number; total: number } | null;
   card: StackCardModel | null;
   interaction: RowInteraction;
 }
@@ -138,6 +140,10 @@ export const row = (
 
   if (state.age !== null) {
     end.push(detailText(state.age));
+  }
+
+  if (state.progress !== null) {
+    end.push(stackProgress({ ...state.progress, label: 'count' }));
   }
 
   const workSlot = state.need === null ? emptyWorkSlot() : workIcon(state.need);

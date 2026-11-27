@@ -321,6 +321,7 @@ const kitParts = [
   'sectionHeader',
   'size',
   'stackCard',
+  'stackProgress',
   'stateLine',
   'statusMark',
   'statusRollup',

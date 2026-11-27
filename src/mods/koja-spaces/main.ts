@@ -40,6 +40,7 @@ import { answeredPlaces, gitInfoAt, pullFailedAt } from './gitFacts.ts';
 import { inboxRows } from './inbox/inboxRows.ts';
 import type { ListModel, RowModel } from './listModel.ts';
 import { listModelOf } from './listModel.ts';
+import { stackProgressOf } from './progress.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, noFolds } from './projects.ts';
@@ -456,6 +457,7 @@ export default class Spaces extends View {
       cursor,
       age: waitAge(this.waitTimes, waiting, now),
       need: model.need,
+      progress: stackProgressOf(model.stack),
       card: stackCardOf(model, title),
       interaction,
     };
