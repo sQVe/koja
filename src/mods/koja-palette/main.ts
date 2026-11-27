@@ -89,6 +89,8 @@ const hasName = (entry: Entry): boolean => {
   return typeof name === 'string' && name.trim() !== '';
 };
 
+const shownLayout = (): string => stringOf(shared('layout')) ?? 'main';
+
 export default class Palette extends View {
   private query = '';
 
@@ -230,7 +232,7 @@ export default class Palette extends View {
       return;
     }
 
-    const layoutName = stringOf(shared('layout')) ?? 'main';
+    const layoutName = shownLayout();
     const clone = entry.name === 'layout.clone' && !hasName(entry);
     const args = clone ? { name: layoutName } : entry.args;
 
@@ -249,7 +251,7 @@ export default class Palette extends View {
       platform: currentWindow()?.platform ?? null,
       themes: themeChoices,
       dark: settings()['appearance'] === 'dark',
-      layout: stringOf(shared('layout')),
+      layout: shownLayout(),
     };
 
     return allEntries(host, this.mods);

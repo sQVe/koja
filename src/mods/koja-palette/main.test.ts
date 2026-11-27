@@ -79,6 +79,7 @@ let prompts: Record<string, unknown>[] = [];
 let submitInput: (() => void) | null = null;
 let keyBindings: KeyBinding[] = [];
 let homeDirectory = '';
+let layoutList: string[] = [];
 let themeList: { name: string; light: boolean; colors: Record<string, string> }[] = [];
 let appearanceSetting = 'light';
 let paletteNotifications = 0;
@@ -121,7 +122,7 @@ await mock.module('herdr', () =>
     settings: () => ({ appearance: appearanceSetting }),
     themes: () => themeList,
     keys: () => keyBindings,
-    layouts: () => [],
+    layouts: () => layoutList,
     openOverlay: () => 'overlay-2',
     run: () => null,
     setShared: (key: string, value: unknown) => {
@@ -292,6 +293,7 @@ beforeEach(() => {
   keyBindings = [];
   catalogCommands = defaultCommands;
   homeDirectory = '';
+  layoutList = [];
   themeList = [];
   appearanceSetting = 'light';
   paletteNotifications = 0;
@@ -624,5 +626,16 @@ describe('mod palettes', () => {
 
     expect(rowWithText(lightTree, 'Theme: catppuccin latte')).not.toBeNull();
     expect(rowWithText(lightTree, 'Theme: graphite')).toBeNull();
+  });
+
+  test('offers a theme named after the layout an unset shared value defaults to', async () => {
+    withCommand('app.theme');
+    appearanceSetting = 'dark';
+    layoutList = ['main'];
+    themeList = [{ name: 'main', light: false, colors: {} }];
+
+    const view = await openPalette();
+
+    expect(rowWithText(renderTree(view), 'Theme: main')).not.toBeNull();
   });
 });
