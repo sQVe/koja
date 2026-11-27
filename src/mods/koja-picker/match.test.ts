@@ -124,6 +124,14 @@ describe('fuzzyMatch', () => {
     expect(fuzzyMatch('abcd', text)?.positions).toEqual([16, 17, 30, 32]);
   });
 
+  test('gives leftover route work back to an early start that ran out', () => {
+    const deadStarts = 50;
+    const lateStarts = 100;
+    const text = `a ${'b '.repeat(deadStarts)}x bc ${'a '.repeat(lateStarts)}`;
+
+    expect(fuzzyMatch('abc', text)?.positions).toEqual([0, 104, 105]);
+  });
+
   test('keeps a route whose earlier word start fails', () => {
     expect(fuzzyMatch('abc', '-aax-xcxbx-- b x-bcxxx  aa  xx')?.positions).toEqual([1, 17, 18]);
   });

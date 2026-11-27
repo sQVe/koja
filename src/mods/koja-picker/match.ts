@@ -16,6 +16,7 @@ interface FoldedText {
   originalOffsets: readonly number[];
   // Original character index to its first folded code point index.
   foldedStarts: readonly number[];
+  // Folded code point index to whether that code point starts a word.
   startsWord: readonly boolean[];
 }
 
@@ -53,8 +54,13 @@ const spreadSlack = 4;
 
 const routeWorkBudget = 4096;
 
+// The word-start separators `\s`, `/`, `_`, `.`, `-`, and `~`, as a Set so each check is a lookup.
+const wordSeparators = new Set(
+  '\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff/_.-~',
+);
+
 const isWordStart = (text: string, index: number): boolean =>
-  index === 0 || /[\s/_.\-~]/.test(text.charAt(index - 1));
+  index === 0 || wordSeparators.has(text.charAt(index - 1));
 
 const startsWordAt = (folded: FoldedText, originalIndex: number): boolean =>
   folded.startsWord[folded.foldedStarts[originalIndex] ?? 0] ?? false;
@@ -91,10 +97,11 @@ const foldText = (text: string): FoldedText => {
     foldedStarts.push(foldedStart);
 
     const foldedLength = lengths[index] ?? 0;
+    const startsWordHere = isWordStart(text, offset);
 
     for (let count = 0; count < foldedLength; count += 1) {
       originalOf.push(index);
-      startsWord.push(isWordStart(text, offset));
+      startsWord.push(startsWordHere);
     }
 
     offset += character.length;
@@ -455,15 +462,21 @@ const routeMatch = (
     budget: { spent: 0, limit: routeWorkBudget },
   };
 
-  for (const [index, firstFolded] of firstPositions.entries()) {
+  const starts = [...firstPositions];
+  let nextStart = 0;
+
+  while (nextStart < starts.length) {
     const remainingWork = routeWorkBudget - search.budget.spent;
 
     if (remainingWork <= 0) {
       break;
     }
 
-    const remainingStarts = firstPositions.length - index;
+    const remainingStarts = starts.length - nextStart;
     const share = Math.max(1, Math.floor(remainingWork / remainingStarts));
+    const firstFolded = starts[nextStart] ?? 0;
+
+    nextStart += 1;
 
     search.budget.limit = search.budget.spent + share;
 
@@ -480,6 +493,11 @@ const routeMatch = (
 
     if (result !== null) {
       return result;
+    }
+
+    // A start that spent its whole share gets the work the cheaper starts left over.
+    if (!hasRouteWork(search.budget)) {
+      starts.push(firstFolded);
     }
   }
 
