@@ -2,7 +2,14 @@ import { describe, expect, test } from 'bun:test';
 
 import type { PaneInfo, Program, TabInfo } from 'herdr';
 
-import { tabLabel, tabProgram } from './tabLabel.ts';
+import {
+  tabLabel,
+  tabLabelWithTasks,
+  tabName,
+  tabProgram,
+  taskIndexOf,
+  taskOfPaneWithTasks,
+} from './tabLabel.ts';
 
 const shell: Program = {
   key: 'shell',
@@ -241,5 +248,44 @@ describe('tabLabel live agent titles', () => {
     const pane = { ...terminalPane('p1'), title: 'vim notes.md' };
 
     expect(labelOf(unnamedTab, [pane])).toBe('zsh');
+  });
+});
+
+describe('tabName', () => {
+  test('leaves the zoom marker to the label', () => {
+    const zoomed = { ...unnamedTab, zoomed: true };
+    const panes = [terminalPane('p1')];
+
+    expect(tabName(zoomed, tabProgram(zoomed, panes), panes, [])).toBe('zsh');
+  });
+});
+
+describe('taskIndexOf', () => {
+  test('maps each terminal address to its last non-empty task', () => {
+    const tasks = taskIndexOf([
+      terminalRecord('p1', 'First task'),
+      terminalRecord('p1', 'Second task'),
+      terminalRecord('p2', ''),
+    ]);
+
+    expect(tasks.get('t-p1')).toBe('Second task');
+    expect(tasks.has('t-p2')).toBe(false);
+  });
+});
+
+describe('lookups with a task index', () => {
+  test('labels a worker tab from the index', () => {
+    const panes = [terminalPane('p1')];
+    const tasks = taskIndexOf([terminalRecord('p1', 'Fix status counts')]);
+
+    expect(tabLabelWithTasks(unnamedTab, tabProgram(unnamedTab, panes), panes, tasks)).toBe(
+      'Fix status counts',
+    );
+  });
+
+  test('finds a pane task through the index', () => {
+    const tasks = taskIndexOf([terminalRecord('p1', 'Fix status counts')]);
+
+    expect(taskOfPaneWithTasks(terminalPane('p1'), tasks)).toBe('Fix status counts');
   });
 });

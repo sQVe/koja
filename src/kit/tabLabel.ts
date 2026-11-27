@@ -14,8 +14,16 @@ const taskByAddress = (terminalRecords: readonly unknown[]): Map<unknown, string
   return tasks;
 };
 
+export const taskIndexOf = (terminalRecords: readonly unknown[]): Map<unknown, string> =>
+  taskByAddress(terminalRecords);
+
+export const taskOfPaneWithTasks = (
+  pane: PaneInfo,
+  tasks: ReadonlyMap<unknown, string>,
+): string | null => tasks.get(pane.terminal) ?? null;
+
 export const taskOfPane = (pane: PaneInfo, terminalRecords: readonly unknown[]): string | null =>
-  taskByAddress(terminalRecords).get(pane.terminal) ?? null;
+  taskOfPaneWithTasks(pane, taskIndexOf(terminalRecords));
 
 const workerTasksOf = (
   tabInfo: TabInfo,
@@ -84,17 +92,16 @@ const liveTitle = (tabInfo: TabInfo, paneList: PaneInfo[]): string | null => {
   return tellsTheWork(lead) ? cleanTitle(lead.title) : null;
 };
 
-export const tabName = (
+export const tabNameWithTasks = (
   tabInfo: TabInfo,
   program: PaneInfo['program'] | undefined,
   paneList: PaneInfo[],
-  terminalRecords: readonly unknown[],
+  tasks: ReadonlyMap<unknown, string>,
 ): string => {
   if (tabInfo.named && tabInfo.name !== program?.name) {
     return tabInfo.name;
   }
 
-  const tasks = taskByAddress(terminalRecords);
   const workerName = workerLabel(workerTasksOf(tabInfo, paneList, tasks));
 
   if (workerName !== null) {
@@ -110,16 +117,29 @@ export const tabName = (
   return program?.name ?? 'Terminal';
 };
 
+export const tabName = (
+  tabInfo: TabInfo,
+  program: PaneInfo['program'] | undefined,
+  paneList: PaneInfo[],
+  terminalRecords: readonly unknown[],
+): string => tabNameWithTasks(tabInfo, program, paneList, taskIndexOf(terminalRecords));
+
+const zoomedLabel = (tabInfo: TabInfo, name: string): string =>
+  tabInfo.zoomed ? `${name} Z` : name;
+
+export const tabLabelWithTasks = (
+  tabInfo: TabInfo,
+  program: PaneInfo['program'] | undefined,
+  paneList: PaneInfo[],
+  tasks: ReadonlyMap<unknown, string>,
+): string => zoomedLabel(tabInfo, tabNameWithTasks(tabInfo, program, paneList, tasks));
+
 export const tabLabel = (
   tabInfo: TabInfo,
   program: PaneInfo['program'] | undefined,
   paneList: PaneInfo[],
   terminalRecords: readonly unknown[],
-): string => {
-  const name = tabName(tabInfo, program, paneList, terminalRecords);
-
-  return tabInfo.zoomed ? `${name} Z` : name;
-};
+): string => zoomedLabel(tabInfo, tabName(tabInfo, program, paneList, terminalRecords));
 
 export const tabProgram = (
   tabInfo: TabInfo,

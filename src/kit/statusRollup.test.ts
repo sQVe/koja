@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import type { PaneInfo, Program, SpaceInfo, Status, TabInfo } from 'herdr';
 
-import { readTerminals, rollupStatuses, statusRank } from './statusRollup.ts';
+import { readTerminals, rollupOwners, rollupStatuses, statusRank } from './statusRollup.ts';
 
 const shell: Program = {
   key: 'shell',
@@ -201,5 +201,56 @@ describe('rollupStatuses', () => {
 
     expect(result.tabs['k2']).toBeNull();
     expect(result.spaces['s1']).toBe('idle');
+  });
+});
+
+describe('rollupOwners', () => {
+  test('gives a tab and space whose status comes only from a background descendant the owning pane', () => {
+    const { spaces } = fixtures();
+    const panes = [paneOf('p1', 'k1', 'idle'), paneOf('p2', 'k1', 'idle')];
+
+    const owners = rollupOwners(spaces, panes, [
+      terminalOf('t-child', 't-p1', 'idle'),
+      terminalOf('t-grandchild', 't-child', 'working'),
+    ]);
+
+    expect(owners.tabs['k1']?.pane).toBe('p1');
+    expect(owners.spaces['s1']?.pane).toBe('p1');
+  });
+
+  test('gives no owner when a pane itself holds the status', () => {
+    const { spaces } = fixtures();
+    const panes = [paneOf('p1', 'k1', 'working'), paneOf('p2', 'k1', 'idle')];
+    const owners = rollupOwners(spaces, panes, [terminalOf('t-child', 't-p2', 'working')]);
+
+    expect(owners.tabs['k1']).toBeNull();
+    expect(owners.spaces['s1']).toBeNull();
+  });
+
+  test('takes the first owning pane by tab order then pane order', () => {
+    const { spaces } = fixtures();
+
+    const panes = [
+      paneOf('p1', 'k1', 'idle'),
+      paneOf('p2', 'k1', 'idle'),
+      paneOf('p3', 'k2', 'idle'),
+    ];
+
+    const owners = rollupOwners(spaces, panes, [
+      terminalOf('t-a', 't-p2', 'working'),
+      terminalOf('t-b', 't-p1', 'working'),
+      terminalOf('t-c', 't-p3', 'working'),
+    ]);
+
+    expect(owners.tabs['k1']?.pane).toBe('p1');
+    expect(owners.spaces['s1']?.pane).toBe('p1');
+  });
+
+  test('gives no owner when no background descendant contributes', () => {
+    const { spaces, panes } = fixtures();
+    const owners = rollupOwners(spaces, panes, []);
+
+    expect(owners.tabs['k1']).toBeNull();
+    expect(owners.spaces['s1']).toBeNull();
   });
 });

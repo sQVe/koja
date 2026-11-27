@@ -13,6 +13,16 @@ export interface StatusRollup {
   tabs: Record<string, Status | null>;
 }
 
+interface DescendantContribution {
+  status: Status;
+  owner: PaneInfo;
+}
+
+export interface StatusOwners {
+  spaces: Record<string, PaneInfo | null>;
+  tabs: Record<string, PaneInfo | null>;
+}
+
 export const readTerminals = (records: readonly unknown[]): CoreTerminal[] =>
   records.map((record) => {
     const terminal = recordOf(record);
@@ -43,16 +53,16 @@ const bestOf = (statuses: readonly (Status | null)[]): Status | null =>
     null,
   );
 
-const paneTabOf = (paneList: readonly PaneInfo[]): Map<string, string> => {
-  const paneTab = new Map<string, string>();
+const paneByTerminal = (paneList: readonly PaneInfo[]): Map<string, PaneInfo> => {
+  const byTerminal = new Map<string, PaneInfo>();
 
   for (const pane of paneList) {
     if (pane.terminal !== null) {
-      paneTab.set(pane.terminal, pane.tab);
+      byTerminal.set(pane.terminal, pane);
     }
   }
 
-  return paneTab;
+  return byTerminal;
 };
 
 const paneStatusesByTab = (paneList: readonly PaneInfo[]): Record<string, (Status | null)[]> => {
@@ -69,19 +79,19 @@ const paneStatusesByTab = (paneList: readonly PaneInfo[]): Record<string, (Statu
   return byTab;
 };
 
-const ancestorTab = (
+const ancestorPane = (
   terminal: CoreTerminal,
   terminalsByAddress: ReadonlyMap<string, CoreTerminal>,
-  paneTab: ReadonlyMap<string, string>,
-): string | null => {
+  panesByTerminal: ReadonlyMap<string, PaneInfo>,
+): PaneInfo | null => {
   const seen = new Set<string>([terminal.address]);
   let parent = terminal.parent;
 
   while (parent !== null && !seen.has(parent)) {
-    const tab = paneTab.get(parent);
+    const pane = panesByTerminal.get(parent);
 
-    if (tab !== undefined) {
-      return tab;
+    if (pane !== undefined) {
+      return pane;
     }
 
     seen.add(parent);
@@ -91,53 +101,180 @@ const ancestorTab = (
   return null;
 };
 
-const descendantStatusesByTab = (
+const descendantContributions = (
   terminalList: readonly CoreTerminal[],
-  paneTab: ReadonlyMap<string, string>,
-): Record<string, Status[]> => {
+  panesByTerminal: ReadonlyMap<string, PaneInfo>,
+): Record<string, DescendantContribution[]> => {
   const terminalsByAddress = new Map(terminalList.map((terminal) => [terminal.address, terminal]));
-  const byTab: Record<string, Status[]> = {};
+  const byTab: Record<string, DescendantContribution[]> = {};
 
   for (const terminal of terminalList) {
-    if (paneTab.has(terminal.address)) {
+    if (panesByTerminal.has(terminal.address)) {
       continue;
     }
 
     const status = backgroundStatus(terminal.status);
-    const tab = status === null ? null : ancestorTab(terminal, terminalsByAddress, paneTab);
 
-    if (status !== null && tab !== null) {
-      (byTab[tab] ??= []).push(status);
+    const owner =
+      status === null ? null : ancestorPane(terminal, terminalsByAddress, panesByTerminal);
+
+    if (status !== null && owner !== null) {
+      (byTab[owner.tab] ??= []).push({ status, owner });
     }
   }
 
   return byTab;
 };
 
+const tabStatusOf = (
+  tabId: string,
+  paneStatuses: Readonly<Record<string, (Status | null)[]>>,
+  contributions: Readonly<Record<string, DescendantContribution[]>>,
+): Status | null =>
+  bestOf([
+    ...(paneStatuses[tabId] ?? []),
+    ...(contributions[tabId] ?? []).map((contribution) => contribution.status),
+  ]);
+
+const spaceStatusOf = (
+  space: SpaceInfo,
+  tabs: Readonly<Record<string, Status | null>>,
+): Status | null => bestOf(space.tabs.map((tab) => tabs[tab.id] ?? null));
+
 export const rollupStatuses = (
   spaceList: readonly SpaceInfo[],
   paneList: readonly PaneInfo[],
   terminalList: readonly unknown[],
 ): StatusRollup => {
-  const paneTab = paneTabOf(paneList);
   const paneStatuses = paneStatusesByTab(paneList);
-  const descendantStatuses = descendantStatusesByTab(readTerminals(terminalList), paneTab);
+
+  const contributions = descendantContributions(
+    readTerminals(terminalList),
+    paneByTerminal(paneList),
+  );
 
   const tabs: Record<string, Status | null> = {};
 
   for (const space of spaceList) {
     for (const tab of space.tabs) {
-      const statuses = [...(paneStatuses[tab.id] ?? []), ...(descendantStatuses[tab.id] ?? [])];
-
-      tabs[tab.id] = bestOf(statuses);
+      tabs[tab.id] = tabStatusOf(tab.id, paneStatuses, contributions);
     }
   }
 
   const spaces: Record<string, Status | null> = {};
 
   for (const space of spaceList) {
-    spaces[space.id] = bestOf(space.tabs.map((tab) => tabs[tab.id] ?? null));
+    spaces[space.id] = spaceStatusOf(space, tabs);
   }
 
   return { spaces, tabs };
+};
+
+const panePosition = (paneList: readonly PaneInfo[]): Map<PaneInfo, number> =>
+  new Map(paneList.map((pane, index) => [pane, index]));
+
+const earliestPane = (
+  panes: readonly PaneInfo[],
+  position: ReadonlyMap<PaneInfo, number>,
+): PaneInfo | null => {
+  let earliest: PaneInfo | null = null;
+  let earliestAt = Number.POSITIVE_INFINITY;
+
+  for (const pane of panes) {
+    const at = position.get(pane) ?? Number.POSITIVE_INFINITY;
+
+    if (at < earliestAt) {
+      earliest = pane;
+      earliestAt = at;
+    }
+  }
+
+  return earliest;
+};
+
+const tabOwner = (
+  tabStatus: Status | null,
+  paneStatuses: readonly (Status | null)[],
+  contributions: readonly DescendantContribution[],
+  position: ReadonlyMap<PaneInfo, number>,
+): PaneInfo | null => {
+  if (tabStatus === null || statusRank(tabStatus) <= statusRank(bestOf(paneStatuses))) {
+    return null;
+  }
+
+  const owners = contributions
+    .filter((contribution) => statusRank(contribution.status) === statusRank(tabStatus))
+    .map((contribution) => contribution.owner);
+
+  return earliestPane(owners, position);
+};
+
+const spaceOwner = (
+  space: SpaceInfo,
+  spaceStatus: Status | null,
+  tabs: Readonly<Record<string, Status | null>>,
+  tabOwners: Readonly<Record<string, PaneInfo | null>>,
+  paneStatuses: readonly (Status | null)[],
+): PaneInfo | null => {
+  if (spaceStatus === null || statusRank(spaceStatus) <= statusRank(bestOf(paneStatuses))) {
+    return null;
+  }
+
+  for (const tab of space.tabs) {
+    if (statusRank(tabs[tab.id] ?? null) !== statusRank(spaceStatus)) {
+      continue;
+    }
+
+    const owner = tabOwners[tab.id] ?? null;
+
+    if (owner !== null) {
+      return owner;
+    }
+  }
+
+  return null;
+};
+
+export const rollupOwners = (
+  spaceList: readonly SpaceInfo[],
+  paneList: readonly PaneInfo[],
+  terminalList: readonly unknown[],
+): StatusOwners => {
+  const paneStatuses = paneStatusesByTab(paneList);
+
+  const contributions = descendantContributions(
+    readTerminals(terminalList),
+    paneByTerminal(paneList),
+  );
+
+  const position = panePosition(paneList);
+
+  const tabs: Record<string, Status | null> = {};
+  const owners: Record<string, PaneInfo | null> = {};
+
+  for (const space of spaceList) {
+    for (const tab of space.tabs) {
+      const status = tabStatusOf(tab.id, paneStatuses, contributions);
+
+      tabs[tab.id] = status;
+
+      owners[tab.id] = tabOwner(
+        status,
+        paneStatuses[tab.id] ?? [],
+        contributions[tab.id] ?? [],
+        position,
+      );
+    }
+  }
+
+  const spaces: Record<string, PaneInfo | null> = {};
+
+  for (const space of spaceList) {
+    const spaceStatus = spaceStatusOf(space, tabs);
+    const spacePanes = space.tabs.flatMap((tab) => paneStatuses[tab.id] ?? []);
+
+    spaces[space.id] = spaceOwner(space, spaceStatus, tabs, owners, spacePanes);
+  }
+
+  return { spaces, tabs: owners };
 };
