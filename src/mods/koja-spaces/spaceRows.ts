@@ -83,7 +83,6 @@ export const row = (
     end,
   }).id(`space-${space.id}`);
 
-  // An Inbox row shows a project and has no drag.
   if (project === null) {
     state.attachDrag(element, space, ids);
   }
