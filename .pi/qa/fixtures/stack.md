@@ -1,8 +1,8 @@
 # Stack fixture
 
-The journey
+The journeys [Check how far a stack has come](../journeys/check-how-far-a-stack-has-come.md) and
 [Find the space that holds a pull request](../journeys/find-the-space-that-holds-a-pull-request.md)
-uses this fixture. It builds a repository with three stack branches, writes its `gh-stack` record,
+use this fixture. It builds a repository with three stack branches, writes its `gh-stack` record,
 and installs a fake `gh` that answers the pull read by branch name. Start a fresh sandbox first.
 Replace `<name>` with its name, then run these commands from the worktree:
 
@@ -85,9 +85,9 @@ while [ "$#" -ge 2 ]; do
     printf '%s\n' "${field}" >> "${HOME}/gh-calls"
   fi
   case "${branch}" in
-    qa-stack-bottom) number=503; state=OPEN ;;
+    qa-stack-bottom) number=503; state=OPEN; checks=FAILURE ;;
     qa-stack-middle) number=504; state=MERGED ;;
-    qa-stack-top) number=505; state=OPEN ;;
+    qa-stack-top) number=505; state=OPEN; checks=SUCCESS ;;
     *) number= ;;
   esac
   open=
@@ -96,8 +96,8 @@ while [ "$#" -ge 2 ]; do
     latest=$(printf '{"number":%s,"state":"%s","isDraft":false,"title":"Fixture PR %s","headRefName":"%s"}' \
       "${number}" "${state}" "${number}" "${branch}")
     if [ "${state}" = OPEN ]; then
-      open=$(printf '%s,%s}' "${latest%?}" \
-        '"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}')
+      open=$(printf '%s,"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"%s"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}}' \
+        "${latest%?}" "${checks}")
     fi
   fi
   printf '%s"open%s":{"nodes":[%s]},"latest%s":{"nodes":[%s]}' \
@@ -120,9 +120,10 @@ bun run sandbox identity
   its `bin` first on `PATH`, so the fake `gh` answers every read and no read reaches GitHub. Do not
   open a space on `stack-repo` itself: the worktree on the top branch is the space under test.
 - Check that it is up: identity exits 0, the sidebar shows one row under the `stack-repo` header
-  reading its pull request's title, `Fixture PR 505`, with `unrelated` selected, and
-  `$fixtureHome/gh-calls` records a read of all three branches. Only the middle branch's latest PR
-  is merged, so the reason line of the journey shows `merged`. The sandbox window is mapped but
-  never active, and PR reads start there because they follow `visible`, not `active`.
+  reading its pull request's title, `Fixture PR 505`, with `unrelated` selected, and that row ends
+  with the red CI failing icon. `$fixtureHome/gh-calls` records a read of all three branches. Only
+  the middle branch's latest PR is merged, so the reason line of the journey shows `merged`. The
+  sandbox window is mapped but never active, and PR reads start there because they follow `visible`,
+  not `active`.
 - Shot: `bun run sandbox shot <slice directory>/stack-fixture.png`.
 - Stop: the `verification` tool, which runs `bun run sandbox down`.

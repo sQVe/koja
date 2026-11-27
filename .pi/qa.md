@@ -41,11 +41,12 @@ No launch, and unclear impact:
 
 ## Journeys
 
-| Journey                                                                                             | Goal                                                         | Run it when the change touches                                                                | Test    |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------- |
-| [Triage the spaces that need you](qa/journeys/triage-the-spaces-that-need-you.md)                   | Read one-line space rows and switch spaces.                  | `src/mods/koja-spaces/`, `src/kit/space.ts`, `src/kit/statusMark.ts`, `src/kit/spaceOrder.ts` | by hand |
-| [Recover from a failed PR read](qa/journeys/recover-from-a-failed-pr-read.md)                       | Retry a failed read without losing the space rows.           | `src/mods/koja-spaces/`, `src/kit/stateLine.ts`, `src/kit/button.ts`, `src/data/pull*.ts`     | by hand |
-| [Find the space that holds a pull request](qa/journeys/find-the-space-that-holds-a-pull-request.md) | Find a space by a PR number in its stack, then switch to it. | `koja-picker`, `src/data/spaceStack.ts`, `src/data/stacks.ts`                                 | by hand |
+| Journey                                                                                             | Goal                                                         | Run it when the change touches                                                                    | Test    |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------- |
+| [Triage the spaces that need you](qa/journeys/triage-the-spaces-that-need-you.md)                   | Read one-line space rows and switch spaces.                  | `src/mods/koja-spaces/`, `src/kit/space.ts`, `src/kit/statusMark.ts`, `src/kit/spaceOrder.ts`     | by hand |
+| [Recover from a failed PR read](qa/journeys/recover-from-a-failed-pr-read.md)                       | Retry a failed read without losing the space rows.           | `src/mods/koja-spaces/`, `src/kit/stateLine.ts`, `src/kit/button.ts`, `src/data/pull*.ts`         | by hand |
+| [Find the space that holds a pull request](qa/journeys/find-the-space-that-holds-a-pull-request.md) | Find a space by a PR number in its stack, then switch to it. | `koja-picker`, `src/data/spaceStack.ts`, `src/data/stacks.ts`                                     | by hand |
+| [Check how far a stack has come](qa/journeys/check-how-far-a-stack-has-come.md)                     | Read what a stack's PRs need from its sidebar row.           | `src/mods/koja-spaces/`, `src/kit/workIcon.ts`, `src/data/pullNeeds.ts`, `src/data/spaceStack.ts` | by hand |
 
 ## Features
 
