@@ -45,8 +45,8 @@ export interface HeaderState extends RowBaseState {
 const dropMark = (state: RowBaseState, id: string, ids: readonly string[]): DropMark | undefined =>
   state.refused === id ? 'refused' : dragLine(state.drag, id, ids);
 
-const projectDetail = (project: string): Element =>
-  detailText(project).max_w(controlSize.factValueMaxWidth).truncate();
+const projectDetail = (projectName: string): Element =>
+  detailText(projectName).max_w(controlSize.factValueMaxWidth).truncate();
 
 export const row = (
   listed: ListedSpace,

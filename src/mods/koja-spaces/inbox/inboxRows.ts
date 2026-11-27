@@ -7,9 +7,9 @@ import { detailText, overlaySize, sectionHeader, sidebarSize } from '../../../ki
 import { runSpaceCommand } from '../../../kit/space/spaceSelection.ts';
 import type { KeptNeed } from '../gitFacts.ts';
 import { needAt } from '../gitFacts.ts';
+import { groupedList } from '../groupedList.ts';
 import type { InboxGroup } from '../inbox.ts';
 import { inboxGroups, inboxIds } from '../inbox.ts';
-import { groupGap, loadingRow } from '../projectRows.ts';
 import type { ShownRow } from '../projects.ts';
 import { groupProjects, noFolds, shownRows } from '../projects.ts';
 import type { ListedSpace } from '../tree.ts';
@@ -81,13 +81,7 @@ const groupBlock = (group: InboxGroup, host: InboxRowsHost): Element[] => [
 ];
 
 export const inboxRows = (host: InboxRowsHost): Element[] => {
-  if (host.groups.length === 0) {
-    return host.loading ? [loadingRow()] : [];
-  }
+  const blocks = host.groups.map((group) => groupBlock(group, host));
 
-  return host.groups.flatMap((group, index) => {
-    const block = groupBlock(group, host);
-
-    return index === 0 ? block : [groupGap(), ...block];
-  });
+  return groupedList(blocks, host.loading);
 };
