@@ -37,7 +37,7 @@ setup and verification.
 - Try and QA mods in the sandbox only: `bun run sandbox up`, `shot`, the input commands, and `down`.
   Tau launches it as the `sandbox` verification target in `.pi/tau.json`, and `.pi/qa.md` holds the
   QA guide. The sandbox runs on [ruta](https://github.com/sQVe/ruta); install it with
-  `cargo install --git https://github.com/sQVe/ruta --tag v0.2.1 --locked ruta`. Never use
+  `cargo install --git https://github.com/sQVe/ruta --tag v0.2.2 --locked ruta`. Never use
   `ydotool`, and never run `herdr-app do`, `hc`, or synthetic input against the user's real window
   or core. See [Sandbox](docs/development.md#sandbox).
 
