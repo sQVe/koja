@@ -7,6 +7,7 @@ import {
   descendants,
   drawnTexts,
   drawnTree,
+  elementWithIcon,
   elementWithText,
 } from '../../../tests/drawn.ts';
 import { mockGalleryModules, sampleNamed } from '../../../tests/gallery.ts';
@@ -101,11 +102,12 @@ test('draws each level as its own card with its message and mark', () => {
   }
 });
 
-test('draws the icon sample with its icon and message', () => {
+test('draws the icon sample with a tinted kit icon and its message', () => {
   const icon = sampleNamed(parts(), 'Icon instead of the level dot');
-  const paths = descendants(icon).map((part) => part.path);
+  const glyph = elementWithIcon(icon, 'palette.svg');
 
-  expect(paths).toContain('mods/koja/icons/palette.svg');
+  expect(glyph?.kind).toBe('svg');
+  expect(glyph?.path).toBe('mods/koja/icons/palette.svg');
   expect(drawnTexts(icon)).toContain('Update available');
   expect(drawnTexts(icon)).toContain('Restart to install the new version.');
 });

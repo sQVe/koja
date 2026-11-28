@@ -1,7 +1,14 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { click, clickablesWithText, descendants, drawn, drawnTexts } from '../../../tests/drawn.ts';
+import {
+  click,
+  clickablesWithText,
+  descendants,
+  drawn,
+  drawnTexts,
+  elementWithIcon,
+} from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -58,7 +65,11 @@ await mock.module('gpui-base', () =>
 );
 
 await mock.module('gpui-kit', () =>
-  gpuiKitFake({ div: () => drawn(), image: (path: string) => drawn(path) }),
+  gpuiKitFake({
+    div: () => drawn(),
+    image: (path: string) => drawn(path, 'image'),
+    svg: (path: string) => drawn(path, 'svg'),
+  }),
 );
 
 await mock.module('herdr', () =>
@@ -170,6 +181,24 @@ describe('toast', () => {
 
     expect(backgrounds).toContain(palette.working);
     expect(backgrounds).not.toContain(palette.accent);
+  });
+
+  test('draws the host icon as an untinted image with its path', async () => {
+    toastProps = {
+      title: 'Agent blocked',
+      body: 'Needs your answer.',
+      icon: 'icons/agent.svg',
+      overlay: 'o3',
+    };
+
+    const view = await loadView();
+
+    view.init(undefined, undefined);
+
+    const glyph = elementWithIcon(view.render(), 'agent.svg');
+
+    expect(glyph?.kind).toBe('image');
+    expect(glyph?.path).toBe('icons/agent.svg');
   });
 
   test('draws a plain title and a fitted multiline body', async () => {

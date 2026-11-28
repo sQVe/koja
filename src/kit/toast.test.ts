@@ -3,7 +3,14 @@ import { afterAll, expect, mock, test } from 'bun:test';
 import type { Element } from 'gpui-kit';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { descendants, drawn, drawnIcons, drawnTexts, elementWithText } from '../../tests/drawn.ts';
+import {
+  descendants,
+  drawn,
+  drawnIcons,
+  drawnTexts,
+  elementWithIcon,
+  elementWithText,
+} from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 import type { ToastCardOptions } from './toast.ts';
 
@@ -22,7 +29,11 @@ await mock.module('gpui-base', () =>
 );
 
 await mock.module('gpui-kit', () =>
-  gpuiKitFake({ div: () => drawn(), image: (path: string) => drawn(path) }),
+  gpuiKitFake({
+    div: () => drawn(),
+    image: (path: string) => drawn(path, 'image'),
+    svg: (path: string) => drawn(path, 'svg'),
+  }),
 );
 
 await mock.module('herdr', () => herdrFake({ theme: () => palette }));
@@ -58,13 +69,22 @@ const hasStyle = (card: DrawnElement, style: string): boolean =>
   descendants(card).some((part) => part.styles[style] !== undefined);
 
 test('shows the icon instead of the level dot', () => {
-  const withIcon = toastCard({ ...options, icon: '/x.png' });
+  const withIcon = toastCard({ ...options, icon: { path: '/x.png', tint: false } });
   const withDot = toastCard(options);
 
   expect(drawnIcons(withIcon)).toEqual(['x.png']);
   expect(hasBackground(withIcon, palette.accent)).toBe(false);
   expect(drawnIcons(withDot)).toEqual([]);
   expect(hasBackground(withDot, palette.accent)).toBe(true);
+});
+
+test('draws a tinted icon with svg and an untinted icon with image', () => {
+  const path = 'mods/koja/icons/palette.svg';
+  const tinted = toastCard({ ...options, icon: { path, tint: true } });
+  const untinted = toastCard({ ...options, icon: { path, tint: false } });
+
+  expect(elementWithIcon(tinted, 'palette.svg')?.kind).toBe('svg');
+  expect(elementWithIcon(untinted, 'palette.svg')?.kind).toBe('image');
 });
 
 test('draws both body lines when the card fits its height', () => {

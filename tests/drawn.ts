@@ -1,8 +1,11 @@
+export type DrawnElementKind = 'element' | 'image' | 'svg';
+
 // The mark of a handle `drawn()` made. Its value stays private, so no lookalike can forge it.
 const drawnBrand = { drawnHandle: true } as const;
 
 export interface DrawnElement {
   drawn: typeof drawnBrand;
+  kind: DrawnElementKind;
   kids: DrawnElement[];
   path: string | null;
   spins: boolean;
@@ -31,9 +34,13 @@ const addChild = (parent: DrawnElement, child: unknown): void => {
 const hasText = (element: DrawnElement, text: string): boolean =>
   Array.isArray(element.texts) && element.texts.includes(text);
 
-export const drawn = (path: string | null = null): DrawnElement => {
+export const drawn = (
+  path: string | null = null,
+  kind: DrawnElementKind = 'element',
+): DrawnElement => {
   const element: DrawnElement = {
     drawn: drawnBrand,
+    kind,
     kids: [],
     path,
     spins: false,

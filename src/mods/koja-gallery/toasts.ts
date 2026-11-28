@@ -38,13 +38,12 @@ const levelSample = (level: ToastLevel): Element => {
 };
 
 const iconSample = (): Element => {
-  const icon = iconPath('palette');
   const message = messages.info;
 
   return toastSample('Icon instead of the level dot', {
     id: 'toast-icon',
     level: 'info',
-    icon,
+    icon: { path: iconPath('palette'), tint: true },
     title: message.title,
     body: message.body,
   });

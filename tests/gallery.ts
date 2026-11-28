@@ -70,8 +70,8 @@ export const mockGalleryModules = async (herdr: ModuleFake = {}): Promise<Module
   await mock.module('gpui-kit', () =>
     gpuiKitFake({
       div: () => drawn(),
-      image: (path: string) => drawn(path),
-      svg: (path: string) => drawn(path),
+      image: (path: string) => drawn(path, 'image'),
+      svg: (path: string) => drawn(path, 'svg'),
     }),
   );
 

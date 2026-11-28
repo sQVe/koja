@@ -1,6 +1,6 @@
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
-import { div, image } from 'gpui-kit';
+import { div, image, svg } from 'gpui-kit';
 
 import { withHover } from './hover.ts';
 import type { ThemeToken } from './palette.ts';
@@ -12,10 +12,15 @@ import { roleText, withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
 import type { ToastLevel } from './toast/toastLevel.ts';
 
+interface ToastIcon {
+  path: string;
+  tint: boolean;
+}
+
 export interface ToastCardOptions {
   id: string;
   level: ToastLevel;
-  icon: string | null;
+  icon: ToastIcon | null;
   title: string;
   body: Element | string | null;
   // False fills the overlay: a string body is shortened to one line and an Element body is drawn as given. True fits the card to its content.
@@ -37,7 +42,9 @@ const firstLine = (text: string): string => {
 
 const mark = (options: ToastCardOptions): Element => {
   if (options.icon !== null) {
-    return image(options.icon).size(iconSize.default).flex_none();
+    const drawn = options.icon.tint ? svg(options.icon.path) : image(options.icon.path);
+
+    return drawn.size(iconSize.default).flex_none();
   }
 
   return indicator(levelTokens[options.level]);

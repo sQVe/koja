@@ -69,11 +69,12 @@ export default class Toast extends View {
   override render(): Element {
     const { content, fitHeight, icon, level } = this.toast;
     const parts = this.parts(content);
+    const cardIcon = icon === null ? null : { path: icon, tint: false };
 
     return toastCard({
       id: toastId,
       level,
-      icon,
+      icon: cardIcon,
       title: parts.title,
       body: parts.body,
       fitHeight,
