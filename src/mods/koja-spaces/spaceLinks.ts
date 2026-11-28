@@ -1,3 +1,4 @@
+import type { SpaceStack } from '../../data/spaceStack.ts';
 import type { RowModel } from './listModel.ts';
 
 export interface SpaceLinks {
@@ -14,8 +15,8 @@ const ticketLinkOf = (model: RowModel): SpaceLinks['ticket'] => {
   return { id: model.ticket.id, url: model.ticket.url };
 };
 
-const checkedOutPullOf = (model: RowModel): SpaceLinks['pull'] => {
-  const checkedOut = model.stack?.pulls.find((pull) => pull.checkedOut);
+const checkedOutPullOf = (stack: SpaceStack): SpaceLinks['pull'] => {
+  const checkedOut = stack.pulls.find((pull) => pull.checkedOut);
   const number = checkedOut?.number ?? null;
   const url = checkedOut?.url ?? null;
 
@@ -28,7 +29,7 @@ const checkedOutPullOf = (model: RowModel): SpaceLinks['pull'] => {
 
 const pullLinkOf = (model: RowModel): SpaceLinks['pull'] => {
   if (model.stack !== null) {
-    return checkedOutPullOf(model);
+    return checkedOutPullOf(model.stack);
   }
 
   if (model.pull === null) {
