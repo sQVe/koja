@@ -5,8 +5,8 @@ import { div, image } from 'gpui-kit';
 import { withHover } from './hover.ts';
 import type { ThemeToken } from './palette.ts';
 import { popupSurface } from './popupSurface.ts';
-import { iconSize, markSize, spacing, toastSize } from './size.ts';
-import { dot } from './statusMark.ts';
+import { iconSize, spacing, toastSize } from './size.ts';
+import { indicator } from './statusMark.ts';
 import type { TextRole } from './textRole.ts';
 import { roleText, withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
@@ -18,6 +18,7 @@ export interface ToastCardOptions {
   icon: string | null;
   title: string;
   body: Element | string | null;
+  // False fills the overlay: a string body is shortened to one line and an Element body is drawn as given. True fits the card to its content.
   fitHeight: boolean;
 }
 
@@ -29,9 +30,9 @@ const levelTokens: Record<ToastLevel, ThemeToken> = {
 };
 
 const firstLine = (text: string): string => {
-  const [line = ''] = text.split('\n');
+  const [line] = text.split(/\r?\n/);
 
-  return line;
+  return line ?? text;
 };
 
 const mark = (options: ToastCardOptions): Element => {
@@ -39,14 +40,15 @@ const mark = (options: ToastCardOptions): Element => {
     return image(options.icon).size(iconSize.default).flex_none();
   }
 
-  return dot(markSize.dot, colors()[levelTokens[options.level]]);
+  return indicator(levelTokens[options.level]);
 };
 
 const textLine = (role: TextRole, text: string, fitHeight: boolean): Element => {
-  const box = fitHeight ? div() : div().truncate();
-  const shown = fitHeight ? text : firstLine(text);
+  if (!fitHeight) {
+    return roleText(role, firstLine(text));
+  }
 
-  return withTextRole(box, role).child(shown);
+  return withTextRole(div(), role).child(text);
 };
 
 const bodyOf = (options: ToastCardOptions): Element | null => {

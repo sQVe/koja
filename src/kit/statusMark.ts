@@ -20,7 +20,7 @@ export interface StatusMarkOptions {
   still?: boolean;
 }
 
-export const dot = (size: number, color: Color): Element =>
+const dot = (size: number, color: Color): Element =>
   div()
     .size(size)
     .rounded(size / 2)

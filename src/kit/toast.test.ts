@@ -5,15 +5,7 @@ import type { Element } from 'gpui-kit';
 import type { DrawnElement } from '../../tests/drawn.ts';
 import { descendants, drawn, drawnIcons, drawnTexts, elementWithText } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
-
-interface ToastCardOptions {
-  id: string;
-  level: 'info';
-  icon: string | null;
-  title: string;
-  body: Element | string | null;
-  fitHeight: boolean;
-}
+import type { ToastCardOptions } from './toast.ts';
 
 const palette = {
   popover: '#111111',
@@ -35,7 +27,9 @@ await mock.module('gpui-kit', () =>
 
 await mock.module('herdr', () => herdrFake({ theme: () => palette }));
 
-const { toastCard, toastCommandBody } = (await import('./toast.ts')) as unknown as {
+const modulePath = './toast.ts';
+
+const { toastCard, toastCommandBody } = (await import(modulePath)) as {
   toastCard: (options: ToastCardOptions) => DrawnElement;
   toastCommandBody: (command: string, action: Element) => DrawnElement;
 };
@@ -85,6 +79,15 @@ test('draws only the first body line when the card fills the overlay', () => {
 
   expect(texts).toContain('The first line of the body.');
   expect(texts).not.toContain('The second line of the body.');
+});
+
+test('cuts a CRLF body at the line break without the carriage return', () => {
+  const body = 'The first line.\r\nThe second line.';
+  const card = toastCard({ ...options, body, fitHeight: false });
+  const texts = drawnTexts(card);
+
+  expect(texts).toContain('The first line.');
+  expect(texts).not.toContain('The first line.\r');
 });
 
 test('truncates the title and body only when the card fills the overlay', () => {
