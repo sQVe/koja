@@ -82,13 +82,16 @@ export const modelOf = (rows: RowModel[]): ListModel => {
     noFolds,
   );
 
-  const grouped = shownRows(projects);
-  const names = new Map(grouped.map(({ row, project }) => [row.space.id, project]));
+  const byId = new Map(rows.map((row) => [row.row.space.id, row]));
 
-  const named = rows.map((row): [string, RowModel] => {
-    const project = names.get(row.row.space.id) ?? '';
+  const named = shownRows(projects).map(({ row, project }): [string, RowModel] => {
+    const model = byId.get(row.space.id);
 
-    return [row.row.space.id, { ...row, project }];
+    if (model === undefined) {
+      throw new Error(`The model has no row for space ${row.space.id}.`);
+    }
+
+    return [row.space.id, { ...model, project }];
   });
 
   return {

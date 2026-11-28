@@ -271,7 +271,7 @@ export const rightPress = (element: DrawnElement, cx: unknown): void => {
 };
 
 export const openedUrls = (element: DrawnElement, text: string): string[] => {
-  const [link] = clickablesWithText(element, text);
+  const link = clickablesWithText(element, text).find((part) => part.texts.includes(text));
 
   if (link === undefined) {
     throw new Error(`The element draws no ${text} link.`);

@@ -14,7 +14,7 @@ import {
 } from '../../../tests/kojaSpacesView.ts';
 import { pullFacts, readyPull } from '../../../tests/pullFacts.ts';
 import { stacksOf } from '../../../tests/stackFixtures.ts';
-import { rowOf } from '../../../tests/stackViewFixtures.ts';
+import { rowOf, topCheckout, trunkCheckout } from '../../../tests/stackViewFixtures.ts';
 import type { RepositoryIdentity } from '../../data/gitIdentity.ts';
 import { repositoryOf } from '../../data/gitIdentity.ts';
 import type { Pull } from '../../data/pulls.ts';
@@ -31,20 +31,7 @@ afterAll(() => {
   restoreKojaSpaces();
 });
 
-const linkCheckouts = [
-  {
-    folder: '/code/koja',
-    commonDirectory: '/code/koja/.git',
-    linked: false,
-    branch: 'me-4-header',
-  },
-  {
-    folder: '/code/koja-top',
-    commonDirectory: '/code/koja/.git',
-    linked: true,
-    branch: 'me-3-top',
-  },
-];
+const linkCheckouts = [{ ...trunkCheckout, branch: 'me-4-header' }, topCheckout];
 
 const repository = repositoryOf(null, '/code/koja/.git');
 
@@ -74,7 +61,7 @@ const linkTicket = (id: string): TicketFacts => ({
 
 // Two spaces with a ticket, a pull, and a branch each, so a space menu can be opened on a row and
 // on a project header.
-export const useStackLinks = (): void => {
+const useStackLinks = (): void => {
   const facts = storedFacts(linkCheckouts, {
     [repository.key]: { pulls: linkPulls(), failed: false },
   });

@@ -1,8 +1,11 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 
-import { click, clickablesWithText, drawnTexts } from '../../../tests/drawn.ts';
-import type { DrawnElement } from '../../../tests/drawn.ts';
-import { restoreKojaSpaces, setupKojaSpaces } from '../../../tests/kojaSpacesView.ts';
+import { clickablesWithText, drawnTexts, openedUrls } from '../../../tests/drawn.ts';
+import {
+  loadSelectedFooter,
+  restoreKojaSpaces,
+  setupKojaSpaces,
+} from '../../../tests/kojaSpacesView.ts';
 import { stackPullOf as stackPull } from '../../../tests/pickerFixtures.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import {
@@ -11,38 +14,16 @@ import {
   modelOf,
   rowModelOf as rowModel,
 } from '../../../tests/rowModelFixtures.ts';
-import type { DataState } from '../../data/consumer.ts';
 import type { TicketFacts } from '../../data/snapshot.ts';
 import type { SpaceStack } from '../../data/spaceStack.ts';
-import type { ListModel } from './listModel.ts';
 
 await setupKojaSpaces();
 
-const { selectedFooter } = (await import('./selectedFooter.ts')) as unknown as {
-  selectedFooter: (
-    state: DataState,
-    model: ListModel,
-    activeId: string | null,
-  ) => DrawnElement | null;
-};
+const selectedFooter = await loadSelectedFooter();
 
 afterAll(() => {
   restoreKojaSpaces();
 });
-
-const openedBy = (footer: DrawnElement, text: string): string[] => {
-  const [link] = clickablesWithText(footer, text);
-
-  if (link === undefined) {
-    throw new Error(`The footer draws no ${text} link.`);
-  }
-
-  const opened: string[] = [];
-
-  click(link, { open_url: (url: string) => opened.push(url) });
-
-  return opened;
-};
 
 describe('selectedFooter', () => {
   test("clicking the footer's PR link opens the pull's URL", () => {
@@ -58,7 +39,7 @@ describe('selectedFooter', () => {
       throw new Error('The selected space draws no footer.');
     }
 
-    expect(openedBy(footer, '#505')).toEqual(['https://example.invalid/koja/pull/505']);
+    expect(openedUrls(footer, '#505')).toEqual(['https://example.invalid/koja/pull/505']);
   });
 
   test("clicking the footer's ticket link opens the ticket's URL", () => {
@@ -76,7 +57,7 @@ describe('selectedFooter', () => {
       throw new Error('The selected space draws no footer.');
     }
 
-    expect(openedBy(footer, 'ME-1180')).toEqual(['https://linear.app/sqve/issue/ME-1180']);
+    expect(openedUrls(footer, 'ME-1180')).toEqual(['https://linear.app/sqve/issue/ME-1180']);
   });
 
   test("a stack footer links the PR its card shows, not the branch's other pull", () => {
@@ -109,7 +90,7 @@ describe('selectedFooter', () => {
       throw new Error('The selected space draws no footer.');
     }
 
-    expect(openedBy(footer, '#11')).toEqual(['https://example.invalid/koja/pull/11']);
+    expect(openedUrls(footer, '#11')).toEqual(['https://example.invalid/koja/pull/11']);
     expect(clickablesWithText(footer, '#99')).toEqual([]);
   });
 
@@ -143,7 +124,7 @@ describe('selectedFooter', () => {
       throw new Error('The selected space draws no footer.');
     }
 
-    expect(openedBy(footer, '#11')).toEqual(['https://example.invalid/koja/pull/11']);
+    expect(openedUrls(footer, '#11')).toEqual(['https://example.invalid/koja/pull/11']);
   });
 
   test('a stack footer draws no PR link when its checked-out PR is not in the snapshot', () => {

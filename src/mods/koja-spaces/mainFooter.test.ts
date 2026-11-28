@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 
-import { click, clickablesWithText, drawnTexts, elementsWithId } from '../../../tests/drawn.ts';
+import { drawnTexts, elementsWithId, openedUrls } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import type { FakeView } from '../../../tests/kojaSpacesView.ts';
 import {
@@ -248,17 +248,7 @@ describe('koja-spaces selected footer', () => {
 
       expect(drawnTexts(footer)).toContain('The shared parent');
 
-      const [link] = clickablesWithText(footer, 'ME-666');
-
-      if (link === undefined) {
-        throw new Error('The footer draws no ticket link.');
-      }
-
-      const opened: string[] = [];
-
-      click(link, { open_url: (url: string) => opened.push(url) });
-
-      expect(opened).toEqual(['https://linear.app/koja/issue/ME-666']);
+      expect(openedUrls(footer, 'ME-666')).toEqual(['https://linear.app/koja/issue/ME-666']);
     },
   );
 });
