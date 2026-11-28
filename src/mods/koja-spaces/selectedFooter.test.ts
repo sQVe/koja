@@ -6,6 +6,7 @@ import { restoreKojaSpaces, setupKojaSpaces } from '../../../tests/kojaSpacesVie
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import type { DataState } from '../../data/consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
+import { ticketIdOf } from '../../data/linearTickets.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type { TicketFacts } from '../../data/snapshot.ts';
 import { emptyFacts, snapshotVersion } from '../../data/snapshot.ts';
@@ -92,16 +93,18 @@ const modelOf = (rows: RowModel[]): ListModel => ({
 });
 
 const stackPull = (options: {
+  branch: string;
   number: number | null;
   url: string | null;
+  title: string | null;
   state: StackPull['state'];
   checkedOut?: boolean;
 }): StackPull => ({
-  branch: 'me-11-eleven',
-  ticket: 'ME-11',
+  branch: options.branch,
+  ticket: ticketIdOf(options.branch, ''),
   number: options.number,
   url: options.url,
-  title: 'The checked-out pull',
+  title: options.title,
   state: options.state,
   checkedOut: options.checkedOut ?? false,
   restack: 'none',
@@ -109,7 +112,16 @@ const stackPull = (options: {
 });
 
 const checkedOutStack = (number: number | null, url: string | null): SpaceStack => ({
-  pulls: [stackPull({ number, url, state: 'open', checkedOut: true })],
+  pulls: [
+    stackPull({
+      branch: 'me-11-eleven',
+      number,
+      url,
+      title: 'The checked-out pull',
+      state: 'open',
+      checkedOut: true,
+    }),
+  ],
   merged: 0,
   total: 1,
 });
@@ -240,14 +252,28 @@ describe('selectedFooter', () => {
   test("a selected stack space's footer shows merged over total merged", () => {
     const stack: SpaceStack = {
       pulls: [
-        stackPull({ number: 9, url: 'https://example.invalid/koja/pull/9', state: 'merged' }),
         stackPull({
+          branch: 'me-9-nine',
+          number: 9,
+          url: 'https://example.invalid/koja/pull/9',
+          title: 'The merged pull',
+          state: 'merged',
+        }),
+        stackPull({
+          branch: 'me-10-ten',
           number: 10,
           url: 'https://example.invalid/koja/pull/10',
+          title: 'The checked-out pull',
           state: 'open',
           checkedOut: true,
         }),
-        stackPull({ number: 11, url: null, state: 'open' }),
+        stackPull({
+          branch: 'me-11-eleven',
+          number: null,
+          url: null,
+          title: null,
+          state: 'unknown',
+        }),
       ],
       merged: 1,
       total: 3,
