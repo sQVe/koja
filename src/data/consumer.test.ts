@@ -3,7 +3,7 @@ import { describe, expect, spyOn, test } from 'bun:test';
 import { readDataState } from './consumer.ts';
 import { heartbeatKey, leaseExpiryMilliseconds } from './lease.ts';
 import type { Snapshot } from './snapshot.ts';
-import { emptyFacts, snapshotKey } from './snapshot.ts';
+import { emptyFacts, snapshotKey, snapshotVersion } from './snapshot.ts';
 
 const memoryStore =
   (values: Record<string, unknown>) =>
@@ -26,7 +26,7 @@ const captureLog = (): { messages: string[]; restore: () => void } => {
 };
 
 const writtenAt = 1_000_000;
-const snapshot = { version: 9, revision: 3, facts: emptyFacts() } satisfies Snapshot;
+const snapshot = { version: snapshotVersion, revision: 3, facts: emptyFacts() } satisfies Snapshot;
 const heartbeat = { version: 1, owner: 'window-a', generation: 2, at: writtenAt };
 
 describe('readDataState', () => {

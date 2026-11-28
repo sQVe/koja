@@ -1,6 +1,7 @@
 import { placeOf, repositoryOf } from '../src/data/gitIdentity.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import type { GitFacts, WorktreeGit } from '../src/data/snapshot.ts';
+import { snapshotVersion } from '../src/data/snapshot.ts';
 import { isRecord } from '../src/kit/fields.ts';
 import { pullFacts } from './pullFacts.ts';
 
@@ -44,7 +45,7 @@ export const withBareFalse = (git: unknown): unknown => {
 };
 
 export const snapshotOf = (git: unknown): unknown => ({
-  version: 9,
+  version: snapshotVersion,
   revision: 4,
   facts: { git, pulls: {}, trackers: {}, stacks: {} },
 });
@@ -82,7 +83,7 @@ export const validRaw = (): { snapshot: RawSnapshot; key: string } => {
   const key = placeOf(null, '/work').key;
 
   const snapshot: RawSnapshot = {
-    version: 9,
+    version: snapshotVersion,
     revision: 4,
     facts: {
       git: {
