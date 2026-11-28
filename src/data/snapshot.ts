@@ -753,7 +753,7 @@ const dropRetiredPulls = <T>(
 const readVersion3Pulls: PullMapReader = (value, worktrees) =>
   dropRetiredPulls(value, worktrees, parseVersion3Pull);
 
-const readVersion8Pulls: PullMapReader = (value, worktrees) =>
+const readPullsWithoutUrl: PullMapReader = (value, worktrees) =>
   dropRetiredPulls(value, worktrees, parseStoredPullWithoutUrl);
 
 const snapshotOf = (fields: Record<string, unknown>, facts: Facts | null): Snapshot | null => {
@@ -775,30 +775,30 @@ const parseVersion3Snapshot = (fields: Record<string, unknown>): Snapshot | null
   snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, readVersion3Pulls));
 
 const parseVersion4Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, readVersion8Pulls));
+  snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, readPullsWithoutUrl));
 
 const parseVersion5Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(
     fields,
-    parseFacts(fields.facts, readVersion8Pulls, parseVersion5TicketFacts, 'beforeStacks'),
+    parseFacts(fields.facts, readPullsWithoutUrl, parseVersion5TicketFacts, 'beforeStacks'),
   );
 
 const parseVersion6Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(
     fields,
-    parseFacts(fields.facts, readVersion8Pulls, parseCurrentTicketFacts, 'beforeStacks'),
+    parseFacts(fields.facts, readPullsWithoutUrl, parseCurrentTicketFacts, 'beforeStacks'),
   );
 
 const parseVersion7Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(
     fields,
-    parseFacts(fields.facts, readVersion8Pulls, parseCurrentTicketFacts, 'beforeBare'),
+    parseFacts(fields.facts, readPullsWithoutUrl, parseCurrentTicketFacts, 'beforeBare'),
   );
 
 const parseVersion8Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(
     fields,
-    parseFacts(fields.facts, readVersion8Pulls, parseCurrentTicketFacts, 'current'),
+    parseFacts(fields.facts, readPullsWithoutUrl, parseCurrentTicketFacts, 'current'),
   );
 
 const parseCurrentSnapshot = (fields: Record<string, unknown>): Snapshot | null =>
