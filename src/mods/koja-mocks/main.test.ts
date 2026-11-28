@@ -437,6 +437,12 @@ describe('keyboard focus', () => {
     runTimers();
 
     expect(log.mock.calls).toEqual([[sceneReadyLine('smoke-2')]]);
+
+    focusedInputs.length = 0;
+    drawScene(view);
+    runTimers();
+
+    expect(focusedInputs).toEqual([]);
   });
 
   test('a scene that draws no search field keeps the keyboard on the view', async () => {
