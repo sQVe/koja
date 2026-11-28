@@ -19,8 +19,6 @@ describe('commandIdentity', () => {
   });
 
   test('gives integer-like keys one identity in either insertion order', () => {
-    expect(commandIdentity('x', { '10': 'a', '2': 'b' })).toBe(
-      commandIdentity('x', { '2': 'b', '10': 'a' }),
-    );
+    expect(commandIdentity('x', { '10': 'a', '2': 'b' })).toBe('x:{"2":"b","10":"a"}');
   });
 });

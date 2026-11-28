@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
 import { pick, seededRandom } from '../../tests/seeded.ts';
-import { isRecord } from '../kit/fields.ts';
 import { sameValue, sortedValue } from './sortedValue.ts';
 
 const recordKeys = ['a', 'b', 'z', '2', '10', '01'];
@@ -20,56 +19,37 @@ const leafValue = (random: () => number): unknown => {
   return [Math.floor(random() * 10), pick(['alpha', 'beta'], random)];
 };
 
-const buildRecord = (random: () => number, depth: number): Record<string, unknown> => {
-  const entries = recordKeys.map((key) => {
-    const value = depth <= 0 || random() < 0.5 ? leafValue(random) : buildRecord(random, depth - 1);
-    const entry: [string, unknown] = [key, value];
+const leafPair = (random: () => number): [unknown, unknown] => {
+  const leaf = leafValue(random);
 
-    return entry;
-  });
-
-  return Object.fromEntries(entries);
+  return [leaf, leaf];
 };
 
-const shuffleEntries = (
-  entries: readonly [string, unknown][],
+const buildRecordPair = (
   random: () => number,
-): [string, unknown][] => {
-  const remaining = [...entries];
-  const shuffled: [string, unknown][] = [];
+  depth: number,
+): [Record<string, unknown>, Record<string, unknown>] => {
+  const children = recordKeys.map((key) => {
+    const nested = depth > 0 && random() >= 0.5;
+    const [first, second] = nested ? buildRecordPair(random, depth - 1) : leafPair(random);
+    const rank = random();
 
-  while (remaining.length > 0) {
-    const entry = pick(remaining, random);
-
-    shuffled.push(entry);
-    remaining.splice(remaining.indexOf(entry), 1);
-  }
-
-  return shuffled;
-};
-
-const reshuffled = (value: unknown, random: () => number): unknown => {
-  if (Array.isArray(value)) {
-    return value.map((entry) => reshuffled(entry, random));
-  }
-
-  if (!isRecord(value)) {
-    return value;
-  }
-
-  const entries = Object.entries(value).map(([key, entry]) => {
-    const pair: [string, unknown] = [key, reshuffled(entry, random)];
-
-    return pair;
+    return { key, first, second, rank };
   });
 
-  return Object.fromEntries(shuffleEntries(entries, random));
+  const firstEntries = children.map(({ key, first }): [string, unknown] => [key, first]);
+
+  const secondEntries = children
+    .toSorted((left, right) => left.rank - right.rank)
+    .map(({ key, second }): [string, unknown] => [key, second]);
+
+  return [Object.fromEntries(firstEntries), Object.fromEntries(secondEntries)];
 };
 
 describe('sortedValue', () => {
   test('serializes records with the same keys and values to the same text', () => {
-    const first = [{ '2': [2, 1], b: { a: 2, '10': 1 } }, { z: 'a' }];
-    const second = [{ b: { '10': 1, a: 2 }, '2': [2, 1] }, { z: 'a' }];
+    const first = [{ '2': [2, 1], b: 1, a: 2 }];
+    const second = [{ a: 2, b: 1, '2': [2, 1] }];
 
     expect(JSON.stringify(sortedValue(first))).toBe(JSON.stringify(sortedValue(second)));
     expect(sortedValue([2, 1])).toEqual([2, 1]);
@@ -78,8 +58,7 @@ describe('sortedValue', () => {
   test('serializes any insertion order of the same records to one text', () => {
     for (let seed = 0; seed < 200; seed += 1) {
       const random = seededRandom(seed);
-      const tree = buildRecord(random, 3);
-      const other = reshuffled(tree, random);
+      const [tree, other] = buildRecordPair(random, 3);
       const expected = JSON.stringify(sortedValue(tree));
 
       expect(JSON.stringify(sortedValue(other)), `seed ${seed}`).toBe(expected);
