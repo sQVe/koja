@@ -11,7 +11,6 @@ export interface SpaceFooterOptions {
   title: string;
   progress?: { merged: number; total: number };
   links: Element[];
-  end?: Element;
 }
 
 const footerLine = (start: Element, end: Element[]): Element =>
@@ -56,11 +55,9 @@ export const spaceFooter = (options: SpaceFooterOptions): Element => {
   const titleLine = footerLine(title, progressOf(options));
   const footer = v_flex().flex_none().min_w(0).child(separatorRow).child(titleLine);
 
-  if (options.links.length === 0 && options.end === undefined) {
+  if (options.links.length === 0) {
     return footer;
   }
 
-  const end = options.end === undefined ? [] : [options.end];
-
-  return footer.child(footerLine(joinedLinks(options.links), end));
+  return footer.child(footerLine(joinedLinks(options.links), []));
 };
