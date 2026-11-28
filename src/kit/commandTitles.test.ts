@@ -18,6 +18,10 @@ describe('commandIdentity', () => {
     );
   });
 
+  test('writes ordinary keys in alphabetical order in the identity text', () => {
+    expect(commandIdentity('x', { b: 1, a: 2 })).toBe('x:{"a":2,"b":1}');
+  });
+
   test('gives integer-like keys one identity in either insertion order', () => {
     expect(commandIdentity('x', { '10': 'a', '2': 'b' })).toBe('x:{"2":"b","10":"a"}');
   });
