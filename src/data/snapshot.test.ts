@@ -19,7 +19,7 @@ import type { Facts, GitFacts, PlaceGit, Snapshot, WorktreeGit } from './snapsho
 import { emptyFacts, joinFacts, parseSnapshot, worktreeKeyAtPlace } from './snapshot.ts';
 
 describe('parseSnapshot', () => {
-  test('reads the version 4 fixture with its PR facts', () => {
+  test('reads the version 4 fixture and drops its PR facts', () => {
     const stored = recordIn(fixture('snapshot-v4.json'), 'snapshot');
     const parsed = parseSnapshot(stored);
     const facts: Facts | undefined = parsed?.facts;

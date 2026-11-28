@@ -14,7 +14,7 @@ import { repositoryOf } from './gitIdentity.ts';
 import { parseSnapshot } from './snapshot.ts';
 
 describe('parseSnapshot versions', () => {
-  test('reads version 3 pulls with unread parts', () => {
+  test('drops version 3 pulls after validating them', () => {
     const stored = fixture('snapshot-v3.json');
     const parsed = parseSnapshot(stored);
 
@@ -73,6 +73,14 @@ describe('parseSnapshot versions', () => {
         },
       },
     };
+
+    expect(parseSnapshot(stored)).toBeNull();
+  });
+
+  test('rejects a version 4 pull that carries a URL', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v4.json'));
+
+    pullsAt(stored)[repositoryOf(null, '/code/koja/.git').key] = { pulls: [pull()], failed: false };
 
     expect(parseSnapshot(stored)).toBeNull();
   });

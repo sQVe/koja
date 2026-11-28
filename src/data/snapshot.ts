@@ -740,8 +740,6 @@ const parseVersion3Pull = (stored: unknown): Version3Pull | null => {
 const readCurrentPulls: PullMapReader = (value, worktrees) =>
   parsePulls(value, worktrees, parseStoredPull);
 
-const skipPulls: PullMapReader = () => ({});
-
 const dropRetiredPulls = <T>(
   value: unknown,
   worktrees: Record<string, WorktreeGit>,
@@ -777,16 +775,25 @@ const parseVersion3Snapshot = (fields: Record<string, unknown>): Snapshot | null
   snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, readVersion3Pulls));
 
 const parseVersion4Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, skipPulls));
+  snapshotOf(fields, parseFactsWithoutTrackers(fields.facts, readVersion8Pulls));
 
 const parseVersion5Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFacts(fields.facts, skipPulls, parseVersion5TicketFacts, 'beforeStacks'));
+  snapshotOf(
+    fields,
+    parseFacts(fields.facts, readVersion8Pulls, parseVersion5TicketFacts, 'beforeStacks'),
+  );
 
 const parseVersion6Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFacts(fields.facts, skipPulls, parseCurrentTicketFacts, 'beforeStacks'));
+  snapshotOf(
+    fields,
+    parseFacts(fields.facts, readVersion8Pulls, parseCurrentTicketFacts, 'beforeStacks'),
+  );
 
 const parseVersion7Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
-  snapshotOf(fields, parseFacts(fields.facts, skipPulls, parseCurrentTicketFacts, 'beforeBare'));
+  snapshotOf(
+    fields,
+    parseFacts(fields.facts, readVersion8Pulls, parseCurrentTicketFacts, 'beforeBare'),
+  );
 
 const parseVersion8Snapshot = (fields: Record<string, unknown>): Snapshot | null =>
   snapshotOf(

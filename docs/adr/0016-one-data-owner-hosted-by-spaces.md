@@ -139,20 +139,21 @@ each branch its name, its pull request number or null, and whether it needs a re
 the previous supported format: it held the same facts without PR URLs, so the reader validates its
 pre-URL pulls, drops them, and returns a version 9 snapshot with no pulls. Version 7 held the same
 facts without the bare flag and without PR URLs, so the reader infers bareness by comparing the
-worktree's root with its common directory, which is the folder itself or its `.bare`, and drops its
-pulls without validating them. The comparison is textual, so a link or a case change leaves the
-place a checkout until the first Git read of the repository writes the flag. Version 6 held the same
-facts without the stack map and without PR URLs, so the reader returns a version 9 snapshot with no
-stacks and drops its pulls without validating them. Version 5 held the same facts as version 6, and
-each ticket also carried a failure flag that stayed false, so the reader drops that retired field,
-drops its pulls without validating them, and returns a version 9 snapshot. Version 4 held Git facts
-and per-repository PR facts, so the reader drops its pulls without validating them and returns a
-version 9 snapshot with no tracker or stack facts. Version 3 held only the PR list fields, so the
-reader validates its old PR payload, drops the pulls, and returns a version 9 snapshot with no
-tracker or stack facts. Version 2 held only Git facts, so the reader parses them and returns a
-version 9 snapshot with no PR, tracker, or stack facts. Version 1 carried no facts: its `facts` was
-`Record<string, never>`, and the next owner publish rewrites it. A version 1 snapshot is therefore
-retired silently, because no user action applies. This is the one exception to the notices that
+worktree's root with its common directory, which is the folder itself or its `.bare`, and validates
+its pre-URL pulls and then drops them. The comparison is textual, so a link or a case change leaves
+the place a checkout until the first Git read of the repository writes the flag. Version 6 held the
+same facts without the stack map and without PR URLs, so the reader validates its pre-URL pulls and
+then drops them, and returns a version 9 snapshot with no stacks or pulls. Version 5 held the same
+facts as version 6, and each ticket also carried a failure flag that stayed false, so the reader
+drops that retired field, validates its pre-URL pulls and then drops them, and returns a version 9
+snapshot. Version 4 held Git facts and per-repository PR facts, so the reader validates its pre-URL
+pulls and then drops them, and returns a version 9 snapshot with no tracker or stack facts. Version
+3 held only the PR list fields, so the reader validates its old PR payload, drops the pulls, and
+returns a version 9 snapshot with no tracker or stack facts. Version 2 held only Git facts, so the
+reader parses them and returns a version 9 snapshot with no PR, tracker, or stack facts. Version 1
+carried no facts: its `facts` was `Record<string, never>`, and the next owner publish rewrites it. A
+version 1 snapshot is therefore retired silently, because no user action applies. This is the one
+exception to the notices that
 [shared ADR 0008](../stomme/shared/adr/0008-backwards-compatibility.md) requires for saved formats.
 
 A malformed version 9, 8, 7, 6, 5, 4, 3, or 2 record, or a present record without a valid version,
