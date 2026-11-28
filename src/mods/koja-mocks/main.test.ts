@@ -164,6 +164,16 @@ const layOut = (tree: DrawnElement): void => {
   }
 };
 
+const rowWithIcon = (tree: DrawnElement, name: string): DrawnElement => {
+  const row = tree.kids.find((kid) => elementWithIcon(kid, name) !== null);
+
+  if (row === undefined) {
+    throw new Error(`No row with ${name}.`);
+  }
+
+  return row;
+};
+
 const fieldsIn = (tree: DrawnElement): InputStub[] => {
   const fields: InputStub[] = [];
 
@@ -295,12 +305,11 @@ describe('scene picker', () => {
     submitTyped('no-such-scene');
 
     const tree = view.render();
-    const texts = drawnTexts(tree);
+    const errorTexts = drawnTexts(rowWithIcon(tree, 'circle-alert.svg'));
 
     expect(openedSpecs).toEqual([]);
     expect(closeCount).toBe(0);
-    expect(elementWithIcon(tree, 'circle-alert.svg')).not.toBeNull();
-    expect(texts.some((text) => text.includes('no-such-scene'))).toBe(true);
+    expect(errorTexts.some((text) => text.includes('no-such-scene'))).toBe(true);
   });
 
   test('the picker hint is an empty state before any error', async () => {
@@ -537,11 +546,13 @@ describe('scene errors', () => {
 
     const tree = view.render();
     const title = ' no-such-scene ';
-    const texts = drawnTexts(tree);
+    const headerTexts = drawnTexts(rowWithIcon(tree, 'x.svg'));
+    const errorTexts = drawnTexts(rowWithIcon(tree, 'circle-alert.svg'));
 
-    expect(elementWithIcon(tree, 'circle-alert.svg')).not.toBeNull();
-    expect(texts).toContain(title);
-    expect(texts.some((text) => text !== title && text.includes('no-such-scene'))).toBe(true);
+    expect(headerTexts).toEqual([title]);
+    expect(errorTexts.length).toBeGreaterThan(0);
+    expect(errorTexts).not.toContain(title);
+    expect(errorTexts.some((text) => text.includes('no-such-scene'))).toBe(true);
   });
 
   test('a scene without its inputs asks for the error state', async () => {
@@ -552,10 +563,12 @@ describe('scene errors', () => {
 
     const tree = view.render();
     const title = ' sidebar ';
-    const texts = drawnTexts(tree);
+    const headerTexts = drawnTexts(rowWithIcon(tree, 'x.svg'));
+    const errorTexts = drawnTexts(rowWithIcon(tree, 'circle-alert.svg'));
 
-    expect(elementWithIcon(tree, 'circle-alert.svg')).not.toBeNull();
-    expect(texts).toContain(title);
-    expect(texts.some((text) => text !== title && text.includes('sidebar'))).toBe(false);
+    expect(headerTexts).toEqual([title]);
+    expect(errorTexts.length).toBeGreaterThan(0);
+    expect(errorTexts).not.toContain(title);
+    expect(errorTexts.some((text) => text.includes('sidebar'))).toBe(false);
   });
 });
