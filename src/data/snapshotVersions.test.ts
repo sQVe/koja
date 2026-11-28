@@ -14,7 +14,7 @@ import { repositoryOf } from './gitIdentity.ts';
 import { parseSnapshot } from './snapshot.ts';
 
 describe('parseSnapshot versions', () => {
-  test('drops version 3 pulls after validating them', () => {
+  test('reads version 3 pulls with unread parts', () => {
     const stored = fixture('snapshot-v3.json');
     const parsed = parseSnapshot(stored);
 

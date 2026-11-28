@@ -48,7 +48,7 @@ const footerOf = (progress?: SpaceFooterOptions['progress']): DrawnElement =>
   });
 
 describe('spaceFooter', () => {
-  test('a space with a stack draws its title, merged progress, and links', () => {
+  test('a space with a stack draws its title, merged progress, links, and end link', () => {
     const footer = footerOf({ merged: 3, total: 8 });
 
     expect(drawnTexts(footer)).toEqual([
