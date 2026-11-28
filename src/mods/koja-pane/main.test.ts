@@ -16,7 +16,6 @@ import { paneHeaderFields } from '../../kit/paneHeaderFields.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
 import { paneFolder, paneName, paneProgram } from '../../kit/paneLabel.ts';
 import { controlSize, overlaySize, paneHeaderWidth, radius, spacing } from '../../kit/size.ts';
-import { taskOfPane } from '../../kit/tabLabel.ts';
 
 const accent = '#4e4e8f';
 
@@ -159,7 +158,6 @@ await mock.module('../../kit/index.ts', () =>
     roleText: (_role: string, text: string) => textElement(text),
     spacing,
     stringOf,
-    taskOfPane,
     withTextRole: (element: unknown) => element,
   }),
 );

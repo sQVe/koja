@@ -89,7 +89,7 @@ const paneRow = (row: PanePickerRow, selected: boolean): Element => {
   const { pane } = row;
   const detail = paneDetail(pane);
 
-  const depth = row.space.tabs.length > 1 ? 2 : 1;
+  const depth = row.tabRowShown ? 2 : 1;
   const programMark = programIcon(pane.program).text_color(colors().dim);
 
   return listRow({

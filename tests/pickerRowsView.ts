@@ -1,5 +1,7 @@
 import { mock } from 'bun:test';
 
+import type { Status } from 'herdr';
+
 import type { PickerData } from '../src/mods/koja-picker/rows.ts';
 import { buildRows } from '../src/mods/koja-picker/rows.ts';
 import type { DrawnElement } from './drawn.ts';
@@ -27,7 +29,7 @@ interface RowList {
 }
 
 export interface PickerRows {
-  listOf: (query: string, data: PickerData) => DrawnElement;
+  listOf: (query: string, data: PickerData, statuses?: Status[] | null) => DrawnElement;
 }
 
 const palette = {
@@ -85,8 +87,11 @@ export const setupPickerRows = async (): Promise<PickerRows> => {
 
   const { list } = (await import(modulePath)) as RowList;
 
-  const listOf = (query: string, data: PickerData): DrawnElement =>
-    list(buildRows(query, null, data), query, null, data, {}, () => undefined);
+  const listOf = (
+    query: string,
+    data: PickerData,
+    statuses: Status[] | null = null,
+  ): DrawnElement => list(buildRows(query, statuses, data), query, null, data, {}, () => undefined);
 
   return { listOf };
 };

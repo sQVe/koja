@@ -35,7 +35,12 @@ export const tabOf = (id: string, index: number, active = false): TabInfo => ({
   working_since: null,
 });
 
-export const spaceOf = (id: string, index: number, name: string, tabs: TabInfo[]): SpaceInfo => ({
+export const spaceOf = (
+  id: string,
+  index: number,
+  name: string,
+  tabs: TabInfo[] = [],
+): SpaceInfo => ({
   id,
   index,
   name,

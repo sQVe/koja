@@ -2,7 +2,7 @@ import type { PaneInfo, TabInfo } from 'herdr';
 
 import { terminalMetadata } from '../data/terminalRecord.ts';
 
-const taskByAddress = (terminalRecords: readonly unknown[]): Map<unknown, string> => {
+export const taskIndexOf = (terminalRecords: readonly unknown[]): Map<unknown, string> => {
   const tasks = new Map<unknown, string>();
 
   for (const [address, metadata] of terminalMetadata(terminalRecords)) {
@@ -14,8 +14,8 @@ const taskByAddress = (terminalRecords: readonly unknown[]): Map<unknown, string
   return tasks;
 };
 
-export const taskOfPane = (pane: PaneInfo, terminalRecords: readonly unknown[]): string | null =>
-  taskByAddress(terminalRecords).get(pane.terminal) ?? null;
+export const taskOfPane = (pane: PaneInfo, tasks: ReadonlyMap<unknown, string>): string | null =>
+  tasks.get(pane.terminal) ?? null;
 
 const workerTasksOf = (
   tabInfo: TabInfo,
@@ -84,18 +84,24 @@ const liveTitle = (tabInfo: TabInfo, paneList: PaneInfo[]): string | null => {
   return tellsTheWork(lead) ? cleanTitle(lead.title) : null;
 };
 
-export const tabName = (
+export const ownName = (
+  tabInfo: TabInfo,
+  program: PaneInfo['program'] | undefined,
+): string | null => (tabInfo.named && tabInfo.name !== program?.name ? tabInfo.name : null);
+
+const tabNameFromTaskLookup = (
   tabInfo: TabInfo,
   program: PaneInfo['program'] | undefined,
   paneList: PaneInfo[],
-  terminalRecords: readonly unknown[],
+  tasksOf: () => ReadonlyMap<unknown, string>,
 ): string => {
-  if (tabInfo.named && tabInfo.name !== program?.name) {
-    return tabInfo.name;
+  const own = ownName(tabInfo, program);
+
+  if (own !== null) {
+    return own;
   }
 
-  const tasks = taskByAddress(terminalRecords);
-  const workerName = workerLabel(workerTasksOf(tabInfo, paneList, tasks));
+  const workerName = workerLabel(workerTasksOf(tabInfo, paneList, tasksOf()));
 
   if (workerName !== null) {
     return workerName;
@@ -110,16 +116,36 @@ export const tabName = (
   return program?.name ?? 'Terminal';
 };
 
+export const tabNameWithTasks = (
+  tabInfo: TabInfo,
+  program: PaneInfo['program'] | undefined,
+  paneList: PaneInfo[],
+  tasks: ReadonlyMap<unknown, string>,
+): string => tabNameFromTaskLookup(tabInfo, program, paneList, () => tasks);
+
+export const tabName = (
+  tabInfo: TabInfo,
+  program: PaneInfo['program'] | undefined,
+  paneList: PaneInfo[],
+  terminalRecords: readonly unknown[],
+): string => tabNameFromTaskLookup(tabInfo, program, paneList, () => taskIndexOf(terminalRecords));
+
+const zoomedLabel = (tabInfo: TabInfo, name: string): string =>
+  tabInfo.zoomed ? `${name} Z` : name;
+
+export const tabLabelWithTasks = (
+  tabInfo: TabInfo,
+  program: PaneInfo['program'] | undefined,
+  paneList: PaneInfo[],
+  tasks: ReadonlyMap<unknown, string>,
+): string => zoomedLabel(tabInfo, tabNameWithTasks(tabInfo, program, paneList, tasks));
+
 export const tabLabel = (
   tabInfo: TabInfo,
   program: PaneInfo['program'] | undefined,
   paneList: PaneInfo[],
   terminalRecords: readonly unknown[],
-): string => {
-  const name = tabName(tabInfo, program, paneList, terminalRecords);
-
-  return tabInfo.zoomed ? `${name} Z` : name;
-};
+): string => zoomedLabel(tabInfo, tabName(tabInfo, program, paneList, terminalRecords));
 
 export const tabProgram = (
   tabInfo: TabInfo,

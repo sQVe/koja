@@ -263,7 +263,6 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   tab: noop,
   tabLabel: noop,
   tabProgram: noop,
-  taskOfPane: () => null,
   trafficLightsPadding: noop,
   takeNormalKeys: () => null,
   terminalFont: () => 'JetBrains Mono',

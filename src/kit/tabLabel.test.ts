@@ -2,7 +2,15 @@ import { describe, expect, test } from 'bun:test';
 
 import type { PaneInfo, Program, TabInfo } from 'herdr';
 
-import { tabLabel, tabProgram } from './tabLabel.ts';
+import {
+  ownName,
+  tabLabel,
+  tabLabelWithTasks,
+  tabName,
+  tabProgram,
+  taskIndexOf,
+  taskOfPane,
+} from './tabLabel.ts';
 
 const shell: Program = {
   key: 'shell',
@@ -72,6 +80,20 @@ const liveAgentPane = (pane: string, title: string): PaneInfo => ({
 
 const labelOf = (tabInfo: TabInfo, paneList: PaneInfo[], terminalRecords: unknown[] = []): string =>
   tabLabel(tabInfo, tabProgram(tabInfo, paneList), paneList, terminalRecords);
+
+const countingRecords = (records: unknown[]): { records: unknown[]; reads: () => number } => {
+  let reads = 0;
+
+  const counted = new Proxy(records, {
+    get: (target, key, receiver) => {
+      reads += 1;
+
+      return Reflect.get(target, key, receiver) as unknown;
+    },
+  });
+
+  return { records: counted, reads: () => reads };
+};
 
 describe('tabLabel', () => {
   test('labels a tab that holds only a mod pane by its name', () => {
@@ -241,5 +263,69 @@ describe('tabLabel live agent titles', () => {
     const pane = { ...terminalPane('p1'), title: 'vim notes.md' };
 
     expect(labelOf(unnamedTab, [pane])).toBe('zsh');
+  });
+});
+
+describe('tabName', () => {
+  test('reads no terminal records for a tab that keeps its name', () => {
+    const counted = countingRecords([terminalRecord('p1', 'Fix status counts')]);
+
+    expect(labelOf(tab, [terminalPane('p1')], counted.records)).toBe('Board');
+    expect(counted.reads()).toBe(0);
+  });
+
+  test('reads terminal records for a tab that needs a task label', () => {
+    const counted = countingRecords([terminalRecord('p1', 'Fix status counts')]);
+
+    expect(labelOf(unnamedTab, [terminalPane('p1')], counted.records)).toBe('Fix status counts');
+    expect(counted.reads()).toBeGreaterThan(0);
+  });
+
+  test('leaves the zoom marker to the label', () => {
+    const zoomed = { ...unnamedTab, zoomed: true };
+    const panes = [terminalPane('p1')];
+
+    expect(tabName(zoomed, tabProgram(zoomed, panes), panes, [])).toBe('zsh');
+  });
+});
+
+describe('ownName', () => {
+  test('keeps the name someone gave a tab, unless it repeats the program name', () => {
+    expect(ownName(tab, shell)).toBe('Board');
+    expect(ownName({ ...tab, name: shell.name }, shell)).toBeNull();
+  });
+
+  test('gives no own name to a tab nobody named', () => {
+    expect(ownName(unnamedTab, shell)).toBeNull();
+  });
+});
+
+describe('taskIndexOf', () => {
+  test('maps each terminal address to its last non-empty task', () => {
+    const tasks = taskIndexOf([
+      terminalRecord('p1', 'First task'),
+      terminalRecord('p1', 'Second task'),
+      terminalRecord('p2', ''),
+    ]);
+
+    expect(tasks.get('t-p1')).toBe('Second task');
+    expect(tasks.has('t-p2')).toBe(false);
+  });
+});
+
+describe('lookups with a task index', () => {
+  test('labels a worker tab from the index', () => {
+    const panes = [terminalPane('p1')];
+    const tasks = taskIndexOf([terminalRecord('p1', 'Fix status counts')]);
+
+    expect(tabLabelWithTasks(unnamedTab, tabProgram(unnamedTab, panes), panes, tasks)).toBe(
+      'Fix status counts',
+    );
+  });
+
+  test('finds a pane task through the index', () => {
+    const tasks = taskIndexOf([terminalRecord('p1', 'Fix status counts')]);
+
+    expect(taskOfPane(terminalPane('p1'), tasks)).toBe('Fix status counts');
   });
 });

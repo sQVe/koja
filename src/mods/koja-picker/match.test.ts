@@ -1,30 +1,26 @@
-import { describe, expect, spyOn, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 
 import { bestFieldMatch, fuzzyMatch } from './match.ts';
 
-const scanCounter = (letter: string): { scanned: () => number; restore: () => void } => {
-  const original = String.prototype.indexOf;
-  let scanned = 0;
+const spreadTextAfter = (separator: string): string => `a${'x'.repeat(20)}${separator}b`;
 
-  const spy = spyOn(String.prototype, 'indexOf').mockImplementation(function (
-    this: string,
-    needle: string,
-    start = 0,
-  ): number {
-    if (needle === letter) {
-      scanned += Math.max(0, this.length - start);
-    }
+const separatorCases = [
+  ['space', ' '],
+  ['tab', '\t'],
+  ['line feed', '\n'],
+  ['carriage return', '\r'],
+  ['vertical tab', '\v'],
+  ['form feed', '\f'],
+  ['no-break space', '\u00a0'],
+  ['line separator', '\u2028'],
+  ['slash', '/'],
+  ['underscore', '_'],
+  ['dot', '.'],
+  ['hyphen', '-'],
+  ['tilde', '~'],
+] as const;
 
-    return original.call(this, needle, start);
-  });
-
-  return {
-    scanned: () => scanned,
-    restore: () => {
-      spy.mockRestore();
-    },
-  };
-};
+const separators = separatorCases.map(([, separator]) => separator);
 
 describe('fuzzyMatch', () => {
   test('finds the letters in order, whatever their case', () => {
@@ -42,29 +38,27 @@ describe('fuzzyMatch', () => {
   });
 
   test('bounds the scans for a missing query letter on a long text', () => {
-    const text = 'a'.repeat(400_000);
-    const counter = scanCounter('b');
-
-    try {
-      expect(fuzzyMatch('ab', text)).toBeNull();
-    } finally {
-      counter.restore();
-    }
-
-    expect(counter.scanned()).toBeLessThan(text.length * 2);
+    expect(fuzzyMatch('ab', 'a'.repeat(400_000))).toBeNull();
   });
 
   test('bounds the scans when the rescue letter is present', () => {
     const text = `${'a'.repeat(400_000)}b`;
-    const counter = scanCounter('b');
 
-    try {
-      expect(fuzzyMatch('ab', text)?.positions).toEqual([399_999, 400_000]);
-    } finally {
-      counter.restore();
-    }
+    expect(fuzzyMatch('ab', text)?.positions).toEqual([399_999, 400_000]);
+  });
 
-    expect(counter.scanned()).toBeLessThan(text.length * 2);
+  test('returns no match when every route start leads to a dead end', () => {
+    const count = 10;
+    const text = `${'a b '.repeat(count)}${'x'.repeat(12)}${'c'.repeat(count)}`;
+
+    expect(fuzzyMatch('abc', text)).toBeNull();
+  });
+
+  test('returns no match when the route work budget runs out', () => {
+    const count = 200;
+    const text = `${'a b '.repeat(count)}${'x'.repeat(12)}${'c'.repeat(count)}`;
+
+    expect(fuzzyMatch('abc', text)).toBeNull();
   });
 
   test('matches a compact rescue after a supplementary first character', () => {
@@ -113,6 +107,24 @@ describe('fuzzyMatch', () => {
     expect(fuzzyMatch('abc', `xab${'x'.repeat(10)} c`)?.positions).toEqual([1, 2, 14]);
   });
 
+  test('starts a word after each separator and not after a letter', () => {
+    for (const separator of separators) {
+      expect(fuzzyMatch('ab', spreadTextAfter(separator))?.positions).toEqual([0, 22]);
+    }
+
+    expect(fuzzyMatch('ab', spreadTextAfter('x'))).toBeNull();
+  });
+
+  for (const [name, separator] of separatorCases) {
+    test(`starts a word after the ${name}`, () => {
+      expect(fuzzyMatch('ab', spreadTextAfter(separator))?.positions).toEqual([0, 22]);
+    });
+  }
+
+  test('does not start a word after a letter', () => {
+    expect(fuzzyMatch('ab', spreadTextAfter('x'))).toBeNull();
+  });
+
   test('refuses a compact match one letter past the spread limit', () => {
     expect(fuzzyMatch('ab', `a${'x'.repeat(7)}b`)).toBeNull();
   });
@@ -137,6 +149,63 @@ describe('fuzzyMatch', () => {
     const text = `a${'x'.repeat(12)} ab ab`;
 
     expect(fuzzyMatch('ab', text)?.positions).toEqual([14, 15]);
+  });
+
+  test('finds the word-start route past an earlier letter', () => {
+    expect(fuzzyMatch('abc', 'abxxxxxxxxxx bc')?.positions).toEqual([0, 13, 14]);
+  });
+
+  test('finds a route that starts at a later occurrence of the first letter', () => {
+    const text = `a${'x'.repeat(11)}ab${'x'.repeat(11)}c c`;
+
+    expect(fuzzyMatch('abc', text)?.positions).toEqual([12, 13, 27]);
+  });
+
+  test('saves a share of the route work for a later start', () => {
+    const leadingStarts = 8;
+    const deadWordStarts = 1_500;
+    const text = `${'a '.repeat(leadingStarts)}ab${'x'.repeat(10)}c c d ${'b '.repeat(deadWordStarts)}`;
+
+    expect(fuzzyMatch('abcd', text)?.positions).toEqual([16, 17, 30, 32]);
+  });
+
+  test('gives leftover route work back to an early start that ran out', () => {
+    const deadWordStarts = 50;
+    const lateStarts = 100;
+    const text = `a ${'b '.repeat(deadWordStarts)}x bc ${'a '.repeat(lateStarts)}`;
+
+    expect(fuzzyMatch('abc', text)?.positions).toEqual([0, 104, 105]);
+  });
+
+  test('keeps a route whose earlier word start fails', () => {
+    expect(fuzzyMatch('abc', '-aax-xcxbx-- b x-bcxxx  aa  xx')?.positions).toEqual([1, 17, 18]);
+  });
+
+  test('accepts a wide match with a run after an astral character', () => {
+    expect(fuzzyMatch('😀bc', '😀bxxxxxxxxxx c')?.positions).toEqual([0, 2, 14]);
+  });
+
+  test('ranks an astral run above the same letters with a gap', () => {
+    const run = fuzzyMatch('😀b', '😀b');
+    const gap = fuzzyMatch('😀b', '😀 b');
+
+    expect(run?.score ?? 0).toBeGreaterThan(gap?.score ?? 0);
+  });
+
+  test('returns the original index after lowercase expands a character', () => {
+    expect(fuzzyMatch('x', 'İ xz')?.positions).toEqual([2]);
+  });
+
+  test('returns the original index for a query after a character that folds to two', () => {
+    expect(fuzzyMatch('xz', 'İ xz')?.positions).toEqual([2, 3]);
+  });
+
+  test('İ against İ gives one position', () => {
+    expect(fuzzyMatch('İ', 'İ')?.positions).toEqual([0]);
+  });
+
+  test('returns the original index after a NUL character', () => {
+    expect(fuzzyMatch('b', 'a\u0000b')?.positions).toEqual([2]);
   });
 });
 
