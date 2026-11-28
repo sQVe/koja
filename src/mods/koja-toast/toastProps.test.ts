@@ -20,6 +20,16 @@ describe('toastProps', () => {
     expect(toast.content).toEqual({ kind: 'plain', title: 'Agent blocked', body });
   });
 
+  test('reads a login body padded with whitespace as a login toast', () => {
+    const toast = readToastProps({ body: ' devbox needs login; run hc machine login devbox\n' });
+
+    expect(toast.content).toEqual({
+      kind: 'login',
+      machine: 'devbox',
+      command: 'hc machine login devbox',
+    });
+  });
+
   test('falls back to info for an unknown level', () => {
     const toast = readToastProps({ level: 'loud' });
 
@@ -42,6 +52,12 @@ describe('toastProps', () => {
     const toast = readToastProps({ icon: '' });
 
     expect(toast.icon).toBeNull();
+  });
+
+  test('reads an empty body as absent', () => {
+    const toast = readToastProps({ body: '' });
+
+    expect(toast.content).toEqual({ kind: 'plain', title: '', body: null });
   });
 
   test('reads fitHeight only when it is true', () => {

@@ -15,7 +15,8 @@ export interface ToastProps {
   content: ToastContent;
 }
 
-const loginPattern = /^([a-z0-9][a-z0-9_.-]{0,31}) needs login; run (hc machine login \1)$/;
+// Matches the login guidance Herdr shows with Copy in Settings > Machines, a sidebar group, the welcome screen, and the failed New space toast.
+const loginPattern = /^\s*([a-z0-9][a-z0-9_.-]{0,31}) needs login; run (hc machine login \1)\s*$/;
 
 const readLevel = (value: unknown): ToastLevel => {
   const level = stringOf(value);
@@ -63,6 +64,6 @@ export const readToastProps = (value: unknown): ToastProps => {
     icon: presentStringOf(record['icon']),
     action: readAction(record['action']),
     fitHeight: record['fitHeight'] === true,
-    content: readContent(title, stringOf(record['body'])),
+    content: readContent(title, presentStringOf(record['body'])),
   };
 };
