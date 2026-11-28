@@ -1,13 +1,19 @@
 import type { DataState } from '../src/data/consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
-import { ticketIdOf } from '../src/data/linearTickets.ts';
 import type { Pull } from '../src/data/pulls.ts';
 import { emptyFacts, snapshotVersion } from '../src/data/snapshot.ts';
 import type { TicketFacts } from '../src/data/snapshot.ts';
-import type { SpaceStack, StackPull } from '../src/data/spaceStack.ts';
+import type { SpaceStack } from '../src/data/spaceStack.ts';
 import type { ListModel, RowModel } from '../src/mods/koja-spaces/listModel.ts';
-import { groupProjects, noFolds, shownSpaces } from '../src/mods/koja-spaces/projects.ts';
+import {
+  groupProjects,
+  noFolds,
+  shownRows,
+  shownSpaces,
+} from '../src/mods/koja-spaces/projects.ts';
 import type { GitInfo, ListedSpace } from '../src/mods/koja-spaces/tree.ts';
+import { space } from './kojaSpacesView.ts';
+import { stackOf, stackPullOf } from './pickerFixtures.ts';
 
 const kojaRepository = repositoryOf(null, '/code/koja/.git');
 
@@ -36,20 +42,12 @@ const listedSpaceOf = (options: {
     linked: options.linked ?? true,
   };
 
-  const space = {
-    id: options.id,
-    index: 1,
-    name: `name-${options.id}`,
-    named: true,
-    folder,
-    machine: null,
-    branch: null,
-    active: false,
+  return {
+    space: space(options.id, false, folder),
+    git,
     status: null,
-    tabs: [],
+    place: placeOf(null, folder),
   };
-
-  return { space, git, status: null, place: placeOf(null, folder) };
 };
 
 export const rowModelOf = (options: {
@@ -59,7 +57,6 @@ export const rowModelOf = (options: {
   ticket?: TicketFacts | null;
   stack?: SpaceStack | null;
   linked?: boolean;
-  project?: string;
   branch?: string | null;
   folder?: string;
 }): RowModel => ({
@@ -69,7 +66,8 @@ export const rowModelOf = (options: {
     ...(options.branch === undefined ? {} : { branch: options.branch }),
     ...(options.folder === undefined ? {} : { folder: options.folder }),
   }),
-  project: options.project ?? 'koja',
+  // `modelOf` fills the project name from the grouping, as the sidebar does.
+  project: '',
   title: options.title ?? `name-${options.id}`,
   pull: options.pull ?? null,
   ticket: options.ticket ?? null,
@@ -84,48 +82,34 @@ export const modelOf = (rows: RowModel[]): ListModel => {
     noFolds,
   );
 
+  const grouped = shownRows(projects);
+  const names = new Map(grouped.map(({ row, project }) => [row.space.id, project]));
+
+  const named = rows.map((row): [string, RowModel] => {
+    const project = names.get(row.row.space.id) ?? '';
+
+    return [row.row.space.id, { ...row, project }];
+  });
+
   return {
     view: 'projects',
     projects,
-    rows: new Map(rows.map((row) => [row.row.space.id, row])),
+    rows: new Map(named),
     ids: shownSpaces(projects).map((row) => row.space.id),
   };
 };
-
-export const stackPull = (options: {
-  branch: string;
-  number: number | null;
-  url: string | null;
-  title: string | null;
-  state: StackPull['state'];
-  checkedOut?: boolean;
-}): StackPull => ({
-  branch: options.branch,
-  ticket: ticketIdOf(options.branch, ''),
-  number: options.number,
-  url: options.url,
-  title: options.title,
-  state: options.state,
-  checkedOut: options.checkedOut ?? false,
-  restack: 'none',
-  need: null,
-});
 
 export const checkedOutStack = (options: {
   branch: string;
   number: number | null;
   url: string | null;
-}): SpaceStack => ({
-  pulls: [
-    stackPull({
+}): SpaceStack =>
+  stackOf([
+    stackPullOf({
       branch: options.branch,
       number: options.number,
       url: options.url,
       title: 'The checked-out pull',
-      state: 'open',
       checkedOut: true,
     }),
-  ],
-  merged: 0,
-  total: 1,
-});
+  ]);

@@ -3,13 +3,13 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { click, clickablesWithText, drawnTexts } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { restoreKojaSpaces, setupKojaSpaces } from '../../../tests/kojaSpacesView.ts';
+import { stackPullOf as stackPull } from '../../../tests/pickerFixtures.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import {
   checkedOutStack,
   liveState,
   modelOf,
   rowModelOf as rowModel,
-  stackPull,
 } from '../../../tests/rowModelFixtures.ts';
 import type { DataState } from '../../data/consumer.ts';
 import type { TicketFacts } from '../../data/snapshot.ts';
@@ -237,7 +237,7 @@ describe('selectedFooter', () => {
   test('a selected project main space shows the project name', () => {
     const footer = selectedFooter(
       liveState,
-      modelOf([rowModel({ id: 'w', linked: false, project: 'koja', title: 'koja' })]),
+      modelOf([rowModel({ id: 'w', linked: false, title: 'koja' })]),
       'w',
     );
 

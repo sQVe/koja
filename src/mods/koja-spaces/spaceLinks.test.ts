@@ -1,8 +1,11 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 
-import { click, clickablesWithText } from '../../../tests/drawn.ts';
-import type { DrawnElement } from '../../../tests/drawn.ts';
-import { restoreKojaSpaces, setupKojaSpaces } from '../../../tests/kojaSpacesView.ts';
+import { clickablesWithText, openedUrls } from '../../../tests/drawn.ts';
+import {
+  loadSelectedFooter,
+  restoreKojaSpaces,
+  setupKojaSpaces,
+} from '../../../tests/kojaSpacesView.ts';
 import { pullFacts } from '../../../tests/pullFacts.ts';
 import {
   checkedOutStack,
@@ -10,20 +13,13 @@ import {
   modelOf,
   rowModelOf,
 } from '../../../tests/rowModelFixtures.ts';
-import type { DataState } from '../../data/consumer.ts';
 import type { TicketFacts } from '../../data/snapshot.ts';
-import type { ListModel, RowModel } from './listModel.ts';
+import type { RowModel } from './listModel.ts';
 import { spaceLinksOf } from './spaceLinks.ts';
 
 await setupKojaSpaces();
 
-const { selectedFooter } = (await import('./selectedFooter.ts')) as unknown as {
-  selectedFooter: (
-    state: DataState,
-    model: ListModel,
-    activeId: string | null,
-  ) => DrawnElement | null;
-};
+const selectedFooter = await loadSelectedFooter();
 
 afterAll(() => {
   restoreKojaSpaces();
@@ -98,22 +94,8 @@ describe('spaceLinksOf', () => {
       throw new Error('The selected space draws no footer.');
     }
 
-    const [link] = clickablesWithText(footer, `#${checkedOut.number}`);
-
-    if (link === undefined) {
-      throw new Error('The footer draws no pull link.');
-    }
-
-    const opened: string[] = [];
-
-    click(link, {
-      open_url: (url: string) => {
-        opened.push(url);
-      },
-    });
-
     expect(spaceLinksOf(model).pull).toEqual(checkedOut);
-    expect(opened).toEqual([checkedOut.url]);
+    expect(openedUrls(footer, `#${checkedOut.number}`)).toEqual([checkedOut.url]);
     expect(clickablesWithText(footer, `#${branchPull.number}`)).toEqual([]);
   });
 });

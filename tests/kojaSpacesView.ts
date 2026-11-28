@@ -2,12 +2,14 @@ import { mock } from 'bun:test';
 
 import type { PaneInfo, SpaceInfo, Status, TabInfo } from 'herdr';
 
+import type { DataState } from '../src/data/consumer.ts';
 import { placeOf, repositoryOf, worktreeOf } from '../src/data/gitIdentity.ts';
 import { heartbeatKey, leaseKey } from '../src/data/lease.ts';
 import type { Facts, PlaceGit, RepositoryPulls, WorktreeGit } from '../src/data/snapshot.ts';
 import { emptyFacts, snapshotKey, snapshotVersion } from '../src/data/snapshot.ts';
 import { writeSection } from '../src/kit/section.ts';
 import { rowHeight } from '../src/kit/size.ts';
+import type { ListModel } from '../src/mods/koja-spaces/listModel.ts';
 import {
   drawn,
   drawnTexts,
@@ -338,6 +340,20 @@ const mockKit = async (): Promise<void> => {
   const kitFake = await realKitIndexFake(kitParts);
 
   await mock.module('../src/kit/index.ts', () => kitFake);
+};
+
+export const loadSelectedFooter = async (): Promise<
+  (state: DataState, model: ListModel, activeId: string | null) => DrawnElement | null
+> => {
+  const loaded = (await import('../src/mods/koja-spaces/selectedFooter.ts')) as unknown as {
+    selectedFooter: (
+      state: DataState,
+      model: ListModel,
+      activeId: string | null,
+    ) => DrawnElement | null;
+  };
+
+  return loaded.selectedFooter;
 };
 
 export const setupKojaSpaces = async (): Promise<void> => {
