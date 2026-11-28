@@ -1,21 +1,34 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { WheelEvent, WheelGesture } from './wheel.ts';
+import type { Point, ScrollWheelEvent } from 'gpui-kit';
+
+import { pick, seededRandom } from '../../../tests/seeded.ts';
+import type { WheelGesture } from './wheel.ts';
 import { noWheelGesture, wheelTurn } from './wheel.ts';
 
-const pixels = (y: number): WheelEvent => ({ delta: { y }, touch_phase: 'moved' });
+const noModifiers = { shift: false, control: false, alt: false, platform: false, function: false };
 
-const lines = (y: number): WheelEvent => ({
-  delta: { y: 0 },
-  delta_lines: { y },
-  touch_phase: 'moved',
+const wheelEvent = (
+  delta: Point,
+  touchPhase: ScrollWheelEvent['touch_phase'],
+  deltaLines?: Point,
+): ScrollWheelEvent => ({
+  delta,
+  touch_phase: touchPhase,
+  position: { x: 0, y: 0 },
+  modifiers: noModifiers,
+  ...(deltaLines === undefined ? {} : { delta_lines: deltaLines }),
 });
 
-const started = (y: number): WheelEvent => ({ delta: { y }, touch_phase: 'started' });
+const pixels = (y: number): ScrollWheelEvent => wheelEvent({ x: 0, y }, 'moved');
+
+const lines = (y: number): ScrollWheelEvent => wheelEvent({ x: 0, y: 0 }, 'moved', { x: 0, y });
+
+const started = (y: number): ScrollWheelEvent => wheelEvent({ x: 0, y }, 'started');
 
 const turned = (
   gesture: WheelGesture,
-  events: WheelEvent[],
+  events: ScrollWheelEvent[],
   from: number,
   gap = 200,
 ): WheelGesture =>
@@ -161,5 +174,97 @@ describe('wheelTurn', () => {
 
     expect(after.gesture.accumulated).toBe(0);
     expect(after.gesture.direction).toBe('prev');
+  });
+});
+
+const deltas = [0, 1, 5, 19, 20, 21, 59, 60, 61, 100, -1, -5, -19, -20, -21, -59, -60, -61, -100];
+
+const phases: ScrollWheelEvent['touch_phase'][] = [
+  'started',
+  'moved',
+  'moved',
+  'moved',
+  'ended',
+  'cancelled',
+];
+
+const gaps = [0, 1, 50, 99, 100, 101, 250, 251, 400];
+
+// A generated sequence of wheel events, each arriving a generated number of milliseconds after the
+// one before it.
+const generatedEvents = (
+  random: () => number,
+  count: number,
+): { event: ScrollWheelEvent; gap: number }[] =>
+  Array.from({ length: count }, () => ({
+    event:
+      random() < 0.2
+        ? wheelEvent({ x: 0, y: 0 }, pick(phases, random), { x: 0, y: pick(deltas, random) })
+        : wheelEvent({ x: 0, y: pick(deltas, random) }, pick(phases, random)),
+    gap: pick(gaps, random),
+  }));
+
+describe('wheelTurn over generated event sequences', () => {
+  test('keeps the step in step with the travel and the direction it reports', () => {
+    const random = seededRandom(20_260_214);
+
+    for (let trial = 0; trial < 40; trial += 1) {
+      let gesture = noWheelGesture;
+      let now = 1000;
+
+      for (const { event, gap } of generatedEvents(random, 25)) {
+        now += gap;
+
+        const before = { ...gesture };
+        const turn = wheelTurn(gesture, event, now);
+        const reportsLines = event.delta_lines !== undefined;
+
+        expect(gesture).toEqual(before);
+
+        if (reportsLines) {
+          expect(turn.gesture).toEqual(before);
+        }
+
+        if (!reportsLines && turn.step !== null) {
+          expect(turn.gesture.direction).toBe(turn.step);
+        }
+
+        if (!reportsLines && turn.gesture.accumulated !== 0) {
+          expect(turn.gesture.direction).not.toBeNull();
+        }
+
+        gesture = turn.gesture;
+      }
+    }
+
+    expect(noWheelGesture).toEqual({
+      accumulated: 0,
+      steps: 0,
+      eventAt: 0,
+      stepAt: 0,
+      direction: null,
+    });
+  });
+
+  test('starts a new gesture on an event that arrives after the pause', () => {
+    const random = seededRandom(20_260_215);
+
+    for (let trial = 0; trial < 40; trial += 1) {
+      let gesture = noWheelGesture;
+      let now = 1000;
+
+      for (const { event, gap } of generatedEvents(random, 25)) {
+        now += gap;
+
+        const turn = wheelTurn(gesture, event, now);
+        const paused = now - gesture.eventAt > 250;
+
+        if (paused && event.touch_phase !== 'started' && event.delta_lines === undefined) {
+          expect(turn).toEqual(wheelTurn(noWheelGesture, event, now));
+        }
+
+        gesture = turn.gesture;
+      }
+    }
   });
 });
