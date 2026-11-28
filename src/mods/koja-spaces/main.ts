@@ -25,14 +25,11 @@ import {
   spacing,
   withTextRole,
 } from '../../kit/index.ts';
-import type { SpaceSelection, SpaceSelectionDeps } from '../../kit/space/spaceSelection.ts';
-import {
-  readSpaceSelection,
-  runSpaceCommand,
-  selectionMoved,
-} from '../../kit/space/spaceSelection.ts';
+import type { CloseWatch } from '../../kit/space/closeFollow.ts';
+import { closeFollowStep } from '../../kit/space/closeFollow.ts';
+import type { SpaceSelectionDeps } from '../../kit/space/spaceSelection.ts';
+import { readSpaceSelection, runSpaceCommand } from '../../kit/space/spaceSelection.ts';
 import type { SpaceOrder } from '../../kit/spaceOrder.ts';
-import { closedSpaceCommand } from '../../kit/spaceOrder.ts';
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import type { KeptNeed } from './gitFacts.ts';
@@ -61,12 +58,6 @@ import type { WaitTimes } from './waitTimes.ts';
 import { advanceWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
 
 type SidebarDrag = { kind: 'space'; state: DragState } | { kind: 'project'; state: DragState };
-
-interface SidebarWatch {
-  focused: string | null;
-  order: SpaceOrder | null;
-  selection: SpaceSelection | null;
-}
 
 // Herdr's runtime has the Web Crypto global, but its declarations do not name it.
 declare const crypto: { randomUUID: () => string };
@@ -110,10 +101,11 @@ export default class Spaces extends View {
 
   private readonly lastNeeds = new Map<string, KeptNeed>();
 
-  private watched: SidebarWatch = {
+  private watched: CloseWatch = {
     focused: null,
     order: null,
     selection: readSpaceSelection(shared),
+    pending: null,
   };
 
   private visibility: VisibilityState = initialVisibility(liveSpaceIds());
@@ -233,24 +225,22 @@ export default class Spaces extends View {
   }
 
   private followClose(order: SpaceOrder | null): void {
-    const focused = activeSpaceId();
-    const selection = readSpaceSelection(shared);
-    const liveIds = liveSpaceIds();
+    const look = {
+      focused: activeSpaceId(),
+      order,
+      selection: readSpaceSelection(shared),
+      liveIds: liveSpaceIds(),
+      now: Date.now(),
+    };
 
-    const command = closedSpaceCommand({
-      closedId: this.watched.focused,
-      order: this.watched.order,
-      liveIds,
-    });
+    const step = closeFollowStep(this.watched, look);
 
-    const moved = selectionMoved(this.watched.selection, selection, this.watched.focused, liveIds);
+    this.watched = step.watch;
 
-    this.watched = { focused, order, selection };
-
-    if (command !== null && !moved) {
-      // A record here would bump the count selectionMoved reads, and a record naming the closed
-      // space is ignored because its id is not live.
-      run(command.name, command.args);
+    if (step.command !== null) {
+      // A record here would bump the count the step reads, and a record naming the closed space is
+      // ignored because its id is not live.
+      run(step.command.name, step.command.args);
     }
   }
 

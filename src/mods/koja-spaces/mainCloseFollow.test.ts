@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, setSystemTime, test } from 'bun:test';
 
 import {
   loadView,
@@ -21,6 +21,10 @@ await setupKojaSpaces();
 
 beforeEach(() => {
   resetKojaSpaces();
+});
+
+afterEach(() => {
+  setSystemTime();
 });
 
 afterAll(() => {
@@ -212,6 +216,77 @@ describe('koja-spaces close follow', () => {
     expect(selected()).toEqual(['a']);
   });
 
+  test('a pick seen before the close keeps the picked space', async () => {
+    draw(['a', 'b', 'c'], 'b');
+
+    const view = await loadView();
+
+    recordSelection('c');
+    draw(['a', 'b', 'c'], 'b');
+    view.render();
+
+    draw(['a', 'c'], 'c');
+    view.render();
+
+    expect(selected()).toEqual([]);
+  });
+
+  test('a pick seen before the close keeps the picked space when the check timer sees the close', async () => {
+    draw(['a', 'b', 'c'], 'b');
+
+    const view = await loadView();
+
+    recordSelection('c');
+    draw(['a', 'b', 'c'], 'b');
+    view.render();
+
+    draw(['a', 'c'], 'c');
+    runTimers(250);
+
+    expect(selected()).toEqual([]);
+  });
+
+  test('a pick that never lands stops blocking after a second', async () => {
+    draw(['a', 'b', 'c'], 'b');
+
+    const view = await loadView();
+
+    recordSelection('c');
+    draw(['a', 'b', 'c'], 'b');
+    view.render();
+
+    setSystemTime(new Date(Date.now() + 1001));
+
+    draw(['a', 'c'], 'a');
+    view.render();
+
+    expect(selected()).toEqual(['a']);
+  });
+
+  test('a click on the shown space and a close of it in one draw select the space above', async () => {
+    draw(['a', 'b', 'c', 'd'], 'b');
+
+    const view = await loadView();
+
+    recordSelection('b');
+    draw(['a', 'c', 'd'], 'c');
+    view.render();
+
+    expect(selected()).toEqual(['a']);
+  });
+
+  test('a pick of the closing space does not block the follow', async () => {
+    draw(['a', 'b', 'c'], 'b');
+
+    const view = await loadView();
+
+    draw(['a', 'c'], 'c');
+    recordSelection('b');
+    view.render();
+
+    expect(selected()).toEqual(['a']);
+  });
+
   const lookSpaceIds = ['a', 'b', 'c', 'd', 'e'];
   const sequenceCount = 100;
   const lookCount = 10;
@@ -219,6 +294,7 @@ describe('koja-spaces close follow', () => {
   const closeChance = 0.25;
   const keepFocusChance = 0.5;
   const pickChance = 0.4;
+  const landsNowChance = 0.5;
   const timerChance = 0.4;
 
   type Observer = 'draw' | 'timer';
@@ -226,7 +302,8 @@ describe('koja-spaces close follow', () => {
   interface Look {
     live: string[];
     active: string;
-    pick: string | null;
+    picked: string | null;
+    pending: string | null;
     observer: Observer;
   }
 
@@ -238,6 +315,7 @@ describe('koja-spaces close follow', () => {
     order: string[];
     closedId: string | null;
     picked: string | null;
+    pendingBefore: string | null;
     expected: string[];
     issued: string[];
     repeated: string[];
@@ -253,14 +331,27 @@ describe('koja-spaces close follow', () => {
     return [pick(live, random)];
   };
 
+  // A pick of a live space lands in the look it is made in or the one after it, the way Herdr
+  // applies the tab.select that follows the record.
   const nextLook = (previous: Look, random: () => number): Look => {
     const live = liveAfter(previous.live, random);
+
+    const pickAllowed = previous.pending === null && random() < pickChance;
+    const candidate = pickAllowed ? pick(live, random) : null;
+
+    const picked = candidate === previous.active ? null : candidate;
+    const landsNow = picked !== null && random() < landsNowChance;
+
+    const landed =
+      previous.pending !== null && live.includes(previous.pending) ? previous.pending : null;
+
     const keepsFocus = live.includes(previous.active) && random() < keepFocusChance;
-    const active = keepsFocus ? previous.active : pick(live, random);
-    const pickId = random() < pickChance ? pick(previous.live, random) : null;
+    const nextFocus = keepsFocus ? previous.active : pick(live, random);
+    const active = picked !== null && landsNow ? picked : (landed ?? nextFocus);
+    const pending = picked !== null && !landsNow && active !== picked ? picked : null;
     const observer: Observer = random() < timerChance ? 'timer' : 'draw';
 
-    return { live, active, pick: pickId, observer };
+    return { live, active, picked, pending, observer };
   };
 
   const expectationFor = (
@@ -274,12 +365,17 @@ describe('koja-spaces close follow', () => {
       return { closedId, selection: [] };
     }
 
-    const picked = look.pick;
+    const pendingBefore = previous.pending;
+
+    const pendingBlocks =
+      pendingBefore !== null && pendingBefore !== closedId && look.live.includes(pendingBefore);
+
+    const picked = look.picked;
 
     const userPickedLiveSpace =
       picked !== null && picked !== previous.active && look.live.includes(picked);
 
-    if (userPickedLiveSpace) {
+    if (pendingBlocks || userPickedLiveSpace) {
       return { closedId, selection: [] };
     }
 
@@ -299,8 +395,8 @@ describe('koja-spaces close follow', () => {
   };
 
   const runLook = (view: FakeView, look: Look): { issued: string[]; repeated: string[] } => {
-    if (look.pick !== null) {
-      recordSelection(look.pick);
+    if (look.picked !== null) {
+      recordSelection(look.picked);
     }
 
     draw(look.live, look.active);
@@ -322,7 +418,8 @@ describe('koja-spaces close follow', () => {
     const first: Look = {
       live: [...lookSpaceIds],
       active: pick(lookSpaceIds, random),
-      pick: null,
+      picked: null,
+      pending: null,
       observer: 'draw',
     };
 
@@ -347,7 +444,8 @@ describe('koja-spaces close follow', () => {
         live: look.live,
         order,
         closedId,
-        picked: look.pick,
+        picked: look.picked,
+        pendingBefore: previous.pending,
         expected: selection,
         issued,
         repeated,
@@ -371,17 +469,31 @@ describe('koja-spaces close follow', () => {
 
     const wrongFollows = records
       .filter((record) => !sameItems(record.issued, record.expected))
-      .map(({ seed, step, observer, live, order, closedId, picked, expected, issued }) => ({
-        seed,
-        step,
-        observer,
-        live,
-        order,
-        closedId,
-        picked,
-        expected,
-        issued,
-      }));
+      .map(
+        ({
+          seed,
+          step,
+          observer,
+          live,
+          order,
+          closedId,
+          picked,
+          pendingBefore,
+          expected,
+          issued,
+        }) => ({
+          seed,
+          step,
+          observer,
+          live,
+          order,
+          closedId,
+          picked,
+          pendingBefore,
+          expected,
+          issued,
+        }),
+      );
 
     const repeatFollows = records
       .filter((record) => record.repeated.length > 0)
@@ -395,9 +507,15 @@ describe('koja-spaces close follow', () => {
       (record) => record.closedId !== null && record.picked !== null && record.issued.length === 0,
     );
 
+    const keptByPendingPick = records.filter(
+      (record) =>
+        record.closedId !== null && record.pendingBefore !== null && record.issued.length === 0,
+    );
+
     expect(followed.length).toBeGreaterThan(0);
     expect(followedByTimer.length).toBeGreaterThan(0);
     expect(keptByPick.length).toBeGreaterThan(0);
+    expect(keptByPendingPick.length).toBeGreaterThan(0);
     expect(wrongFollows).toEqual([]);
     expect(repeatFollows).toEqual([]);
   });
