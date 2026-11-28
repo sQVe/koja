@@ -94,7 +94,7 @@ const isMenuKind = (value: string | null): value is MenuKind =>
   menuKinds.some((kind) => kind === value);
 
 // `open_url` takes an absolute http or https URL with a host and refuses every other scheme.
-const webUrl = /^https?:\/\/[^\s/?#@:]+(?::\d+)?(?:[/?#]|$)/;
+const webUrl = /^https?:\/\/[^\s/?#@:]+(?::\d+)?([/?#]\S*)?$/;
 
 const isPresent = (text: string | null | undefined): text is string =>
   text !== null && text !== undefined && text !== '';
@@ -105,12 +105,18 @@ const namedTextOf = (value: unknown): string | null => {
   return isPresent(text) ? text : null;
 };
 
+const webUrlOf = (link: Record<string, unknown>): string | null => {
+  const url = stringOf(link['url']);
+
+  return url !== null && webUrl.test(url) ? url : null;
+};
+
 const ticketLinkOf = (value: unknown): MenuTicketLink | null => {
   const ticket = recordOf(value);
   const id = namedTextOf(ticket['id']);
-  const url = stringOf(ticket['url']);
+  const url = webUrlOf(ticket);
 
-  if (id === null || url === null || !webUrl.test(url)) {
+  if (id === null || url === null) {
     return null;
   }
 
@@ -120,13 +126,13 @@ const ticketLinkOf = (value: unknown): MenuTicketLink | null => {
 const pullLinkOf = (value: unknown): MenuPullLink | null => {
   const pull = recordOf(value);
   const number = numberOf(pull['number']);
-  const url = stringOf(pull['url']);
+  const url = webUrlOf(pull);
 
   if (number === null || url === null) {
     return null;
   }
 
-  const counted = Number.isInteger(number) && number > 0 && webUrl.test(url);
+  const counted = Number.isInteger(number) && number > 0;
 
   return counted ? { number, url } : null;
 };
@@ -350,41 +356,46 @@ const worktreeItems = (host: MenuHost, target: MenuTarget, checkout: Checkout): 
   return rows;
 };
 
-const urlEntry = (label: string, icon: IconName, url: string): MenuAction => ({
+const actionEntry = (label: string, icon: IconName, action: (cx: Context) => void): MenuAction => ({
   kind: 'action',
   label,
   icon,
   shortcuts: [],
   group: false,
-  action: (cx) => {
-    cx.open_url(url);
-  },
-});
-
-const clipboardEntry = (label: string, text: string): MenuAction => ({
-  kind: 'action',
-  label,
-  icon: 'git-branch',
-  shortcuts: [],
-  group: false,
-  action: (cx) => {
-    cx.write_to_clipboard(text);
-  },
+  action,
 });
 
 const linkEntries = (menu: MenuProps): MenuEntry[] => {
   const rows: MenuAction[] = [];
 
   if (menu.ticket !== null && menu.ticket !== undefined) {
-    rows.push(urlEntry('Open ticket', 'file', menu.ticket.url));
+    const url = menu.ticket.url;
+
+    rows.push(
+      actionEntry('Open ticket', 'file', (cx) => {
+        cx.open_url(url);
+      }),
+    );
   }
 
   if (menu.pull !== null && menu.pull !== undefined) {
-    rows.push(urlEntry('Open PR on GitHub', 'git-pull-request', menu.pull.url));
+    const url = menu.pull.url;
+
+    rows.push(
+      actionEntry('Open PR on GitHub', 'git-pull-request', (cx) => {
+        cx.open_url(url);
+      }),
+    );
   }
 
   if (menu.branch !== null && menu.branch !== undefined) {
-    rows.push(clipboardEntry('Copy branch name', menu.branch));
+    const branch = menu.branch;
+
+    rows.push(
+      actionEntry('Copy branch name', 'git-branch', (cx) => {
+        cx.write_to_clipboard(branch);
+      }),
+    );
   }
 
   const [first] = rows;

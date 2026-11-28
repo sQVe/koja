@@ -141,6 +141,10 @@ describe('space menu links', () => {
       'a URL with a space after its host',
       { pull: { number: 505, url: 'https://example.invalid /1' } },
     ],
+    [
+      'a URL with a space after its path',
+      { pull: { number: 505, url: 'https://example.invalid/path with space' } },
+    ],
     ['a blank ticket id', { ticket: { id: '   ', url: ticket.url } }],
     ['a ticket without an id', { ticket: { url: ticket.url } }],
     ['a pull number that is not a whole number', { pull: { number: 5.5, url: pull.url } }],
