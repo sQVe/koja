@@ -18,7 +18,7 @@ import {
   tab,
 } from '../../../kit/index.ts';
 import type { MixState } from '../directions/attention/mix.ts';
-import { createMixState, mixCard, paneClearance } from '../directions/attention/mix.ts';
+import { mixCard, paneClearance } from '../directions/attention/mix.ts';
 import { contentPane } from '../directions/content/scene.ts';
 import { contentViews } from '../directions/content/states.ts';
 import { dialogLayer } from '../directions/dialogs/scene.ts';
@@ -180,7 +180,7 @@ export const shellScene = (): Element =>
 export const shellAttentionScene = (
   open: boolean,
   tokens: DirectionTokens,
-  state: MixState = createMixState(),
+  state: MixState,
 ): Element => {
   const panes = shellPanes();
   const card = mixCard(open, tokens, state);
