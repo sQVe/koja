@@ -175,6 +175,14 @@ export const markSize = {
   quietDot: 4,
 } as const;
 
+export const toastSize = {
+  minHeight: 70,
+  // The host's notification window before zoom; a fixed card fills it and the gallery frames one at
+  // this size.
+  width: 340,
+  windowHeight: 72,
+} as const;
+
 export const factSize = {
   labelWidth: 64,
   pairGap: 24,

@@ -35,7 +35,7 @@ export type { Fact } from './factRows.ts';
 
 export { terminalFont, terminalFontSize, terminalFontStyle } from './font.ts';
 
-export { icon, iconSlot, programIcon, spinner } from './icon.ts';
+export { icon, iconPath, iconSlot, programIcon, spinner } from './icon.ts';
 
 export { iconNames } from './iconNames.ts';
 
@@ -96,6 +96,15 @@ export { projectHeader } from './projectHeader.ts';
 
 export { popupSurface } from './popupSurface.ts';
 
+export { toastCard, toastCommandBody } from './toast.ts';
+
+/** @public */
+export type { ToastCardOptions } from './toast.ts';
+
+export { toastLevels } from './toast/toastLevel.ts';
+
+export type { ToastLevel } from './toast/toastLevel.ts';
+
 export type { DropMark, RowState } from './listRow.ts';
 
 export { searchField } from './searchField.ts';
@@ -145,6 +154,9 @@ export {
   sidebarSize,
   spacing,
 } from './size.ts';
+
+/** @public */
+export { toastSize } from './size.ts';
 
 export type { AttentionStatus } from './attentionStatus.ts';
 

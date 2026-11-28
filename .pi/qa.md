@@ -14,6 +14,7 @@ user's real Herdr window.
 | Sidebar, tabs, panes | `koja-spaces`, `koja-tabs`, `koja-pane`, `koja-menu`, `koja-new-menu`, `koja-worktree`               |
 | Changes panel        | `koja-changes`, `src/kit/fileStatus.ts`, the panel memory in `koja-tabs`                             |
 | Gallery and scenes   | `koja-gallery`, `koja-mocks`, `scripts/capture.ts`                                                   |
+| Notifications        | `koja-toast`, `src/kit/toast.ts`, the layout's `"toast"` key                                         |
 
 Cross-effects:
 
@@ -30,6 +31,7 @@ Cross-effects:
   "Sidebar, tabs, panes" and "Gallery and scenes".
 - `config/keys.json` and `config/layouts/koja.json` are installed as they are. A key or layout
   change can break a mod that no source file touched.
+- A change to `src/kit/toast.ts` also needs "Gallery and scenes".
 - `scripts/build.ts`, `scripts/install.ts`, and `herdr/*.d.ts` change what every mod gets. Assign
   "Normal mode keys" plus the sections of the mods the change names.
 - A scene in `koja-mocks` uses fake data. It never proves the real mod.
@@ -59,6 +61,7 @@ No launch, and unclear impact:
 | [Sidebar, tabs, and panes](qa/features/sidebar-tabs-panes.md) | Sidebar, tabs, panes | sandbox | `koja-spaces`, `koja-tabs`, `koja-pane`, `koja-menu`, `koja-new-menu`, `koja-worktree`, `src/data/pull*.ts` |
 | [Changes panel](qa/features/changes-panel.md)                 | Changes panel        | sandbox | `koja-changes`, `src/kit/fileStatus.ts`, the panel memory in `koja-tabs`                                    |
 | [Gallery and scenes](qa/features/gallery-and-scenes.md)       | Gallery and scenes   | sandbox | `koja-gallery`, `koja-mocks`, `scripts/capture.ts`                                                          |
+| [Notifications](qa/features/notifications.md)                 | Notifications        | sandbox | `koja-toast`, `src/kit/toast.ts`, the layout's `"toast"` key                                                |
 
 ## Before a launch
 
@@ -366,6 +369,19 @@ Same as [Normal mode keys](#normal-mode-keys).
 
 - [Gallery and scenes](qa/features/gallery-and-scenes.md): the gallery, the scene picker, and
   capture.
+
+## Notifications
+
+Target: sandbox
+
+### Reach it
+
+Same as [Normal mode keys](#normal-mode-keys).
+
+### Features
+
+- [Notifications](qa/features/notifications.md): the toast on a blocked agent, its look, and its
+  click.
 
 ## Not testable
 

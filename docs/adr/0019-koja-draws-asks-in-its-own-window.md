@@ -8,8 +8,8 @@
 ## Context
 
 An agent ask the user cannot see must interrupt. Herdr already plays a sound and posts a toast when
-an agent is blocked, and its toast draws in Herdr's own frame. A Koja card in Koja's look cannot use
-that toast, and leaving Herdr's alert on would show two alerts for one ask.
+an agent is blocked. Herdr places and dismisses the toast; it is not a card that stays until the ask
+is handled. Leaving Herdr's alert on would show two alerts for one ask.
 
 Herdr's typed agent data carries the ask kind and its message, so Koja knows what to show without
 reading the terminal screen. A mod can open a floating window with no Herdr frame and draw the whole
@@ -34,8 +34,12 @@ another overlay holds the keyboard, because the card never takes the keyboard.
 
 Koja owns the card and its sound for an ask. Herdr's automatic sound is off through the
 `sounds.enabled` setting the installer writes, and Koja plays the blocked sound once for each ask
-the user cannot see. No other case plays a sound. Herdr's own toast for an ask stays until Koja
-replaces the toast mod, so one ask shows both the card and Herdr's toast.
+the user cannot see. No other case plays a sound.
+
+Koja also draws notifications in its own look through the `koja-toast` mod, which the layout puts in
+place of Herdr's shipped toast. Restyling the toast does not suppress it, so an ask the user cannot
+see shows both the card and the toast. Suppressing the duplicate toast is a separate change, not
+made here.
 
 ## Consequences
 
@@ -59,8 +63,9 @@ replaces the toast mod, so one ask shows both the card and Herdr's toast.
 
 ### Herdr's `notify()` toast
 
-Herdr's toast draws its own frame and Herdr also alerts on its own. Rejected because Koja cannot
-make the toast follow its card look, and the alert would happen twice.
+The toast now draws in Koja's look through the `koja-toast` mod, so it can follow the card's style.
+Rejected as the card itself because Herdr decides where the toast shows and when it goes, while the
+card must stay until the ask is handled.
 
 ### A mark in the tabs and the sidebar only
 
