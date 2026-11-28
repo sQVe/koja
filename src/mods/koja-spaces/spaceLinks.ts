@@ -14,7 +14,6 @@ const ticketLinkOf = (model: RowModel): SpaceLinks['ticket'] => {
   return { id: model.ticket.id, url: model.ticket.url };
 };
 
-// A stack space names only the pull it checks out; while that pull is unresolved, it names none.
 const checkedOutPullOf = (model: RowModel): SpaceLinks['pull'] => {
   const checkedOut = model.stack?.pulls.find((pull) => pull.checkedOut);
   const number = checkedOut?.number ?? null;
