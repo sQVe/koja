@@ -37,6 +37,7 @@ let toastProps: Record<string, unknown> = {};
 let clipboard: string | null = null;
 let stopCount = 0;
 let notifyCount = 0;
+let sharedValues: Record<string, unknown> = {};
 
 const copyContext = {
   stop_propagation: () => {
@@ -73,11 +74,26 @@ await mock.module('herdr', () =>
 
       return null;
     },
+    setShared: (key: string, value: unknown) => {
+      sharedValues[key] = value;
+
+      return null;
+    },
+    shared: (key: string) => sharedValues[key],
     theme: () => palette,
   }),
 );
 
-const kitFake = await realKitIndexFake(['button', 'overlay/overlay', 'size', 'textRole', 'toast']);
+const { overlayCloseCount } = await import('../../kit/overlay/open.ts');
+
+const kitFake = await realKitIndexFake([
+  'button',
+  'overlay/open',
+  'overlay/overlay',
+  'size',
+  'textRole',
+  'toast',
+]);
 
 await mock.module('../../kit/index.ts', () => kitFake);
 
@@ -106,6 +122,7 @@ beforeEach(() => {
   clipboard = null;
   stopCount = 0;
   notifyCount = 0;
+  sharedValues = {};
 
   toastProps = {
     title: 'Agent blocked',
@@ -117,13 +134,14 @@ beforeEach(() => {
 });
 
 describe('toast', () => {
-  test('runs the action and closes the toast on click', async () => {
+  test('closes the toast, then runs the action on click', async () => {
     const view = await loadView();
 
     view.init(undefined, undefined);
     click(view.render());
 
-    expect(calls).toEqual([{ name: 'agent.focus', args: { terminal: 't3' } }, { close: 'o3' }]);
+    expect(calls).toEqual([{ close: 'o3' }, { name: 'agent.focus', args: { terminal: 't3' } }]);
+    expect(overlayCloseCount()).toBe(1);
   });
 
   test('closes without running when there is no action', async () => {
@@ -183,6 +201,11 @@ describe('toast', () => {
     const card = view.render();
     const copy = clickablesWithText(card, 'Copy').find((part) => part !== card);
 
+    const title = drawnTexts(card).find(
+      (text) => text.includes('devbox') && text !== 'hc machine login devbox',
+    );
+
+    expect(title).toBeDefined();
     expect(drawnTexts(card)).toContain('hc machine login devbox');
 
     if (copy === undefined) {

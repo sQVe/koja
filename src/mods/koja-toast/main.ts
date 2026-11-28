@@ -2,7 +2,13 @@ import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { View } from 'gpui-kit';
 import { props, run } from 'herdr';
 
-import { actionButton, closeOverlay, toastCard, toastCommandBody } from '../../kit/index.ts';
+import {
+  actionButton,
+  closeOverlay,
+  recordOverlayClose,
+  toastCard,
+  toastCommandBody,
+} from '../../kit/index.ts';
 import type { ToastContent, ToastProps } from './toastProps.ts';
 import { readToastProps } from './toastProps.ts';
 
@@ -27,11 +33,12 @@ export default class Toast extends View {
   private activate(): void {
     const { action, overlay } = this.toast;
 
+    recordOverlayClose();
+    closeOverlay(overlay);
+
     if (action !== null) {
       run(action.name, action.args);
     }
-
-    closeOverlay(overlay);
   }
 
   private copyCommand(command: string, cx: Context): void {
