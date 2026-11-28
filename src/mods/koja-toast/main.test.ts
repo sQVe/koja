@@ -8,7 +8,6 @@ import {
   drawn,
   drawnTexts,
   elementWithIcon,
-  elementsWithStyle,
 } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
@@ -116,16 +115,6 @@ const kitFake = await realKitIndexFake([
   'toast',
   'window',
 ]);
-
-const kitToastCard = kitFake['toastCard'] as (options: unknown) => DrawnElement;
-
-kitFake['toastCard'] = (options: unknown): DrawnElement => {
-  const card = kitToastCard(options);
-
-  card.styles['drawnToastCard'] = [true];
-
-  return card;
-};
 
 await mock.module('../../kit/index.ts', () => kitFake);
 
@@ -326,8 +315,8 @@ describe('toast', () => {
     await Promise.all(spawned);
 
     expect(calls).toEqual([{ close: 'o3' }]);
-    expect(elementsWithStyle(first, 'drawnToastCard')).toEqual([]);
-    expect(elementsWithStyle(second, 'drawnToastCard')).toEqual([]);
+    expect(drawnTexts(first)).toEqual([]);
+    expect(drawnTexts(second)).toEqual([]);
   });
 
   test('draws a finished toast', async () => {
@@ -342,7 +331,7 @@ describe('toast', () => {
 
     await Promise.all(spawned);
 
-    expect(elementsWithStyle(card, 'drawnToastCard')).toHaveLength(1);
+    expect(drawnTexts(card)).toContain('Agent blocked');
     expect(calls).toEqual([]);
   });
 
@@ -360,7 +349,7 @@ describe('toast', () => {
 
     await Promise.all(spawned);
 
-    expect(elementsWithStyle(card, 'drawnToastCard')).toHaveLength(1);
+    expect(drawnTexts(card)).toContain('Agent blocked');
     expect(calls).toEqual([]);
   });
 
@@ -378,7 +367,7 @@ describe('toast', () => {
 
     await Promise.all(spawned);
 
-    expect(elementsWithStyle(card, 'drawnToastCard')).toEqual([]);
+    expect(drawnTexts(card)).toEqual([]);
     expect(calls).toEqual([{ close: 'o3' }]);
   });
 
@@ -394,7 +383,7 @@ describe('toast', () => {
 
     await Promise.all(spawned);
 
-    expect(elementsWithStyle(card, 'drawnToastCard')).toHaveLength(1);
+    expect(drawnTexts(card)).toContain('Agent blocked');
     expect(calls).toEqual([]);
 
     terminalsValue = [blockedTerminal];

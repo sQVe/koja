@@ -2,7 +2,7 @@ import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import { agents, focused, props, run, terminals } from 'herdr';
 
-import { unseenAskAddresses } from '../../data/asks.ts';
+import { askViewOf, unseenAskAddresses } from '../../data/asks.ts';
 import {
   actionButton,
   closeOverlay,
@@ -78,12 +78,7 @@ export default class Toast extends View {
       projects: new Map<string, string>(),
     };
 
-    const view = {
-      focusedTab: focused()?.tab ?? null,
-      windowActive: currentWindow()?.active === true,
-    };
-
-    return unseenAskAddresses(sources, view);
+    return unseenAskAddresses(sources, askViewOf(focused(), currentWindow()));
   }
 
   private hide(cx: Context): void {
@@ -93,6 +88,7 @@ export default class Toast extends View {
 
     this.hidden = true;
 
+    // Closing the overlay inside render would change the UI render is drawing, so the close waits a microtask.
     cx.spawn(async () => {
       await Promise.resolve();
       closeOverlay(this.toast.overlay);
@@ -100,7 +96,7 @@ export default class Toast extends View {
   }
 
   override render(cx: Context): Element {
-    if (hidesAsk(this.toast.action, this.shownAskAddresses())) {
+    if (hidesAsk(this.toast.action, () => this.shownAskAddresses())) {
       this.hide(cx);
 
       return div();
