@@ -1,5 +1,14 @@
 # koja
 
+## 0.9.3
+
+### Patch Changes
+
+- [#157](https://github.com/sQVe/koja/pull/157)
+  [`a1f3f0f`](https://github.com/sQVe/koja/commit/a1f3f0f248ad40a8b435326e33a88da2f1eefe73) Thanks
+  [@sQVe](https://github.com/sQVe)! - An agent that answers and asks the same question again shows
+  its card, instead of staying dismissed from the ask it already answered.
+
 ## 0.9.2
 
 ### Patch Changes
