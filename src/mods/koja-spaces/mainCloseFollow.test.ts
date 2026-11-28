@@ -1,5 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, setSystemTime, test } from 'bun:test';
 
+import type { TraceStep } from '../../../tests/closeFollowTrace.ts';
+import { closeTrace } from '../../../tests/closeFollowTrace.ts';
 import {
   loadView,
   resetKojaSpaces,
@@ -15,8 +17,6 @@ import {
 import type { FakeView } from '../../../tests/kojaSpacesView.ts';
 import { sameItems } from '../../data/fields.ts';
 import { runSpaceCommand } from '../../kit/space/spaceSelection.ts';
-import type { TraceStep } from './fixtures/closeFollowTrace.ts';
-import { closeTrace } from './fixtures/closeFollowTrace.ts';
 
 await setupKojaSpaces();
 

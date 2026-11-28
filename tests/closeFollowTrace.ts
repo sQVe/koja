@@ -1,4 +1,4 @@
-import { pick, seededRandom } from '../../../../tests/seeded.ts';
+import { pick, seededRandom } from './seeded.ts';
 
 type TraceObserver = 'draw' | 'timer';
 
