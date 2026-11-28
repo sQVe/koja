@@ -19,6 +19,8 @@ import {
   terminals,
 } from 'herdr';
 
+import type { Ask, AskView } from '../../data/asks.ts';
+import { asksOf, askViewOf, cardAsks, handledAsksKey, unseenAsks } from '../../data/asks.ts';
 import { readDataState } from '../../data/consumer.ts';
 import {
   closeOverlay as closeCurrentOverlay,
@@ -39,8 +41,6 @@ import type { LayoutNode } from '../../kit/layout.ts';
 import { parsedJson } from '../../kit/parsedJson.ts';
 import type { AskAges } from './askAges.ts';
 import { askAgeOf, trackAskAges } from './askAges.ts';
-import type { Ask } from './askFacts.ts';
-import { asksOf, unseenAsks } from './askFacts.ts';
 import { askProjects } from './askProjects.ts';
 import type {
   AskRow,
@@ -82,6 +82,7 @@ interface CardContent {
 interface Snapshot {
   asks: Ask[];
   live: Ask[];
+  view: AskView;
   visible: Ask[];
   handled: string[];
   sounded: string[];
@@ -89,8 +90,6 @@ interface Snapshot {
   listOpen: boolean;
   open: OpenCard | null;
 }
-
-const handledKey = 'koja-asks.handled';
 
 const soundedKey = 'koja-asks.sounded';
 
@@ -203,10 +202,10 @@ const openStateOf = (value: unknown): OpenCard | null => {
 };
 
 const markHandled = (identity: string): void => {
-  const handled = stringListOf(shared(handledKey));
+  const handled = stringListOf(shared(handledAsksKey));
 
   if (!handled.includes(identity)) {
-    setShared(handledKey, [...handled, identity]);
+    setShared(handledAsksKey, [...handled, identity]);
   }
 };
 
@@ -405,15 +404,13 @@ export default class KojaAsks extends View {
   }
 
   private snapshot(): Snapshot {
-    const view = {
-      focusedTab: focused()?.tab ?? null,
-      windowActive: currentWindow()?.active === true,
-    };
+    const view = askViewOf(focused(), currentWindow());
 
     const spaceList = spaces();
     const paneList = panes();
     const projects = askProjects(readDataState(shared, Date.now()), spaceList, paneList);
     const live = asksOf({ terminals: terminals(), agents: agents(), projects });
+    const handled = stringListOf(shared(handledAsksKey));
 
     const asks = unseenAsks(live, view);
     const visible = live.filter((ask) => !asks.includes(ask));
@@ -421,8 +418,9 @@ export default class KojaAsks extends View {
     return {
       asks,
       live,
+      view,
       visible,
-      handled: stringListOf(shared(handledKey)),
+      handled,
       sounded: stringListOf(shared(soundedKey)),
       ages: this.trackAges(live),
       listOpen: shared(listKey) === true,
@@ -442,8 +440,8 @@ export default class KojaAsks extends View {
 
   private planOf(snapshot: Snapshot, signatures: ReadonlyMap<string, string>): CardPlan {
     return planCard({
-      asks: snapshot.asks,
       live: snapshot.live,
+      view: snapshot.view,
       handled: snapshot.handled,
       sounded: snapshot.sounded,
       visible: snapshot.visible.map((ask) => ask.identity),
@@ -454,7 +452,7 @@ export default class KojaAsks extends View {
 
   private applyPlan(plan: CardPlan, contents: ReadonlyMap<string, CardContent>): void {
     if (plan.handledChanged) {
-      setShared(handledKey, plan.handled);
+      setShared(handledAsksKey, plan.handled);
     }
 
     if (plan.soundedChanged) {
@@ -510,7 +508,7 @@ export default class KojaAsks extends View {
       };
 
       const contents = new Map<string, CardContent>();
-      const unhandled = current.asks.filter((ask) => !current.handled.includes(ask.identity));
+      const unhandled = cardAsks(current.live, current.view, current.handled);
       const listOpen = this.syncListFlag(current, unhandled.length);
       const shown = unhandled[0];
 

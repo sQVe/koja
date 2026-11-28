@@ -15,11 +15,11 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import type { Ask } from '../../data/asks.ts';
 import { placeOf, worktreeOf } from '../../data/gitIdentity.ts';
 import { heartbeatKey } from '../../data/lease.ts';
 import type { Facts, PlaceGit, WorktreeGit } from '../../data/snapshot.ts';
 import { snapshotKey, snapshotVersion } from '../../data/snapshot.ts';
-import type { Ask } from './askFacts.ts';
 
 const palette = {
   blocked: '#a81e26',

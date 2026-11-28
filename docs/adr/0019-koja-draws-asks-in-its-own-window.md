@@ -37,9 +37,9 @@ Koja owns the card and its sound for an ask. Herdr's automatic sound is off thro
 the user cannot see. No other case plays a sound.
 
 Koja also draws notifications in its own look through the `koja-toast` mod, which the layout puts in
-place of Herdr's shipped toast. Restyling the toast does not suppress it, so an ask the user cannot
-see shows both the card and the toast. Suppressing the duplicate toast is a separate change, not
-made here.
+place of Herdr's shipped toast. Koja's toast mod hides Herdr's toast for an ask whose card shows,
+using the same ask rule as the card, so one ask makes one alert. An ask the card skips, a worker's
+ask or one in the tab the user looks at, keeps Herdr's toast.
 
 ## Consequences
 

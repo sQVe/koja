@@ -24,9 +24,24 @@ Drive a notification in the sandbox the brief names. Follow
    `bun run sandbox status` and check that its `tab` is not the `tab` you saved, so the new space's
    tab stays hidden.
 7. Send the blocked report to the saved terminal:
-   `bun run sandbox hc send <terminal> "exec sh -c 'printf %b \"\$1\"; exec sleep 86400' qa '\033]7501;state=blocked:app=pi:kind=question\033\\\\'"`
-8. Take a `shot` of the toast, and run `bun run sandbox status` to see `koja-toast` in `overlays`.
-9. Click the toast, and run `bun run sandbox status` again.
+   `bun run sandbox hc send <terminal> "exec sh -c 'printf %b \"\$1\"; read line; printf %b \"\$2\"; exec sleep 86400' qa '\033]7501;state=blocked:app=pi:kind=permission\033\\\\' '\033]7501;state=working:app=pi\033\\\\'"`
+8. Take a `shot` of the ask card, and run `bun run sandbox status`: `overlays` holds no
+   `koja-toast`, and the status prints no error.
+9. Send a line to the first terminal, so it reports working:
+   `bun run sandbox hc send --force <terminal> next`. The card closes on a 500 ms host tick, so
+   repeat `bun run sandbox status` until `overlays` no longer holds `koja-asks`, for at most 10
+   seconds. Only then take a `shot`: the ask card is gone, and `overlays` holds no `koja-toast`.
+10. Create a second space on the fixture folder, record its `terminal` and `tab`, and click another
+    space so its tab stays hidden. Label its terminal as a worker:
+    `bun run sandbox hc label "$terminal" tau.role=worker`
+11. Send the blocked report to the worker terminal, as in step 7. Take a `shot`: the toast shows and
+    no card shows.
+12. Click the worker's toast, and run `bun run sandbox status`: `overlays` no longer holds
+    `koja-toast`.
+13. Create a third space on the fixture folder, record its `terminal` and `tab`, and click another
+    space so its tab stays hidden. Send a report that works and then idles:
+    `bun run sandbox hc send <terminal> "exec sh -c 'printf %b \"\$1\"; sleep 2; printf %b \"\$2\"; exec sleep 86400' qa '\033]7501;state=working:app=pi\033\\\\' '\033]7501;state=idle:app=pi\033\\\\'"`
+14. Take a `shot` after the second report: the finished toast shows.
 
 ## Observable results
 
@@ -36,6 +51,14 @@ Drive a notification in the sandbox the brief names. Follow
   border.
 - A click runs the notification's action, so a blocked agent's tab is focused and shown.
 - After the click, `overlays` no longer holds `koja-toast`.
+- An agent that reports `state=blocked:kind=permission` in a tab not shown shows Koja's ask card and
+  no toast. `overlays` in `bun run sandbox status` holds no `koja-toast`, and the status prints no
+  error.
+- After the first ask is ended, its card is gone and `overlays` holds no `koja-toast`.
+- An agent that reports working and then idle in a tab not shown still shows the finished toast.
+- A top-level terminal labeled `tau.role=worker` that reports blocked in a tab not shown shows a
+  toast and no card.
+- A click on the worker's toast removes `koja-toast` from `overlays`.
 
 ## End state
 

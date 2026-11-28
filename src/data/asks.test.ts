@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { AskAgent } from './askFacts.ts';
-import { asksOf, unseenAsks } from './askFacts.ts';
+import type { Ask, AskAgent } from './asks.ts';
+import { asksOf, askViewOf, cardAsks, unseenAsks } from './asks.ts';
 
 const agent = (overrides: Partial<AskAgent> = {}): AskAgent => ({
   address: 't1',
@@ -175,5 +175,88 @@ describe('unseenAsks', () => {
 
   test('keeps an ask in the focused tab while the window is not active', () => {
     expect(unseenAsks([ask], { focusedTab: 'k1', windowActive: false })).toEqual([ask]);
+  });
+});
+
+const cardAsk = (identity: string, tabId = 'k1', seq = 1): Ask => ({
+  identity,
+  address: identity,
+  spaceId: 's1',
+  spaceName: 'Build window shell',
+  project: 'koja',
+  tabId,
+  paneId: 'p1',
+  agent: 'Claude Code',
+  kind: 'permission',
+  question: 'Allow this command?',
+  command: 'bun run up',
+  seq,
+});
+
+describe('cardAsks', () => {
+  test('keeps an unseen ask that is not handled', () => {
+    const unseen = cardAsk('a');
+
+    expect(cardAsks([unseen], { focusedTab: 'k2', windowActive: true }, [])).toEqual([unseen]);
+  });
+
+  test('leaves out an unseen ask that is handled', () => {
+    const unseen = cardAsk('a');
+
+    expect(cardAsks([unseen], { focusedTab: 'k2', windowActive: true }, ['a'])).toEqual([]);
+  });
+
+  test('leaves out a seen ask', () => {
+    const seen = cardAsk('a');
+
+    expect(cardAsks([seen], { focusedTab: 'k1', windowActive: true }, [])).toEqual([]);
+  });
+
+  test('returns the newest ask first', () => {
+    const older = cardAsk('a', 'k1', 1);
+    const newer = cardAsk('b', 'k1', 2);
+
+    expect(cardAsks([older, newer], { focusedTab: 'k2', windowActive: true }, [])).toEqual([
+      newer,
+      older,
+    ]);
+  });
+
+  test('lists only the unseen asks the card does not handle', () => {
+    const doneReport = { state: 'done', kind: null, msg: '' };
+
+    const terminals = [
+      blocked(undefined, { address: 't1', labels: { 'tau.role': 'worker' } }),
+      blocked(undefined, { address: 't2', parent: 't1' }),
+      blocked(undefined, { address: 't3' }),
+      blocked(doneReport, { address: 't4' }),
+      blocked(undefined, { address: 't5' }),
+    ];
+
+    const agents = [
+      agent({ address: 't1', tab: 'k1' }),
+      agent({ address: 't2', tab: 'k2' }),
+      agent({ address: 't3', tab: 'k1' }),
+      agent({ address: 't4', tab: 'k2' }),
+      agent({ address: 't5', tab: 'k3' }),
+    ];
+
+    const live = asksOf(sources(terminals, agents));
+    const card = cardAsks(live, { focusedTab: 'k1', windowActive: true }, []);
+
+    expect(card.map((ask) => ask.address)).toEqual(['t5']);
+  });
+});
+
+describe('askViewOf', () => {
+  test('reads the focused tab and the active window', () => {
+    expect(askViewOf({ tab: 'k2' }, { active: true })).toEqual({
+      focusedTab: 'k2',
+      windowActive: true,
+    });
+  });
+
+  test('reads no focus and no window as an unfocused inactive view', () => {
+    expect(askViewOf(null, null)).toEqual({ focusedTab: null, windowActive: false });
   });
 });

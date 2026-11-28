@@ -1,8 +1,9 @@
-import type { AgentInfo, Program } from 'herdr';
+import type { AgentInfo, Program, focused } from 'herdr';
 
-import type { TerminalMetadata } from '../../data/terminalRecord.ts';
-import { terminalMetadata } from '../../data/terminalRecord.ts';
-import { numberOf, recordOf, stringOf } from '../../kit/fields.ts';
+import { numberOf, recordOf, stringOf } from '../kit/fields.ts';
+import type { currentWindow } from '../kit/window.ts';
+import type { TerminalMetadata } from './terminalRecord.ts';
+import { terminalMetadata } from './terminalRecord.ts';
 
 type AskKind = 'permission' | 'question';
 
@@ -36,6 +37,17 @@ export interface AskView {
   focusedTab: string | null;
   windowActive: boolean;
 }
+
+type FocusedTab = Pick<NonNullable<ReturnType<typeof focused>>, 'tab'>;
+
+type ActiveWindow = Pick<NonNullable<ReturnType<typeof currentWindow>>, 'active'>;
+
+export const handledAsksKey = 'koja-asks.handled';
+
+export const askViewOf = (focus: FocusedTab | null, window: ActiveWindow | null): AskView => ({
+  focusedTab: focus?.tab ?? null,
+  windowActive: window?.active === true,
+});
 
 const permissionQuestion = 'Allow this command?';
 
@@ -130,3 +142,14 @@ export const asksOf = (sources: AskSources): Ask[] => {
 
 export const unseenAsks = (asks: readonly Ask[], view: AskView): Ask[] =>
   asks.filter((ask) => !view.windowActive || ask.tabId !== view.focusedTab);
+
+export const cardAsks = (
+  live: readonly Ask[],
+  view: AskView,
+  handled: readonly string[],
+): Ask[] => {
+  const handledIdentities = new Set(handled);
+  const unseen = unseenAsks(live, view).filter((ask) => !handledIdentities.has(ask.identity));
+
+  return unseen.toSorted((left, right) => right.seq - left.seq);
+};

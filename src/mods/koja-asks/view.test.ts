@@ -17,9 +17,9 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import type { Ask } from '../../data/asks.ts';
 import type { NeedsYouHint } from '../../kit/needsYou.ts';
 import { needsYouHint } from '../../kit/needsYou.ts';
-import type { Ask } from './askFacts.ts';
 import type { AskRow } from './card.ts';
 import type { CardActions } from './view.ts';
 
