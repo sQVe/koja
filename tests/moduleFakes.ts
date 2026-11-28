@@ -169,6 +169,7 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   icon: noop,
   iconButton: noop,
   iconNames: [],
+  iconPath: () => '',
   iconSlot: noop,
   iconToggle: noop,
   indicator: noop,

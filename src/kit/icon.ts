@@ -9,8 +9,10 @@ import { iconSize, spinnerPeriod } from './size.ts';
 
 export type IconSize = keyof typeof iconSize;
 
+export const iconPath = (name: IconName): string => `mods/${modName}/icons/${name}.svg`;
+
 export const icon = (name: IconName, size: IconSize = 'default'): Element =>
-  svg(`mods/${modName}/icons/${name}.svg`).size(iconSize[size]).flex_none();
+  svg(iconPath(name)).size(iconSize[size]).flex_none();
 
 export const spinnerIcon = (size: IconSize = 'xsmall'): Element => icon('loader-circle', size);
 

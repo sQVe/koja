@@ -35,7 +35,7 @@ export type { Fact } from './factRows.ts';
 
 export { terminalFont, terminalFontSize, terminalFontStyle } from './font.ts';
 
-export { icon, iconSlot, programIcon, spinner } from './icon.ts';
+export { icon, iconPath, iconSlot, programIcon, spinner } from './icon.ts';
 
 export { iconNames } from './iconNames.ts';
 

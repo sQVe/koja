@@ -5,7 +5,7 @@ import { notify } from 'herdr';
 import type { ToastCardOptions, ToastLevel } from '../../kit/index.ts';
 import {
   actionButton,
-  modName,
+  iconPath,
   toastCard,
   toastCommandBody,
   toastLevels,
@@ -38,7 +38,7 @@ const levelSample = (level: ToastLevel): Element => {
 };
 
 const iconSample = (): Element => {
-  const icon = ['mods', modName, 'icons', 'palette.svg'].join('/');
+  const icon = iconPath('palette');
   const message = messages.info;
 
   return toastSample('Icon instead of the level dot', {
