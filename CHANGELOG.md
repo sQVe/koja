@@ -1,5 +1,14 @@
 # koja
 
+## 0.9.2
+
+### Patch Changes
+
+- [#155](https://github.com/sQVe/koja/pull/155)
+  [`93e08fb`](https://github.com/sQVe/koja/commit/93e08fb5556901763f279007f7b772089b41717d) Thanks
+  [@sQVe](https://github.com/sQVe)! - A mock scene window gives the keyboard to the search field it
+  draws, so typing lands in that field instead of nowhere.
+
 ## 0.9.1
 
 ### Patch Changes
