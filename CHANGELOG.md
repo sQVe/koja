@@ -1,5 +1,24 @@
 # koja
 
+## 0.10.0
+
+### Minor Changes
+
+- [#161](https://github.com/sQVe/koja/pull/161)
+  [`d11e076`](https://github.com/sQVe/koja/commit/d11e076a0009742d542b90066d6da151946c31d9) Thanks
+  [@sQVe](https://github.com/sQVe)! - Notifications draw in Koja's look.
+
+### Patch Changes
+
+- [#167](https://github.com/sQVe/koja/pull/167)
+  [`1ef1387`](https://github.com/sQVe/koja/commit/1ef1387b4b2789dc00f0478c97103fb2c3548459) Thanks
+  [@sQVe](https://github.com/sQVe)! - Give a command one identity when its arguments differ only in
+  key order or in fields JSON drops.
+
+- [#162](https://github.com/sQVe/koja/pull/162)
+  [`ed3104b`](https://github.com/sQVe/koja/commit/ed3104bdd714e5421a0450ca57046c20c936903d) Thanks
+  [@sQVe](https://github.com/sQVe)! - An agent ask shows one alert, not two.
+
 ## 0.9.4
 
 ### Patch Changes
