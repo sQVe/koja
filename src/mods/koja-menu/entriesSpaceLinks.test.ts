@@ -122,6 +122,15 @@ describe('space menu links', () => {
     expect(copied).toEqual([branch]);
   });
 
+  test('a URL with a port, a query, and a fragment still opens unchanged', () => {
+    const { cx, opened } = recorder();
+    const url = 'https://example.invalid:8443/koja/pull/505?diff=split#top';
+
+    actionOf({ pull: { number: 505, url } }, 'Open PR on GitHub').action(cx);
+
+    expect(opened).toEqual([url]);
+  });
+
   test('a branch with spaces around it is copied without them', () => {
     const { cx, copied } = recorder();
 

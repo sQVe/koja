@@ -94,7 +94,7 @@ const isMenuKind = (value: string | null): value is MenuKind =>
   menuKinds.some((kind) => kind === value);
 
 // `open_url` takes an absolute http or https URL with a host and refuses every other scheme.
-const webUrl = /^https?:\/\/[^\s/?#@:]+(?::\d+)?([/?#]\S*)?$/;
+const webUrl = /^https?:\/\/[^\s/?#@:]+(?::\d+)?(?:[/?#]\S*)?$/;
 
 const isPresent = (text: string | null | undefined): text is string =>
   text !== null && text !== undefined && text !== '';
