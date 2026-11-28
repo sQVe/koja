@@ -1,6 +1,7 @@
 import { mock } from 'bun:test';
 
-import { drawn } from './drawn.ts';
+import type { DrawnElement } from './drawn.ts';
+import { drawn, drawnTexts } from './drawn.ts';
 import {
   chainable,
   gpuiBaseFake,
@@ -77,4 +78,14 @@ export const mockGalleryModules = async (herdr: ModuleFake = {}): Promise<Module
   await mock.module('herdr', () => herdrFake(herdr));
 
   return realKitIndexFake(galleryKitParts);
+};
+
+export const sampleNamed = (parts: DrawnElement[], label: string): DrawnElement => {
+  const found = parts.find((part) => drawnTexts(part).includes(label));
+
+  if (found === undefined) {
+    throw new Error(`The gallery has no sample named ${label}.`);
+  }
+
+  return found;
 };

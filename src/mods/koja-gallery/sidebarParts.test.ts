@@ -8,7 +8,7 @@ import {
   elementWithText,
   numberStyle,
 } from '../../../tests/drawn.ts';
-import { mockGalleryModules } from '../../../tests/gallery.ts';
+import { mockGalleryModules, sampleNamed } from '../../../tests/gallery.ts';
 import { controlSize } from '../../kit/size.ts';
 
 Object.assign(globalThis, { kojaModName: 'koja' });
@@ -27,16 +27,8 @@ const label = 'Fact lines: a short value, a long cut value, and a row with no fa
 
 const longValue = 'me-1181-find-a-space-by-pr-ticket-or-branch-in-the-picker';
 
-const specimen = (): DrawnElement => {
-  const parts = sidebarParts() as unknown as DrawnElement[];
-  const found = parts.find((part) => drawnTexts(part).includes(label));
-
-  if (found === undefined) {
-    throw new Error(`The gallery has no sample named ${label}.`);
-  }
-
-  return found;
-};
+const specimen = (): DrawnElement =>
+  sampleNamed(sidebarParts() as unknown as DrawnElement[], label);
 
 const factRowOf = (part: DrawnElement, value: string): DrawnElement => {
   const row = elementAroundText(part, value);
