@@ -122,6 +122,14 @@ describe('space menu links', () => {
     expect(copied).toEqual([branch]);
   });
 
+  test('a branch with spaces around it is copied without them', () => {
+    const { cx, copied } = recorder();
+
+    actionOf({ branch: `  ${branch}  ` }, 'Copy branch name').action(cx);
+
+    expect(copied).toEqual([branch]);
+  });
+
   test.each([
     ['a ticket URL that is not http or https', { ticket: { id: 'ME-1182', url: 'file:///tmp' } }],
     ['a pull URL that is not http or https', { pull: { number: 505, url: 'file:///tmp' } }],

@@ -97,9 +97,9 @@ const isMenuKind = (value: string | null): value is MenuKind =>
 const webUrl = /^https?:\/\/[^\s/?#@:]+(?::\d+)?(?:[/?#]|$)/;
 
 const namedTextOf = (value: unknown): string | null => {
-  const text = stringOf(value);
+  const text = stringOf(value)?.trim();
 
-  return text !== null && text.trim() !== '' ? text : null;
+  return text === undefined || text === '' ? null : text;
 };
 
 const ticketLinkOf = (value: unknown): MenuTicketLink | null => {
