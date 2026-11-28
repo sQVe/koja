@@ -4,11 +4,15 @@ import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
   click,
   clickablesWithText,
+  descendants,
+  drawnIcons,
   drawnTexts,
   drawnTree,
   elementWithText,
+  numberStyle,
 } from '../../../tests/drawn.ts';
 import { mockGalleryModules } from '../../../tests/gallery.ts';
+import { toastSize } from '../../kit/size.ts';
 
 interface Notification {
   title: string;
@@ -20,6 +24,12 @@ interface Notification {
 
 const notifications: Notification[] = [];
 
+const palette = {
+  raised: '#101010',
+  solid: '#202020',
+  solid_foreground: '#303030',
+};
+
 Object.assign(globalThis, { kojaModName: 'koja' });
 
 const kitFake = await mockGalleryModules({
@@ -28,6 +38,7 @@ const kitFake = await mockGalleryModules({
 
     return 'toast-1';
   },
+  theme: () => palette,
 });
 
 await mock.module('../../kit/index.ts', () => kitFake);
@@ -64,7 +75,7 @@ const sampleNamed = (label: string): DrawnElement => {
   return found;
 };
 
-test('draws every level and the icon sample with its message', () => {
+test('draws every level with its message', () => {
   const texts = drawnTexts(drawnTree(toasts() as unknown as DrawnElement[]));
 
   for (const title of ['Update available', 'Build finished', 'Checks are stale', 'Build failed']) {
@@ -72,7 +83,14 @@ test('draws every level and the icon sample with its message', () => {
   }
 
   expect(texts).toContain('All checks passed.');
-  expect(texts).toContain('Icon instead of the level dot');
+});
+
+test('draws the icon sample with its icon and message', () => {
+  const icon = sampleNamed('Icon instead of the level dot');
+
+  expect(drawnIcons(icon)).toEqual(['palette.svg']);
+  expect(drawnTexts(icon)).toContain('Update available');
+  expect(drawnTexts(icon)).toContain('Restart to install the new version.');
 });
 
 test('draws the fitted two-line body in full and clips the fixed card to its first line', () => {
@@ -86,9 +104,18 @@ test('draws the fitted two-line body in full and clips the fixed card to its fir
   expect(drawnTexts(fixed)).not.toContain(bothLines);
 });
 
-test('draws the login command with its Copy control', () => {
+test('frames the fixed sample at the notification window size', () => {
+  const fixed = sampleNamed('Fixed height, as a notification shows');
+  const frame = descendants(fixed).find((part) => part.styles['h'] !== undefined);
+
+  expect(numberStyle(frame, 'w')).toBe(toastSize.width);
+  expect(numberStyle(frame, 'h')).toBe(toastSize.windowHeight);
+});
+
+test('draws the login command with its Copy control enabled', () => {
   const login = sampleNamed('Machine login with a Copy button');
+  const copy = elementWithText(login, 'Copy');
 
   expect(drawnTexts(login)).toContain('hc machine login devbox');
-  expect(elementWithText(login, 'Copy')).not.toBeNull();
+  expect(copy?.backgroundColors.at(-1)).toBe(palette.solid);
 });

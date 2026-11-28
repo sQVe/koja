@@ -73,7 +73,7 @@ const fixedSample = (): Element => {
     fitHeight: false,
   });
 
-  const frame = div().w(toastSize.width).h(toastSize.minHeight).child(card);
+  const frame = div().w(toastSize.width).h(toastSize.windowHeight).child(card);
 
   return sample('Fixed height, as a notification shows', surfaceSample('chrome', frame));
 };

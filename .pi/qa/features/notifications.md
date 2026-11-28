@@ -19,10 +19,10 @@ Drive a notification in the sandbox the brief names. Follow
 3. Take a `shot` of the toast, and run `bun run sandbox status` to see `koja-toast` in `overlays`.
 4. Click the toast, and run `bun run sandbox status` again.
 5. Create a space on a fixture folder with `bun run sandbox do space.new --folder <fixture folder>`,
-   and record the `terminal` it prints.
+   and record the `terminal` and `tab` it prints.
 6. Click another space in the sidebar, so the new space's tab is not shown. Run
-   `bun run sandbox status` and check that `focus` names the other space's terminal, not the saved
-   one.
+   `bun run sandbox status` and check that its `tab` is not the `tab` you saved, so the new space's
+   tab stays hidden.
 7. Send the blocked report to the saved terminal:
    `bun run sandbox hc send <terminal> "exec sh -c 'printf %b \"\$1\"; exec sleep 86400' qa '\033]7501;state=blocked:app=pi:kind=question\033\\\\'"`
 8. Take a `shot` of the toast, and run `bun run sandbox status` to see `koja-toast` in `overlays`.
