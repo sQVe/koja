@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { bodyOf, githubFixture, runWith } from '../../tests/pullAnswers.ts';
+import { bodyOf, githubFixture, pullNodeOf, runWith } from '../../tests/pullAnswers.ts';
+import { pullFacts } from '../../tests/pullFacts.ts';
 import { repositoryOf } from './gitIdentity.ts';
 import type { Pull, PullRead } from './pulls.ts';
 import { readRepositoryPulls } from './pulls.ts';
@@ -35,20 +36,11 @@ const fixtureUrlOf = (name: string): string => {
 };
 
 const openNodeWithout = (url: string | null): Record<string, unknown> => {
-  const node: Record<string, unknown> = {
-    number: 7,
-    state: 'OPEN',
-    isDraft: false,
-    title: 'Fixture pull request',
-    headRefName: 'fixture-branch',
-    mergeable: 'MERGEABLE',
-    mergeStateStatus: 'CLEAN',
-    reviewDecision: null,
-    commits: { nodes: [] },
-    reviewThreads: { pageInfo: { hasNextPage: false }, nodes: [] },
-  };
+  const node = pullNodeOf(pullFacts({ number: 7, headRefName: 'fixture-branch' }));
 
-  if (url !== null) {
+  if (url === null) {
+    delete node['url'];
+  } else {
     node['url'] = url;
   }
 
@@ -64,9 +56,9 @@ const readOpenNode = (node: Record<string, unknown>): Promise<PullRead> =>
 
 describe('pull URL', () => {
   test('a read pull carries its URL', async () => {
-    const [pull] = pullsOf(await readOf('ready'));
+    const pulls = pullsOf(await readOf('ready'));
 
-    expect(pull?.url).toBe(fixtureUrlOf('ready'));
+    expect(pulls.map((pull) => pull.url)).toEqual([fixtureUrlOf('ready')]);
   });
 
   test('a pull node without a URL is malformed', async () => {
