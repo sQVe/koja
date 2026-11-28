@@ -1,6 +1,7 @@
-import type { AgentInfo, Program } from 'herdr';
+import type { AgentInfo, Program, focused } from 'herdr';
 
 import { numberOf, recordOf, stringOf } from '../kit/fields.ts';
+import type { currentWindow } from '../kit/window.ts';
 import type { TerminalMetadata } from './terminalRecord.ts';
 import { terminalMetadata } from './terminalRecord.ts';
 
@@ -36,6 +37,15 @@ export interface AskView {
   focusedTab: string | null;
   windowActive: boolean;
 }
+
+type FocusedTab = Pick<NonNullable<ReturnType<typeof focused>>, 'tab'>;
+
+type ActiveWindow = Pick<NonNullable<ReturnType<typeof currentWindow>>, 'active'>;
+
+export const askViewOf = (focus: FocusedTab | null, window: ActiveWindow | null): AskView => ({
+  focusedTab: focus?.tab ?? null,
+  windowActive: window?.active === true,
+});
 
 const permissionQuestion = 'Allow this command?';
 

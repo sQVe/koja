@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import type { AskAgent } from './asks.ts';
-import { asksOf, unseenAskAddresses, unseenAsks } from './asks.ts';
+import { asksOf, askViewOf, unseenAskAddresses, unseenAsks } from './asks.ts';
 
 const agent = (overrides: Partial<AskAgent> = {}): AskAgent => ({
   address: 't1',
@@ -204,5 +204,18 @@ describe('unseenAskAddresses', () => {
     });
 
     expect([...shown]).toEqual(['t5']);
+  });
+});
+
+describe('askViewOf', () => {
+  test('reads the focused tab and the active window', () => {
+    expect(askViewOf({ tab: 'k2' }, { active: true })).toEqual({
+      focusedTab: 'k2',
+      windowActive: true,
+    });
+  });
+
+  test('reads no focus and no window as an unfocused inactive view', () => {
+    expect(askViewOf(null, null)).toEqual({ focusedTab: null, windowActive: false });
   });
 });

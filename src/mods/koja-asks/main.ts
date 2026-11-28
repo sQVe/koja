@@ -20,7 +20,7 @@ import {
 } from 'herdr';
 
 import type { Ask } from '../../data/asks.ts';
-import { asksOf, unseenAsks } from '../../data/asks.ts';
+import { asksOf, askViewOf, unseenAsks } from '../../data/asks.ts';
 import { readDataState } from '../../data/consumer.ts';
 import {
   closeOverlay as closeCurrentOverlay,
@@ -405,10 +405,7 @@ export default class KojaAsks extends View {
   }
 
   private snapshot(): Snapshot {
-    const view = {
-      focusedTab: focused()?.tab ?? null,
-      windowActive: currentWindow()?.active === true,
-    };
+    const view = askViewOf(focused(), currentWindow());
 
     const spaceList = spaces();
     const paneList = panes();
