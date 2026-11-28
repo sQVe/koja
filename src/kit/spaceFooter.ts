@@ -13,7 +13,7 @@ export interface SpaceFooterOptions {
   links: Element[];
 }
 
-const footerLine = (start: Element, end: Element[]): Element =>
+const footerLine = (start: Element, end: Element[] = []): Element =>
   h_flex()
     .flex_none()
     .min_w(0)
@@ -59,5 +59,5 @@ export const spaceFooter = (options: SpaceFooterOptions): Element => {
     return footer;
   }
 
-  return footer.child(footerLine(joinedLinks(options.links), []));
+  return footer.child(footerLine(joinedLinks(options.links)));
 };
