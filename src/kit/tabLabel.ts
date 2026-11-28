@@ -17,14 +17,11 @@ export const taskIndexOf = (terminalRecords: readonly unknown[]): Map<unknown, s
 export const taskOfPane = (pane: PaneInfo, tasks: ReadonlyMap<unknown, string>): string | null =>
   tasks.get(pane.terminal) ?? null;
 
-const workerTasksOf = (
-  tabInfo: TabInfo,
-  paneList: PaneInfo[],
-  tasks: ReadonlyMap<unknown, string>,
-): string[] => {
-  const tabTasks = paneList
-    .filter((pane) => pane.tab === tabInfo.id && pane.terminal !== null)
-    .map((pane) => tasks.get(pane.terminal));
+const tabPanesOf = (tabInfo: TabInfo, paneList: PaneInfo[]): PaneInfo[] =>
+  paneList.filter((pane) => pane.tab === tabInfo.id && pane.terminal !== null);
+
+const workerTasksOf = (tabPanes: PaneInfo[], tasks: ReadonlyMap<unknown, string>): string[] => {
+  const tabTasks = tabPanes.map((pane) => tasks.get(pane.terminal));
 
   const taskList = tabTasks.filter((task): task is string => task !== undefined);
 
@@ -44,21 +41,19 @@ const workerLabel = (tasks: readonly string[]): string | null => {
 };
 
 // An agent reports its work in the terminal title after a status glyph or a blinking mark. A title
-// that starts with a bracket or a quote keeps it.
+// that starts with a bracket or a quote keeps it, and a path keeps its leading marker so the path
+// guard still reads it.
 const cleanTitle = (title: string): string =>
   title
-    .replace(/^[^\p{L}\p{N}\p{Ps}\p{Pi}]+/u, '')
+    .replace(/^[^\p{L}\p{N}\p{Ps}\p{Pi}'"~/]+/u, '')
     .replace(/^\[ [!.] \] /, '')
     .trim();
 
 const isPath = (title: string): boolean =>
   /^[~/]|^[A-Za-z]:\\/.test(title.replace(/^[^\p{L}\p{N}~/]+/u, ''));
 
-const tabLead = (tabInfo: TabInfo, paneList: PaneInfo[]): PaneInfo | undefined => {
-  const tabPanes = paneList.filter((pane) => pane.tab === tabInfo.id && pane.terminal !== null);
-
-  return tabPanes.find((pane) => pane.program.agent) ?? tabPanes[0];
-};
+const tabLead = (tabPanes: PaneInfo[]): PaneInfo | undefined =>
+  tabPanes.find((pane) => pane.program.agent) ?? tabPanes[0];
 
 const namesThePlace = (title: string, pane: PaneInfo): boolean =>
   title === pane.terminal ||
@@ -67,21 +62,26 @@ const namesThePlace = (title: string, pane: PaneInfo): boolean =>
 
 const holdsWord = (title: string): boolean => /[\p{L}\p{N}]/u.test(title);
 
-const tellsTheWork = (pane: PaneInfo): boolean => {
-  const title = cleanTitle(pane.title);
-  const describesWork = holdsWord(title) && !title.includes('@') && !namesThePlace(title, pane);
+const describesWork = (title: string, pane: PaneInfo): boolean =>
+  holdsWord(title) && !title.includes('@') && !namesThePlace(title, pane);
 
-  return describesWork && !isPath(pane.title);
+// The cleaned title when it tells the work, so the name and the path guard read the same string.
+const workTitle = (pane: PaneInfo): string | null => {
+  const title = cleanTitle(pane.title);
+
+  if (!describesWork(title, pane) || isPath(title)) {
+    return null;
+  }
+
+  return title;
 };
 
-const liveTitle = (tabInfo: TabInfo, paneList: PaneInfo[]): string | null => {
-  const lead = tabLead(tabInfo, paneList);
-
+const liveTitle = (lead: PaneInfo | undefined): string | null => {
   if (lead === undefined || !lead.program.agent) {
     return null;
   }
 
-  return tellsTheWork(lead) ? cleanTitle(lead.title) : null;
+  return workTitle(lead);
 };
 
 export const ownName = (
@@ -101,13 +101,14 @@ const tabNameFromTaskLookup = (
     return own;
   }
 
-  const workerName = workerLabel(workerTasksOf(tabInfo, paneList, tasksOf()));
+  const tabPanes = tabPanesOf(tabInfo, paneList);
+  const workerName = workerLabel(workerTasksOf(tabPanes, tasksOf()));
 
   if (workerName !== null) {
     return workerName;
   }
 
-  const live = liveTitle(tabInfo, paneList);
+  const live = liveTitle(tabLead(tabPanes));
 
   if (live !== null) {
     return live;
@@ -150,4 +151,4 @@ export const tabLabel = (
 export const tabProgram = (
   tabInfo: TabInfo,
   paneList: PaneInfo[],
-): PaneInfo['program'] | undefined => tabLead(tabInfo, paneList)?.program;
+): PaneInfo['program'] | undefined => tabLead(tabPanesOf(tabInfo, paneList))?.program;
