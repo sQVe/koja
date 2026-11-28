@@ -165,7 +165,12 @@ const layOut = (tree: DrawnElement): void => {
 };
 
 const rowWithIcon = (tree: DrawnElement, name: string): DrawnElement => {
-  const row = tree.kids.find((kid) => elementWithIcon(kid, name) !== null);
+  const icon = elementWithIcon(tree, name);
+
+  const row =
+    icon === null
+      ? undefined
+      : descendants(tree).find((part) => part !== tree && descendants(part).includes(icon));
 
   if (row === undefined) {
     throw new Error(`No row with ${name}.`);
@@ -318,11 +323,11 @@ describe('scene picker', () => {
     view.init(undefined, asyncContext);
 
     const tree = view.render();
-    const texts = drawnTexts(tree);
+    const hint = drawnTexts(tree);
 
     expect(elementWithIcon(tree, 'circle-alert.svg')).toBeNull();
     expect(spinning(tree)).toBe(false);
-    expect(texts.length).toBeGreaterThan(0);
+    expect(hint).toHaveLength(1);
   });
 });
 
