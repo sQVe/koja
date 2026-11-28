@@ -14,7 +14,12 @@ afterAll(() => {
 
 const compoundFilterFixture = (): PickerData =>
   pickerData({
-    spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true), tabOf('k2', 2)])],
+    spaces: [
+      spaceOf('s1', 1, 'koja', [
+        { ...tabOf('k1', 1, true), name: 'logs', named: true },
+        tabOf('k2', 2),
+      ]),
+    ],
     panes: [
       paneOf('p1', 'k1', 'done'),
       paneOf('p2', 'k1', 'working'),
@@ -69,8 +74,10 @@ describe('list layout without a status filter', () => {
     const drawn = listOf('', data);
 
     const pane = rowMatching(drawn, hasText('zsh · title p1'), 'with zsh · title p1');
-    const tabRow = rowMatching(drawn, hasOnlyText('zsh'), 'with only zsh');
+    const tabRows = drawn.kids.filter(hasOnlyText('logs'));
+    const tabRow = rowMatching(drawn, hasOnlyText('logs'), 'with only logs');
 
+    expect(tabRows).toHaveLength(1);
     expect(numberStyle(pane, 'pl')).toBeGreaterThan(numberStyle(tabRow, 'pl'));
   });
 });

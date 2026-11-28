@@ -40,7 +40,7 @@ const renderedContext = {
   stop_propagation: () => undefined,
 };
 
-const chainable = (): unknown => {
+const chainable = (onKeyDown?: (handler: KeyDownHandler) => void): unknown => {
   const element: unknown = new Proxy(() => element, {
     get: (_target, key) => {
       if (key === 'then') {
@@ -57,7 +57,7 @@ const chainable = (): unknown => {
 
       if (key === 'on_key_down') {
         return (handler: KeyDownHandler) => {
-          keyDownHandler = handler;
+          onKeyDown?.(handler);
 
           return element;
         };
@@ -87,7 +87,10 @@ await mock.module('gpui-base', () =>
   gpuiBaseFake({
     h_flex: () => chainable(),
     InputState: { new: () => inputStub },
-    v_flex: () => chainable(),
+    v_flex: () =>
+      chainable((handler) => {
+        keyDownHandler = handler;
+      }),
     v_virtual_list: () => chainable(),
     VirtualListScrollHandle: { new: () => chainable() },
   }),
