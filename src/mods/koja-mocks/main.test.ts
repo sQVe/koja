@@ -448,10 +448,15 @@ describe('keyboard focus', () => {
     drawScene(view);
     runTimers();
 
+    expectDrawnFieldHoldsKeyboard();
+
     focusedInputs.length = 0;
+
     drawScene(view);
+    runTimers();
 
     expect(focusedInputs).toEqual([]);
+    expect(focusHandleCalls).toBe(0);
   });
 
   test('a scene that draws no search field keeps the keyboard on the view', async () => {
