@@ -113,7 +113,7 @@ describe('createSnapshotPublisher', () => {
     expect(store.values[snapshotKey]).toEqual(stored);
   });
 
-  test('writes version 8 when the facts of a stored version 2 snapshot change', () => {
+  test('writes version 9 when the facts of a stored version 2 snapshot change', () => {
     const store = memoryStore();
     const lease = claimFor(store, 'window-b', start);
 
