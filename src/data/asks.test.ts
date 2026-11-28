@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { AskAgent } from './asks.ts';
-import { asksOf, askViewOf, unseenAskAddresses, unseenAsks } from './asks.ts';
+import type { Ask, AskAgent } from './asks.ts';
+import { asksOf, askViewOf, cardAsks, unseenAsks } from './asks.ts';
 
 const agent = (overrides: Partial<AskAgent> = {}): AskAgent => ({
   address: 't1',
@@ -178,10 +178,53 @@ describe('unseenAsks', () => {
   });
 });
 
-describe('unseenAskAddresses', () => {
-  const doneReport = { state: 'done', kind: null, msg: '' };
+const cardAsk = (identity: string, tabId = 'k1', seq = 1): Ask => ({
+  identity,
+  address: identity,
+  spaceId: 's1',
+  spaceName: 'Build window shell',
+  project: 'koja',
+  tabId,
+  paneId: 'p1',
+  agent: 'Claude Code',
+  kind: 'permission',
+  question: 'Allow this command?',
+  command: 'bun run up',
+  seq,
+});
 
-  test('lists only asks the card announces', () => {
+describe('cardAsks', () => {
+  test('keeps an unseen ask that is not handled', () => {
+    const unseen = cardAsk('a');
+
+    expect(cardAsks([unseen], { focusedTab: 'k2', windowActive: true }, [])).toEqual([unseen]);
+  });
+
+  test('leaves out an unseen ask that is handled', () => {
+    const unseen = cardAsk('a');
+
+    expect(cardAsks([unseen], { focusedTab: 'k2', windowActive: true }, ['a'])).toEqual([]);
+  });
+
+  test('leaves out a seen ask', () => {
+    const seen = cardAsk('a');
+
+    expect(cardAsks([seen], { focusedTab: 'k1', windowActive: true }, [])).toEqual([]);
+  });
+
+  test('returns the newest ask first', () => {
+    const older = cardAsk('a', 'k1', 1);
+    const newer = cardAsk('b', 'k1', 2);
+
+    expect(cardAsks([older, newer], { focusedTab: 'k2', windowActive: true }, [])).toEqual([
+      newer,
+      older,
+    ]);
+  });
+
+  test('lists only the unseen asks the card does not handle', () => {
+    const doneReport = { state: 'done', kind: null, msg: '' };
+
     const terminals = [
       blocked(undefined, { address: 't1', labels: { 'tau.role': 'worker' } }),
       blocked(undefined, { address: 't2', parent: 't1' }),
@@ -198,12 +241,10 @@ describe('unseenAskAddresses', () => {
       agent({ address: 't5', tab: 'k3' }),
     ];
 
-    const shown = unseenAskAddresses(sources(terminals, agents), {
-      focusedTab: 'k1',
-      windowActive: true,
-    });
+    const live = asksOf(sources(terminals, agents));
+    const card = cardAsks(live, { focusedTab: 'k1', windowActive: true }, []);
 
-    expect([...shown]).toEqual(['t5']);
+    expect(card.map((ask) => ask.address)).toEqual(['t5']);
   });
 });
 

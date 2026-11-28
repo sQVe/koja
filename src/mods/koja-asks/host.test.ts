@@ -28,11 +28,15 @@ const open = (identity: string, signature = `sig-${identity}`): OpenCard => ({
 const signatures = (...identities: string[]): Map<string, string> =>
   new Map(identities.map((identity) => [identity, `sig-${identity}`]));
 
+const unseen = { focusedTab: 'k2', windowActive: true };
+
+const seen = { focusedTab: 'k1', windowActive: true };
+
 describe('planCard', () => {
   test('opens the newest unhandled ask when no card is open', () => {
     const plan = planCard({
-      asks: [ask('a')],
       live: [ask('a')],
+      view: unseen,
       handled: [],
       sounded: [],
       visible: [],
@@ -47,8 +51,8 @@ describe('planCard', () => {
 
   test('does nothing when the open card already shows the ask with the same signature', () => {
     const plan = planCard({
-      asks: [ask('a')],
       live: [ask('a')],
+      view: unseen,
       handled: [],
       sounded: ['a'],
       visible: [],
@@ -62,8 +66,8 @@ describe('planCard', () => {
 
   test('reopens the card when its content or geometry changes', () => {
     const plan = planCard({
-      asks: [ask('a')],
       live: [ask('a')],
+      view: unseen,
       handled: [],
       sounded: ['a'],
       visible: [],
@@ -78,8 +82,8 @@ describe('planCard', () => {
 
   test('replaces the card when a newer ask arrives', () => {
     const plan = planCard({
-      asks: [ask('b'), ask('a')],
       live: [ask('b'), ask('a')],
+      view: unseen,
       handled: [],
       sounded: ['a'],
       visible: [],
@@ -94,8 +98,8 @@ describe('planCard', () => {
 
   test('closes the card and prunes a handled ask that is gone', () => {
     const plan = planCard({
-      asks: [],
       live: [],
+      view: unseen,
       handled: ['a'],
       sounded: [],
       visible: [],
@@ -111,8 +115,8 @@ describe('planCard', () => {
 
   test('keeps a handled ask while it is still unseen', () => {
     const plan = planCard({
-      asks: [ask('a')],
       live: [ask('a')],
+      view: unseen,
       handled: ['a'],
       sounded: [],
       visible: [],
@@ -127,8 +131,8 @@ describe('planCard', () => {
 
   test('saves an ask that became visible as handled', () => {
     const plan = planCard({
-      asks: [],
       live: [ask('a')],
+      view: seen,
       handled: [],
       sounded: [],
       visible: ['a'],
@@ -143,8 +147,8 @@ describe('planCard', () => {
 
   test('prunes a handled ask that is gone while opening another', () => {
     const plan = planCard({
-      asks: [ask('b')],
       live: [ask('b')],
+      view: unseen,
       handled: ['a'],
       sounded: [],
       visible: [],
@@ -159,8 +163,8 @@ describe('planCard', () => {
 
   test('shows the next unhandled ask when the newest one is handled', () => {
     const plan = planCard({
-      asks: [ask('b'), ask('a')],
       live: [ask('b'), ask('a')],
+      view: unseen,
       handled: ['b'],
       sounded: [],
       visible: [],
@@ -173,8 +177,8 @@ describe('planCard', () => {
 
   test('plays the blocked sound for an ask the card opens for the first time', () => {
     const plan = planCard({
-      asks: [ask('a')],
       live: [ask('a')],
+      view: unseen,
       handled: [],
       sounded: [],
       visible: [],
@@ -189,8 +193,8 @@ describe('planCard', () => {
 
   test('plays no sound when the card redraws the ask it already sounded', () => {
     const plan = planCard({
-      asks: [ask('a')],
       live: [ask('a')],
+      view: unseen,
       handled: [],
       sounded: ['a'],
       visible: [],
@@ -205,8 +209,8 @@ describe('planCard', () => {
 
   test('plays no sound for an ask in sight', () => {
     const plan = planCard({
-      asks: [],
       live: [ask('a')],
+      view: seen,
       handled: [],
       sounded: [],
       visible: ['a'],
@@ -220,8 +224,8 @@ describe('planCard', () => {
 
   test('plays no sound for a finished turn', () => {
     const plan = planCard({
-      asks: [],
       live: [],
+      view: unseen,
       handled: [],
       sounded: [],
       visible: [],
@@ -235,8 +239,8 @@ describe('planCard', () => {
 
   test('plays no sound when the card falls back to an ask it already sounded', () => {
     const plan = planCard({
-      asks: [ask('a')],
       live: [ask('a')],
+      view: unseen,
       handled: [],
       sounded: ['a', 'b'],
       visible: [],
@@ -252,8 +256,8 @@ describe('planCard', () => {
 
   test('plays the sound again for the same ask after it finished and came back', () => {
     const gone = planCard({
-      asks: [],
       live: [],
+      view: unseen,
       handled: [],
       sounded: ['a'],
       visible: [],
@@ -265,8 +269,8 @@ describe('planCard', () => {
     expect(gone.soundedChanged).toBe(true);
 
     const back = planCard({
-      asks: [ask('a')],
       live: [ask('a')],
+      view: unseen,
       handled: [],
       sounded: gone.sounded,
       visible: [],
@@ -280,8 +284,8 @@ describe('planCard', () => {
 
   test('counts the ask it is already showing as sounded, without a sound', () => {
     const plan = planCard({
-      asks: [ask('a')],
       live: [ask('a')],
+      view: unseen,
       handled: [],
       sounded: [],
       visible: [],

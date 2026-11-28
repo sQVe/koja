@@ -42,6 +42,8 @@ type FocusedTab = Pick<NonNullable<ReturnType<typeof focused>>, 'tab'>;
 
 type ActiveWindow = Pick<NonNullable<ReturnType<typeof currentWindow>>, 'active'>;
 
+export const handledAsksKey = 'koja-asks.handled';
+
 export const askViewOf = (focus: FocusedTab | null, window: ActiveWindow | null): AskView => ({
   focusedTab: focus?.tab ?? null,
   windowActive: window?.active === true,
@@ -141,8 +143,13 @@ export const asksOf = (sources: AskSources): Ask[] => {
 export const unseenAsks = (asks: readonly Ask[], view: AskView): Ask[] =>
   asks.filter((ask) => !view.windowActive || ask.tabId !== view.focusedTab);
 
-export const unseenAskAddresses = (sources: AskSources, view: AskView): ReadonlySet<string> => {
-  const addresses = unseenAsks(asksOf(sources), view).map((ask) => ask.address);
+export const cardAsks = (
+  live: readonly Ask[],
+  view: AskView,
+  handled: readonly string[],
+): Ask[] => {
+  const handledIdentities = new Set(handled);
+  const unseen = unseenAsks(live, view).filter((ask) => !handledIdentities.has(ask.identity));
 
-  return new Set(addresses);
+  return unseen.toSorted((left, right) => right.seq - left.seq);
 };

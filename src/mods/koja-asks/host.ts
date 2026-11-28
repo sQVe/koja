@@ -1,4 +1,5 @@
-import type { Ask } from '../../data/asks.ts';
+import type { Ask, AskView } from '../../data/asks.ts';
+import { cardAsks } from '../../data/asks.ts';
 
 export interface OpenCard {
   id: string;
@@ -17,8 +18,8 @@ export interface CardPlan {
 }
 
 export interface PlanSources {
-  asks: readonly Ask[];
   live: readonly Ask[];
+  view: AskView;
   handled: readonly string[];
   sounded: readonly string[];
   visible: readonly string[];
@@ -44,8 +45,8 @@ export const planCard = (sources: PlanSources): CardPlan => {
 
   const sounded = liveOnly(sources.sounded, live);
 
-  // `asks` arrives newest first, so the first unhandled entry is the newest.
-  const shown = sources.asks.find((ask) => !handled.includes(ask.identity)) ?? null;
+  // `cardAsks` returns the unseen asks the card does not handle, newest first.
+  const shown = cardAsks(sources.live, sources.view, sources.handled)[0] ?? null;
 
   // An open card has already alerted the user for its ask, even when the sound list predates it.
   const sound = shown !== null && !sounded.includes(shown.identity);

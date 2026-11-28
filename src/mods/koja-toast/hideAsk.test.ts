@@ -29,6 +29,13 @@ describe('hidesAsk', () => {
     expect(hidesAsk(null, shownOf(['t3']))).toBe(false);
   });
 
+  test('keeps an agent.focus toast whose terminal is missing or not a string', () => {
+    const shown = shownOf(['t3']);
+
+    expect(hidesAsk({ name: 'agent.focus', args: {} }, shown)).toBe(false);
+    expect(hidesAsk({ name: 'agent.focus', args: { terminal: 3 } }, shown)).toBe(false);
+  });
+
   test('reads the shown asks only for an agent.focus action', () => {
     let reads = 0;
 

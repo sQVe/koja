@@ -15,6 +15,7 @@ import {
   herdrFake,
   realKitIndexFake,
 } from '../../../tests/moduleFakes.ts';
+import { handledAsksKey } from '../../data/asks.ts';
 
 interface RunCall {
   name: string;
@@ -22,6 +23,10 @@ interface RunCall {
 }
 
 type Call = { close: string | null } | RunCall;
+
+interface TimerTask {
+  cancel: () => void;
+}
 
 const palette = {
   accent: '#ff00aa',
@@ -49,7 +54,11 @@ let terminalsValue: Record<string, unknown>[] = [];
 let agentsValue: Record<string, unknown>[] = [];
 let focusedTab: string | null = 'k2';
 let windowActive = true;
-let spawned: Promise<unknown>[] = [];
+let checkingValue = false;
+let timerMilliseconds: number | null = null;
+let timerHandler: ((cx: unknown) => void) | null = null;
+let timerCancelled = false;
+let tickNotifyCount = 0;
 
 const copyContext = {
   stop_propagation: () => {
@@ -80,6 +89,7 @@ await mock.module('gpui-kit', () =>
 await mock.module('herdr', () =>
   herdrFake({
     agents: () => agentsValue,
+    checking: () => checkingValue,
     closeOverlay: (id: string | null) => {
       calls.push({ close: id });
 
@@ -108,10 +118,12 @@ const { overlayCloseCount } = await import('../../kit/overlay/open.ts');
 
 const kitFake = await realKitIndexFake([
   'button',
+  'fields',
   'overlay/open',
   'overlay/overlay',
   'size',
   'textRole',
+  'timer',
   'toast',
   'window',
 ]);
@@ -119,21 +131,43 @@ const kitFake = await realKitIndexFake([
 await mock.module('../../kit/index.ts', () => kitFake);
 
 const renderContext = {
-  spawn: (body: () => unknown) => {
-    spawned.push(Promise.resolve(body()));
+  notify: () => {
+    tickNotifyCount += 1;
   },
+  timer: {
+    every: (milliseconds: number, handler: (cx: unknown) => void): TimerTask => {
+      timerMilliseconds = milliseconds;
+      timerHandler = handler;
+
+      return {
+        cancel: () => {
+          timerCancelled = true;
+        },
+      };
+    },
+  },
+};
+
+const runTimer = (): void => {
+  const handler = timerHandler;
+
+  if (handler === null) {
+    throw new Error('the toast registered no timer');
+  }
+
+  handler(renderContext);
 };
 
 const loadView = async (): Promise<{
   init: (props: unknown, cx: unknown) => void;
-  render: (cx?: unknown) => DrawnElement;
+  render: (cx: unknown) => DrawnElement;
 }> => {
   const modulePath = './main.ts';
 
   const loaded = (await import(modulePath)) as {
     default: new () => {
       init: (props: unknown, cx: unknown) => void;
-      render: (cx?: unknown) => DrawnElement;
+      render: (cx: unknown) => DrawnElement;
     };
   };
 
@@ -154,7 +188,11 @@ beforeEach(() => {
   agentsValue = [];
   focusedTab = 'k2';
   windowActive = true;
-  spawned = [];
+  checkingValue = false;
+  timerMilliseconds = null;
+  timerHandler = null;
+  timerCancelled = false;
+  tickNotifyCount = 0;
 
   toastProps = {
     title: 'Agent blocked',
@@ -169,8 +207,8 @@ describe('toast', () => {
   test('closes the toast, then runs the action on click', async () => {
     const view = await loadView();
 
-    view.init(undefined, undefined);
-    click(view.render());
+    view.init(undefined, renderContext);
+    click(view.render(renderContext));
 
     expect(calls).toEqual([{ close: 'o3' }, { name: 'agent.focus', args: { terminal: 't3' } }]);
     expect(overlayCloseCount()).toBe(1);
@@ -180,8 +218,8 @@ describe('toast', () => {
     toastProps = { title: 'Update available', body: 'Restart to install.', overlay: 'o3' };
     const view = await loadView();
 
-    view.init(undefined, undefined);
-    click(view.render());
+    view.init(undefined, renderContext);
+    click(view.render(renderContext));
 
     expect(calls).toEqual([{ close: 'o3' }]);
   });
@@ -196,9 +234,11 @@ describe('toast', () => {
 
     const view = await loadView();
 
-    view.init(undefined, undefined);
+    view.init(undefined, renderContext);
 
-    const backgrounds = descendants(view.render()).flatMap((part) => part.backgroundColors);
+    const backgrounds = descendants(view.render(renderContext)).flatMap(
+      (part) => part.backgroundColors,
+    );
 
     expect(backgrounds).toContain(palette.working);
     expect(backgrounds).not.toContain(palette.accent);
@@ -214,9 +254,9 @@ describe('toast', () => {
 
     const view = await loadView();
 
-    view.init(undefined, undefined);
+    view.init(undefined, renderContext);
 
-    const glyph = elementWithIcon(view.render(), 'agent.svg');
+    const glyph = elementWithIcon(view.render(renderContext), 'agent.svg');
 
     expect(glyph?.kind).toBe('image');
     expect(glyph?.path).toBe('icons/agent.svg');
@@ -229,9 +269,9 @@ describe('toast', () => {
 
     const view = await loadView();
 
-    view.init(undefined, undefined);
+    view.init(undefined, renderContext);
 
-    const texts = drawnTexts(view.render());
+    const texts = drawnTexts(view.render(renderContext));
 
     expect(texts).toContain('Build failed');
     expect(texts).toContain(body);
@@ -246,9 +286,9 @@ describe('toast', () => {
 
     const view = await loadView();
 
-    view.init(undefined, undefined);
+    view.init(undefined, renderContext);
 
-    const card = view.render();
+    const card = view.render(renderContext);
     const copy = clickablesWithText(card, 'Copy').find((part) => part !== card);
 
     const title = drawnTexts(card).find(
@@ -264,7 +304,7 @@ describe('toast', () => {
 
     click(copy, copyContext);
 
-    const rerendered = view.render();
+    const rerendered = view.render(renderContext);
     const copied = clickablesWithText(rerendered, 'Copied').filter((part) => part !== rerendered);
     const stillCopy = clickablesWithText(rerendered, 'Copy').filter((part) => part !== rerendered);
 
@@ -305,18 +345,13 @@ describe('toast', () => {
 
     const view = await loadView();
 
-    view.init(undefined, undefined);
-
-    const first = view.render(renderContext);
-    const second = view.render(renderContext);
-
-    expect(calls).toEqual([]);
-
-    await Promise.all(spawned);
+    view.init(undefined, renderContext);
 
     expect(calls).toEqual([{ close: 'o3' }]);
-    expect(drawnTexts(first)).toEqual([]);
-    expect(drawnTexts(second)).toEqual([]);
+    expect(timerHandler).toBeNull();
+    expect(drawnTexts(view.render(renderContext))).toEqual([]);
+    expect(drawnTexts(view.render(renderContext))).toEqual([]);
+    expect(calls).toEqual([{ close: 'o3' }]);
   });
 
   test('draws a finished toast', async () => {
@@ -325,11 +360,9 @@ describe('toast', () => {
 
     const view = await loadView();
 
-    view.init(undefined, undefined);
+    view.init(undefined, renderContext);
 
     const card = view.render(renderContext);
-
-    await Promise.all(spawned);
 
     expect(drawnTexts(card)).toContain('Agent blocked');
     expect(calls).toEqual([]);
@@ -339,15 +372,12 @@ describe('toast', () => {
     terminalsValue = [blockedTerminal];
     agentsValue = [agent];
     focusedTab = 'k1';
-    windowActive = true;
 
     const view = await loadView();
 
-    view.init(undefined, undefined);
+    view.init(undefined, renderContext);
 
     const card = view.render(renderContext);
-
-    await Promise.all(spawned);
 
     expect(drawnTexts(card)).toContain('Agent blocked');
     expect(calls).toEqual([]);
@@ -357,18 +387,57 @@ describe('toast', () => {
     terminalsValue = [blockedTerminal];
     agentsValue = [agent];
     focusedTab = null;
-    windowActive = true;
 
     const view = await loadView();
 
-    view.init(undefined, undefined);
+    view.init(undefined, renderContext);
 
     const card = view.render(renderContext);
 
-    await Promise.all(spawned);
+    expect(drawnTexts(card)).toEqual([]);
+    expect(calls).toEqual([{ close: 'o3' }]);
+  });
+
+  test('hides the toast when the ask is in the focused tab and the window is not active', async () => {
+    terminalsValue = [blockedTerminal];
+    agentsValue = [agent];
+    focusedTab = 'k1';
+    windowActive = false;
+
+    const view = await loadView();
+
+    view.init(undefined, renderContext);
+
+    const card = view.render(renderContext);
 
     expect(drawnTexts(card)).toEqual([]);
     expect(calls).toEqual([{ close: 'o3' }]);
+  });
+
+  test('keeps the toast for an ask the card already handled', async () => {
+    terminalsValue = [blockedTerminal];
+    agentsValue = [agent];
+    sharedValues[handledAsksKey] = ['t3:1:permission:bun run up'];
+
+    const view = await loadView();
+
+    view.init(undefined, renderContext);
+
+    const card = view.render(renderContext);
+
+    expect(drawnTexts(card)).toContain('Agent blocked');
+    expect(calls).toEqual([]);
+  });
+
+  test('skips the re-check while Herdr checks the mod', async () => {
+    checkingValue = true;
+
+    const view = await loadView();
+
+    view.init(undefined, renderContext);
+
+    expect(timerHandler).toBeNull();
+    expect(drawnTexts(view.render(renderContext))).toContain('Agent blocked');
   });
 
   test('closes a toast that matches on a later render', async () => {
@@ -377,20 +446,19 @@ describe('toast', () => {
 
     const view = await loadView();
 
-    view.init(undefined, undefined);
+    view.init(undefined, renderContext);
 
-    const card = view.render(renderContext);
-
-    await Promise.all(spawned);
-
-    expect(drawnTexts(card)).toContain('Agent blocked');
+    expect(timerMilliseconds).toBe(100);
+    expect(tickNotifyCount).toBe(0);
+    expect(drawnTexts(view.render(renderContext))).toContain('Agent blocked');
     expect(calls).toEqual([]);
 
     terminalsValue = [blockedTerminal];
-    view.render(renderContext);
-
-    await Promise.all(spawned);
+    runTimer();
 
     expect(calls).toEqual([{ close: 'o3' }]);
+    expect(tickNotifyCount).toBe(1);
+    expect(timerCancelled).toBe(true);
+    expect(drawnTexts(view.render(renderContext))).toEqual([]);
   });
 });
