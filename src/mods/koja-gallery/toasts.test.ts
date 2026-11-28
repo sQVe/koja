@@ -69,6 +69,7 @@ const kitFake = await mockGalleryModules({
 
 await mock.module('../../kit/index.ts', () => kitFake);
 
+const { iconPath } = await import('../../kit/icon.ts');
 const { toasts } = await import('./toasts.ts');
 
 afterAll(() => {
@@ -107,7 +108,7 @@ test('draws the icon sample with a tinted kit icon and its message', () => {
   const glyph = elementWithIcon(icon, 'palette.svg');
 
   expect(glyph?.kind).toBe('svg');
-  expect(glyph?.path).toBe('mods/koja/icons/palette.svg');
+  expect(glyph?.path).toBe(iconPath('palette'));
   expect(drawnTexts(icon)).toContain('Update available');
   expect(drawnTexts(icon)).toContain('Restart to install the new version.');
 });
