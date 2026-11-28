@@ -1,5 +1,6 @@
 import { commandIdentity } from './commandTitles.ts';
 import { isRecord, recordOf, stringOf } from './fields.ts';
+import { parsedJson } from './parsedJson.ts';
 
 export const namesBinding = (value: unknown): value is string | number =>
   typeof value === 'string' || typeof value === 'number';
@@ -15,22 +16,17 @@ export const actionIdentity = (action: string): string | null => {
     return null;
   }
 
-  try {
-    const parsed: unknown = JSON.parse(action);
-    const record = recordOf(parsed);
-    const command = stringOf(record['command']);
-    const args = Object.hasOwn(record, 'args') ? record['args'] : {};
+  const record = recordOf(parsedJson(action));
+  const command = stringOf(record['command']);
+  const args = Object.hasOwn(record, 'args') ? record['args'] : {};
 
-    if (command === null || !isRecord(args)) {
-      return null;
-    }
-
-    if (Object.keys(args).length === 0) {
-      return command;
-    }
-
-    return commandIdentity(command, args);
-  } catch {
+  if (command === null) {
     return null;
   }
+
+  if (!isRecord(args)) {
+    return null;
+  }
+
+  return commandIdentity(command, args);
 };
