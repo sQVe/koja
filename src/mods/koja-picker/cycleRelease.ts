@@ -9,12 +9,13 @@ export interface CycleRelease<Row extends CycleRow> {
 }
 
 export const nextSpaceIndex = (rows: readonly CycleRow[], selectedKey: string | null): number => {
-  const selected = Math.max(
+  const selectedIndex = Math.max(
     0,
     rows.findIndex((row) => row.key === selectedKey),
   );
 
-  const ordered = [...rows.slice(selected + 1), ...rows.slice(0, selected + 1)];
+  const ordered = [...rows.slice(selectedIndex + 1), ...rows.slice(0, selectedIndex + 1)];
+
   const nextSpace = ordered.find((row) => row.kind === 'space');
 
   return nextSpace === undefined ? -1 : rows.indexOf(nextSpace);

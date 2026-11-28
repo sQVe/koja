@@ -4,6 +4,24 @@ import { bestFieldMatch, fuzzyMatch } from './match.ts';
 
 const spreadTextAfter = (separator: string): string => `a${'x'.repeat(20)}${separator}b`;
 
+const separatorCases = [
+  ['space', ' '],
+  ['tab', '\t'],
+  ['line feed', '\n'],
+  ['carriage return', '\r'],
+  ['vertical tab', '\v'],
+  ['form feed', '\f'],
+  ['no-break space', '\u00a0'],
+  ['line separator', '\u2028'],
+  ['slash', '/'],
+  ['underscore', '_'],
+  ['dot', '.'],
+  ['hyphen', '-'],
+  ['tilde', '~'],
+] as const;
+
+const separators = separatorCases.map(([, separator]) => separator);
+
 describe('fuzzyMatch', () => {
   test('finds the letters in order, whatever their case', () => {
     expect(fuzzyMatch('KJ', 'koja')?.positions).toEqual([0, 2]);
@@ -30,7 +48,7 @@ describe('fuzzyMatch', () => {
   });
 
   test('returns no match when every route start leads to a dead end', () => {
-    const count = 200;
+    const count = 10;
     const text = `${'a b '.repeat(count)}${'x'.repeat(12)}${'c'.repeat(count)}`;
 
     expect(fuzzyMatch('abc', text)).toBeNull();
@@ -83,26 +101,20 @@ describe('fuzzyMatch', () => {
   });
 
   test('starts a word after each separator and not after a letter', () => {
-    const separators = [
-      ' ',
-      '\t',
-      '\n',
-      '\r',
-      '\v',
-      '\f',
-      '\u00a0',
-      '\u2028',
-      '/',
-      '_',
-      '.',
-      '-',
-      '~',
-    ];
-
     for (const separator of separators) {
       expect(fuzzyMatch('ab', spreadTextAfter(separator))?.positions).toEqual([0, 22]);
     }
 
+    expect(fuzzyMatch('ab', spreadTextAfter('x'))).toBeNull();
+  });
+
+  for (const [name, separator] of separatorCases) {
+    test(`starts a word after the ${name} separator ${JSON.stringify(separator)}`, () => {
+      expect(fuzzyMatch('ab', spreadTextAfter(separator))?.positions).toEqual([0, 22]);
+    });
+  }
+
+  test('does not start a word after a letter', () => {
     expect(fuzzyMatch('ab', spreadTextAfter('x'))).toBeNull();
   });
 

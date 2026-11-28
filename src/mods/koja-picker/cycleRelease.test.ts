@@ -21,6 +21,16 @@ describe('nextSpaceIndex', () => {
     expect(nextSpaceIndex(rows, 'space:gone')).toBe(2);
   });
 
+  test('answers the space after the selected row when it is not the first', () => {
+    const threeSpaces = [
+      rowOf('space:a', 'space'),
+      rowOf('space:b', 'space'),
+      rowOf('space:c', 'space'),
+    ];
+
+    expect(nextSpaceIndex(threeSpaces, 'space:b')).toBe(2);
+  });
+
   test('answers -1 for empty rows', () => {
     expect(nextSpaceIndex([], null)).toBe(-1);
   });
@@ -80,7 +90,7 @@ describe('cycle release', () => {
       const random = seededRandom(seed);
       const cycle = createCycleRelease<CycleRow>();
 
-      let answeredSinceArm = false;
+      let armedRow: CycleRow | null = null;
 
       for (let step = 0; step < 40; step += 1) {
         const action = Math.floor(random() * 3);
@@ -89,15 +99,18 @@ describe('cycle release', () => {
           const index = Math.floor(random() * (rows.length + 1)) - 1;
 
           cycle.armRow(rows, index);
-          answeredSinceArm = false;
+          armedRow = index === -1 ? null : (rows[index] ?? null);
         } else if (action === 1) {
           cycle.disarm();
+          armedRow = null;
         } else {
           const released = cycle.releasedRow(rows);
-          const answersTwice = released !== undefined && answeredSinceArm;
 
-          expect(answersTwice, `seed ${seed}: one arm answered two releases`).toBe(false);
-          answeredSinceArm = answeredSinceArm || released !== undefined;
+          expect(released, `seed ${seed}: release did not answer the armed row`).toEqual(
+            armedRow ?? undefined,
+          );
+
+          armedRow = null;
         }
       }
     }

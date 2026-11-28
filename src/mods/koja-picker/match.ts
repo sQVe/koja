@@ -8,11 +8,10 @@ export interface FieldMatch extends Match {
 }
 
 interface FoldedText {
-  text: string;
   folded: readonly string[];
   // Folded code point index to original character index.
   originalOf: readonly number[];
-  // Original character index to its UTF-16 offset in `text`.
+  // Original character index to its UTF-16 offset in the source text.
   originalOffsets: readonly number[];
   // Original character index to its first folded code point index.
   foldedStarts: readonly number[];
@@ -53,6 +52,10 @@ const spreadPerLetter = 2;
 const spreadSlack = 4;
 
 const routeWorkBudget = 4096;
+
+// 4096 steps covers the word-start and adjacent candidates one keystroke explores while keeping
+// the search bounded. Running out returns no route match, so a matching row can be missing; change
+// it only as a deliberate tradeoff against keystroke time.
 
 // The ECMAScript `\s` set plus `/`, `_`, `.`, `-`, and `~`. The hyphen is escaped so the class
 // keeps it literal instead of spanning `.` to `~`.
@@ -107,7 +110,7 @@ const foldText = (text: string): FoldedText => {
     foldedStart += foldedLength;
   }
 
-  return { text, folded, originalOf, originalOffsets, foldedStarts, startsWord };
+  return { folded, originalOf, originalOffsets, foldedStarts, startsWord };
 };
 
 const isCompact = (folded: FoldedText, positions: readonly number[]): boolean => {
@@ -534,7 +537,12 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
   let best: Match | null = null;
   let bestScore = Number.NEGATIVE_INFINITY;
 
-  for (const start of firstPositions.slice(1)) {
+  // The first occurrence already had its greedy match; the rest can rescue a spread-out one.
+  const laterStarts = firstPositions.values();
+
+  laterStarts.next();
+
+  for (const start of laterStarts) {
     const candidate = matchFrom(queryCodePoints, folded, tables, start);
 
     if (candidate !== null && candidate.score > bestScore) {
