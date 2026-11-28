@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
+import type { Ask } from '../../data/asks.ts';
 import { needsYouHint } from '../../kit/needsYou.ts';
 import { askCardSize, spacing } from '../../kit/size.ts';
-import type { Ask } from './askFacts.ts';
 import type { AskRow, CardText, CardWindow } from './card.ts';
 import {
   cardGeometry,

@@ -1,8 +1,8 @@
+import type { Ask } from '../../data/asks.ts';
 import { listOf, numberOf, recordOf, stringOf } from '../../kit/fields.ts';
 import type { NeedsYouHint } from '../../kit/needsYou.ts';
 import { needsYouHint } from '../../kit/needsYou.ts';
 import { askCardSize, controlSize, keycapSize, spacing, textSize } from '../../kit/size.ts';
-import type { Ask } from './askFacts.ts';
 
 export interface CardMore {
   count: number;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { Ask } from './askFacts.ts';
+import type { Ask } from '../../data/asks.ts';
 import type { OpenCard } from './host.ts';
 import { planCard } from './host.ts';
 

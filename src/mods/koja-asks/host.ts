@@ -1,4 +1,4 @@
-import type { Ask } from './askFacts.ts';
+import type { Ask } from '../../data/asks.ts';
 
 export interface OpenCard {
   id: string;

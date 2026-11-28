@@ -2,6 +2,7 @@ import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
 
+import type { Ask } from '../../data/asks.ts';
 import {
   askCardSize,
   colors,
@@ -17,7 +18,6 @@ import {
   withTextRole,
 } from '../../kit/index.ts';
 import type { NeedsYouHint } from '../../kit/needsYou.ts';
-import type { Ask } from './askFacts.ts';
 import type { AskRow, CardMore } from './card.ts';
 import { listTitle, moreText, rowDetail, rowMeta } from './card.ts';
 

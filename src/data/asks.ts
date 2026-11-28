@@ -1,8 +1,8 @@
 import type { AgentInfo, Program } from 'herdr';
 
-import type { TerminalMetadata } from '../../data/terminalRecord.ts';
-import { terminalMetadata } from '../../data/terminalRecord.ts';
-import { numberOf, recordOf, stringOf } from '../../kit/fields.ts';
+import { numberOf, recordOf, stringOf } from '../kit/fields.ts';
+import type { TerminalMetadata } from './terminalRecord.ts';
+import { terminalMetadata } from './terminalRecord.ts';
 
 type AskKind = 'permission' | 'question';
 
@@ -130,3 +130,9 @@ export const asksOf = (sources: AskSources): Ask[] => {
 
 export const unseenAsks = (asks: readonly Ask[], view: AskView): Ask[] =>
   asks.filter((ask) => !view.windowActive || ask.tabId !== view.focusedTab);
+
+export const unseenAskAddresses = (sources: AskSources, view: AskView): ReadonlySet<string> => {
+  const addresses = unseenAsks(asksOf(sources), view).map((ask) => ask.address);
+
+  return new Set(addresses);
+};

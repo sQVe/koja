@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { AskAgent } from './askFacts.ts';
-import { asksOf, unseenAsks } from './askFacts.ts';
+import type { AskAgent } from './asks.ts';
+import { asksOf, unseenAskAddresses, unseenAsks } from './asks.ts';
 
 const agent = (overrides: Partial<AskAgent> = {}): AskAgent => ({
   address: 't1',
@@ -175,5 +175,34 @@ describe('unseenAsks', () => {
 
   test('keeps an ask in the focused tab while the window is not active', () => {
     expect(unseenAsks([ask], { focusedTab: 'k1', windowActive: false })).toEqual([ask]);
+  });
+});
+
+describe('unseenAskAddresses', () => {
+  const doneReport = { state: 'done', kind: null, msg: '' };
+
+  test('lists only asks the card announces', () => {
+    const terminals = [
+      blocked(undefined, { address: 't1', labels: { 'tau.role': 'worker' } }),
+      blocked(undefined, { address: 't2', parent: 't1' }),
+      blocked(undefined, { address: 't3' }),
+      blocked(doneReport, { address: 't4' }),
+      blocked(undefined, { address: 't5' }),
+    ];
+
+    const agents = [
+      agent({ address: 't1', tab: 'k1' }),
+      agent({ address: 't2', tab: 'k2' }),
+      agent({ address: 't3', tab: 'k1' }),
+      agent({ address: 't4', tab: 'k2' }),
+      agent({ address: 't5', tab: 'k3' }),
+    ];
+
+    const shown = unseenAskAddresses(sources(terminals, agents), {
+      focusedTab: 'k1',
+      windowActive: true,
+    });
+
+    expect([...shown]).toEqual(['t5']);
   });
 });
