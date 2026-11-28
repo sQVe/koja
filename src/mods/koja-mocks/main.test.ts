@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { drawn } from '../../../tests/drawn.ts';
+import { descendants, drawn } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -10,7 +10,6 @@ import {
 } from '../../../tests/moduleFakes.ts';
 import { overlaySize } from '../../kit/size.ts';
 import { findScene, sceneOrigin, sceneReadyLine } from './catalog.ts';
-import { sceneFields } from './scenes/inputs.ts';
 
 type SubmitHandler = (event: unknown, cx: { notify: () => void }) => void;
 
@@ -31,7 +30,7 @@ const spyOnLog = () => spyOn(console, 'log').mockImplementation(() => undefined)
 
 const createdInputs: InputStub[] = [];
 const focusedInputs: InputStub[] = [];
-const drawnInputs: InputStub[] = [];
+const drawnStates = new Map<DrawnElement, InputStub>();
 const pendingTimers: (() => void)[] = [];
 let focusHandleCalls = 0;
 let log: ReturnType<typeof spyOnLog>;
@@ -52,19 +51,15 @@ const createInput = (): InputStub => {
   return stub;
 };
 
-const chainable = (): unknown =>
-  new Proxy(() => undefined, {
-    get: (_target, key) => (key === 'then' ? undefined : chainable()),
-    apply: () => chainable(),
-  });
-
 await mock.module('gpui-base', () =>
   gpuiBaseFake({
     Input: {
       new: (state: InputStub) => {
-        drawnInputs.push(state);
+        const element = drawn();
 
-        return chainable();
+        drawnStates.set(element, state);
+
+        return element;
       },
     },
     InputState: {
@@ -76,8 +71,8 @@ await mock.module('gpui-base', () =>
         return created;
       },
     },
-    h_flex: chainable,
-    v_flex: chainable,
+    h_flex: () => drawn(),
+    v_flex: () => drawn(),
   }),
 );
 
@@ -88,8 +83,8 @@ await mock.module('gpui-kit', () =>
         return null;
       }
     },
-    div: chainable,
-    svg: chainable,
+    div: () => drawn(),
+    svg: (path: string) => drawn(path),
   }),
 );
 
@@ -108,6 +103,7 @@ Object.assign(globalThis, { kojaModName: 'koja-mocks' });
 
 const realKitParts = await realKitIndexFake([
   'button',
+  'fields',
   'icon',
   'searchField',
   'size',
@@ -127,15 +123,13 @@ await mock.module('../../kit/index.ts', () => ({
     shownKinds.push(options.kind);
     shownTexts.push(options.text);
 
-    return chainable();
+    return drawn();
   },
   modName: 'koja-mocks',
   popupSurface: () => drawn(),
-  recordOf: (value: unknown) => (typeof value === 'object' && value !== null ? value : {}),
-  stringOf: (value: unknown) => (typeof value === 'string' ? value : null),
 }));
 
-await mock.module('./directions/attention/brief.ts', () => ({ briefScene: chainable }));
+await mock.module('./directions/attention/brief.ts', () => ({ briefScene: () => drawn() }));
 
 const loadView = async (): Promise<{
   init: (props: unknown, cx: unknown) => void;
@@ -171,26 +165,38 @@ const layoutContext = {
   },
 };
 
-const drawScene = (view: { render: () => unknown }): void => {
+const drawScene = (view: { render: () => unknown }): DrawnElement => {
   const surface = view.render() as DrawnElement;
 
   for (const handler of surface.sizeHandlers) {
     handler({ width: 100, height: 100 }, layoutContext);
   }
+
+  return surface;
 };
 
-const lastFocus = (): InputStub => {
+const fieldsIn = (tree: DrawnElement): InputStub[] => {
+  const fields: InputStub[] = [];
+
+  for (const part of descendants(tree)) {
+    const field = drawnStates.get(part);
+
+    if (field !== undefined) {
+      fields.push(field);
+    }
+  }
+
+  return fields;
+};
+
+const expectDrawnFieldHoldsKeyboard = (tree: DrawnElement): void => {
   const focused = focusedInputs.at(-1);
 
   if (focused === undefined) {
     throw new Error('No field took the keyboard.');
   }
 
-  return focused;
-};
-
-const expectDrawnFieldHoldsKeyboard = (): void => {
-  expect(drawnInputs).toContain(lastFocus());
+  expect(fieldsIn(tree)).toContain(focused);
   expect(focusHandleCalls).toBe(0);
 };
 
@@ -218,7 +224,7 @@ afterAll(() => {
 beforeEach(() => {
   createdInputs.length = 0;
   focusedInputs.length = 0;
-  drawnInputs.length = 0;
+  drawnStates.clear();
   focusHandleCalls = 0;
   openedSpecs.length = 0;
   pendingTimers.length = 0;
@@ -395,17 +401,29 @@ describe('scene readiness', () => {
 });
 
 describe('keyboard focus', () => {
-  test.each(Object.keys(sceneFields))(
+  const fieldScenes: [string, number, number][] = [
+    ['popup', 1, 0],
+    ['controls', 2, 1],
+    ['smoke-1', 1, 0],
+    ['smoke-2', 1, 0],
+    ['smoke-3', 1, 0],
+    ['smoke-4', 1, 0],
+  ];
+
+  test.each(fieldScenes)(
     'the %s scene gives the keyboard to the field it draws',
-    async (name) => {
+    async (name, fieldCount, focusIndex) => {
       sceneProps = { scene: name };
 
       const view = await loadView();
 
       view.init(undefined, asyncContext);
-      view.render();
 
-      expectDrawnFieldHoldsKeyboard();
+      const fields = fieldsIn(view.render() as DrawnElement);
+
+      expect(fields).toHaveLength(fieldCount);
+      expect(focusedInputs.at(-1)).toBe(fields[focusIndex]);
+      expect(focusHandleCalls).toBe(0);
     },
   );
 
@@ -415,11 +433,13 @@ describe('keyboard focus', () => {
     const view = await loadView();
 
     view.init(undefined, { ...asyncContext, timer: layoutContext.timer });
-    view.render();
+
+    const tree = view.render() as DrawnElement;
+
     focusedInputs.length = 0;
     runTimers();
 
-    expectDrawnFieldHoldsKeyboard();
+    expectDrawnFieldHoldsKeyboard(tree);
   });
 
   test('the first frame gives the keyboard to the drawn field before the ready line', async () => {
@@ -429,9 +449,10 @@ describe('keyboard focus', () => {
 
     view.init(undefined, { ...asyncContext, timer: layoutContext.timer });
     focusedInputs.length = 0;
-    drawScene(view);
 
-    expectDrawnFieldHoldsKeyboard();
+    const tree = drawScene(view);
+
+    expectDrawnFieldHoldsKeyboard(tree);
     expect(log).not.toHaveBeenCalled();
 
     runTimers();
@@ -445,10 +466,12 @@ describe('keyboard focus', () => {
     const view = await loadView();
 
     view.init(undefined, { ...asyncContext, timer: layoutContext.timer });
-    drawScene(view);
+
+    const tree = drawScene(view);
+
     runTimers();
 
-    expectDrawnFieldHoldsKeyboard();
+    expectDrawnFieldHoldsKeyboard(tree);
 
     focusedInputs.length = 0;
 
@@ -479,10 +502,12 @@ describe('keyboard focus', () => {
     const view = await loadView();
 
     view.init(undefined, asyncContext);
-    view.render();
 
-    expect(drawnInputs).toHaveLength(1);
-    expectDrawnFieldHoldsKeyboard();
+    const fields = fieldsIn(view.render() as DrawnElement);
+
+    expect(fields).toHaveLength(1);
+    expect(fields.at(0)).toBe(focusedInputs.at(-1));
+    expect(focusHandleCalls).toBe(0);
   });
 });
 

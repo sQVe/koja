@@ -1,3 +1,4 @@
+import type { InputState } from 'gpui-base';
 import { h_flex, v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { div } from 'gpui-kit';
@@ -24,7 +25,11 @@ import {
   toggleButton,
   withTextRole,
 } from '../../../kit/index.ts';
-import type { SceneInputs } from './inputs.ts';
+
+export interface ControlsFields {
+  empty: InputState;
+  filled: InputState;
+}
 
 interface FakePane {
   name: string;
@@ -189,9 +194,9 @@ const toggles = (): Element[] => [
   line([attentionBadge('Needs you'), statusMark('working'), statusMark('done')]),
 ];
 
-const fields = (inputs: SceneInputs): Element[] => [
-  textField(inputs.field, false),
-  textField(inputs.filledField, true),
+const fields = (controlFields: ControlsFields): Element[] => [
+  textField(controlFields.empty, false),
+  textField(controlFields.filled, true),
   line([
     actionButton({ label: 'Create', enabled: true }),
     actionButton({ label: 'Create', enabled: false }),
@@ -212,13 +217,13 @@ const roleRow = (role: TextRole): Element => {
 
 const typeRoles = (): Element[] => textRoleNames.map((role) => roleRow(role));
 
-export const controlsScene = (inputs: SceneInputs): Element => {
+export const controlsScene = (controlFields: ControlsFields): Element => {
   const controlSections = v_flex()
     .flex_1()
     .gap(spacing.medium)
     .child(section('Buttons', buttons()))
     .child(section('Toggles and marks', toggles()))
-    .child(section('Fields and actions', fields(inputs)));
+    .child(section('Fields and actions', fields(controlFields)));
 
   const typeSection = v_flex().flex_1().child(section('Type roles', typeRoles()));
 

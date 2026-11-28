@@ -1,3 +1,4 @@
+import type { InputState } from 'gpui-base';
 import { v_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 
@@ -10,7 +11,6 @@ import {
   sectionHeader,
   spacing,
 } from '../../../kit/index.ts';
-import type { SceneInputs } from './inputs.ts';
 
 interface FakeCommand {
   title: string;
@@ -91,8 +91,8 @@ const group = (fakeGroup: FakeGroup): Element[] => [
   ...fakeGroup.commands.map(commandRow),
 ];
 
-export const popupScene = (inputs: SceneInputs): Element => {
+export const popupScene = (search: InputState): Element => {
   const groups = v_flex().my(spacing.xsmall).children(fakeGroups.flatMap(group));
 
-  return v_flex().flex_1().min_h(0).child(searchField(inputs.search, 'search')).child(groups);
+  return v_flex().flex_1().min_h(0).child(searchField(search, 'search')).child(groups);
 };
