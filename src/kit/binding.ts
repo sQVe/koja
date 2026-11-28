@@ -20,7 +20,11 @@ export const actionIdentity = (action: string): string | null => {
   const command = stringOf(record['command']);
   const args = Object.hasOwn(record, 'args') ? record['args'] : {};
 
-  if (command === null || !isRecord(args)) {
+  if (command === null) {
+    return null;
+  }
+
+  if (!isRecord(args)) {
     return null;
   }
 
