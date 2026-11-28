@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import type { PaneInfo, Program, TabInfo } from 'herdr';
 
 import {
+  ownName,
   tabLabel,
   tabLabelWithTasks,
   tabName,
@@ -79,6 +80,20 @@ const liveAgentPane = (pane: string, title: string): PaneInfo => ({
 
 const labelOf = (tabInfo: TabInfo, paneList: PaneInfo[], terminalRecords: unknown[] = []): string =>
   tabLabel(tabInfo, tabProgram(tabInfo, paneList), paneList, terminalRecords);
+
+const countingRecords = (records: unknown[]): { records: unknown[]; reads: () => number } => {
+  let reads = 0;
+
+  const counted = new Proxy(records, {
+    get: (target, key, receiver) => {
+      reads += 1;
+
+      return Reflect.get(target, key, receiver) as unknown;
+    },
+  });
+
+  return { records: counted, reads: () => reads };
+};
 
 describe('tabLabel', () => {
   test('labels a tab that holds only a mod pane by its name', () => {
@@ -253,33 +268,17 @@ describe('tabLabel live agent titles', () => {
 
 describe('tabName', () => {
   test('reads no terminal records for a tab that keeps its name', () => {
-    let reads = 0;
+    const counted = countingRecords([terminalRecord('p1', 'Fix status counts')]);
 
-    const records = new Proxy([terminalRecord('p1', 'Fix status counts')], {
-      get: (target, key, receiver) => {
-        reads += 1;
-
-        return Reflect.get(target, key, receiver) as unknown;
-      },
-    });
-
-    expect(labelOf(tab, [terminalPane('p1')], records)).toBe('Board');
-    expect(reads).toBe(0);
+    expect(labelOf(tab, [terminalPane('p1')], counted.records)).toBe('Board');
+    expect(counted.reads()).toBe(0);
   });
 
   test('reads terminal records for a tab that needs a task label', () => {
-    let reads = 0;
+    const counted = countingRecords([terminalRecord('p1', 'Fix status counts')]);
 
-    const records = new Proxy([terminalRecord('p1', 'Fix status counts')], {
-      get: (target, key, receiver) => {
-        reads += 1;
-
-        return Reflect.get(target, key, receiver) as unknown;
-      },
-    });
-
-    expect(labelOf(unnamedTab, [terminalPane('p1')], records)).toBe('Fix status counts');
-    expect(reads).toBeGreaterThan(0);
+    expect(labelOf(unnamedTab, [terminalPane('p1')], counted.records)).toBe('Fix status counts');
+    expect(counted.reads()).toBeGreaterThan(0);
   });
 
   test('leaves the zoom marker to the label', () => {
@@ -287,6 +286,14 @@ describe('tabName', () => {
     const panes = [terminalPane('p1')];
 
     expect(tabName(zoomed, tabProgram(zoomed, panes), panes, [])).toBe('zsh');
+  });
+});
+
+describe('ownName', () => {
+  test('keeps the name someone gave a tab, unless it repeats the program name', () => {
+    expect(ownName(tab, shell)).toBe('Board');
+    expect(ownName({ ...tab, name: 'zsh' }, shell)).toBeNull();
+    expect(ownName(unnamedTab, shell)).toBeNull();
   });
 });
 

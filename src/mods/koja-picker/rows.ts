@@ -5,6 +5,7 @@ import type { Facts } from '../../data/snapshot.ts';
 import type { StatusOwners, StatusRollup } from '../../kit/statusRollup.ts';
 import { rollupOwners, statusRank } from '../../kit/statusRollup.ts';
 import {
+  ownName,
   tabLabel,
   tabNameWithTasks,
   tabProgram,
@@ -76,6 +77,7 @@ interface RowScope {
 
 interface TabMatch {
   tabPanes: PaneInfo[];
+  tabStatus: Status | null;
   tabMatches: boolean;
   eligiblePanes: PaneInfo[];
 }
@@ -170,28 +172,29 @@ const paneSearchFields = (
   ];
 };
 
-const explicitTabName = (tab: TabInfo, program: PaneInfo['program'] | undefined): string | null =>
-  tab.named && tab.name !== program?.name ? tab.name : null;
-
 const tabMatchOf = (tab: TabInfo, scope: RowScope): TabMatch => {
   const tabPanes = panesOf(tab, scope.data.panes);
   const tabStatus = scope.data.statuses.tabs[tab.id] ?? null;
 
+  if (scope.statuses === null) {
+    return { tabPanes, tabStatus, tabMatches: true, eligiblePanes: tabPanes };
+  }
+
   return {
     tabPanes,
+    tabStatus,
     tabMatches: matchesStatus(tabStatus, scope.statuses),
     eligiblePanes: tabPanes.filter((pane) => inStatus(pane, scope.statuses)),
   };
 };
 
 const tabSearchFields = (tab: TabInfo, scope: RowScope): (string | null)[] => {
-  const { tabPanes, tabMatches, eligiblePanes } = tabMatchOf(tab, scope);
-  const status = scope.data.statuses.tabs[tab.id] ?? null;
+  const { tabPanes, tabStatus, tabMatches, eligiblePanes } = tabMatchOf(tab, scope);
 
   if (scope.statuses === null) {
     return [
       tabNameWithTasks(tab, tabProgram(tab, tabPanes), tabPanes, scope.tasks),
-      statusWord(status),
+      statusWord(tabStatus),
       ...tabPanes.flatMap((pane) => paneSearchFields(pane, scope.tasks)),
     ];
   }
@@ -199,7 +202,7 @@ const tabSearchFields = (tab: TabInfo, scope: RowScope): (string | null)[] => {
   const fields: (string | null)[] = [];
 
   if (tabMatches) {
-    fields.push(explicitTabName(tab, tabProgram(tab, tabPanes)));
+    fields.push(ownName(tab, tabProgram(tab, tabPanes)));
   }
 
   if (eligiblePanes.length > 0) {
@@ -210,7 +213,7 @@ const tabSearchFields = (tab: TabInfo, scope: RowScope): (string | null)[] => {
   }
 
   if (tabMatches) {
-    fields.push(statusWord(status));
+    fields.push(statusWord(tabStatus));
   }
 
   fields.push(...eligiblePanes.flatMap((pane) => paneSearchFields(pane, scope.tasks)));
