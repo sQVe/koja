@@ -78,13 +78,13 @@ describe('closeFollowStep', () => {
   test('a close of the focused space follows to the space above', () => {
     const step = closeFollowStep(
       watchOf({ selection: null }),
-      lookOf({ focused: 'a', liveIds: ['a', 'c'], selection: null }),
+      lookOf({ focused: 'c', liveIds: ['a', 'c'], selection: null }),
     );
 
     expect(step.command).toEqual({ name: 'space.select', args: { id: 'a' } });
   });
 
-  test('a close seen while a pick is pending is dropped rather than followed later', () => {
+  test('a close seen while a pick is pending is dropped, so only the next close is followed', () => {
     const blocked = closeFollowStep(
       watchOf({ focused: 'b', pending: pending('c', 0) }),
       lookOf({ focused: 'c', liveIds: ['a', 'c'], now: 100 }),
