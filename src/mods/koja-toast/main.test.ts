@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { click, clickablesWithText, drawn, drawnTexts } from '../../../tests/drawn.ts';
+import { click, clickablesWithText, descendants, drawn, drawnTexts } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -136,6 +136,24 @@ describe('toast', () => {
     expect(calls).toEqual([{ close: 'o3' }]);
   });
 
+  test('colors the mark for the notification level', async () => {
+    toastProps = {
+      title: 'Checks are stale',
+      body: 'The last check ran 8 minutes ago.',
+      level: 'warning',
+      overlay: 'o3',
+    };
+
+    const view = await loadView();
+
+    view.init(undefined, undefined);
+
+    const backgrounds = descendants(view.render()).flatMap((part) => part.backgroundColors);
+
+    expect(backgrounds).toContain(palette.working);
+    expect(backgrounds).not.toContain(palette.accent);
+  });
+
   test('draws a plain title and a fitted multiline body', async () => {
     const body = 'typecheck exited with code 1.\nFix the type error and rerun.';
 
@@ -174,9 +192,12 @@ describe('toast', () => {
     click(copy, copyContext);
 
     const rerendered = view.render();
+    const copied = clickablesWithText(rerendered, 'Copied').filter((part) => part !== rerendered);
+    const stillCopy = clickablesWithText(rerendered, 'Copy').filter((part) => part !== rerendered);
 
     expect(clipboard).toBe('hc machine login devbox');
-    expect(drawnTexts(rerendered)).toContain('Copied');
+    expect(copied).toHaveLength(1);
+    expect(stillCopy).toEqual([]);
     expect(stopCount).toBe(1);
     expect(notifyCount).toBe(1);
     expect(calls).toEqual([]);

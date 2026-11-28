@@ -4,9 +4,9 @@ import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
   click,
   clickablesWithText,
-  descendants,
   drawnTexts,
   drawnTree,
+  elementWithText,
 } from '../../../tests/drawn.ts';
 import { mockGalleryModules } from '../../../tests/gallery.ts';
 
@@ -53,22 +53,42 @@ test('posts a notification with an action and a timeout', () => {
   expect(notifications[0]?.timeout ?? 0).toBeGreaterThan(0);
 });
 
-test('draws every toast specimen in order, fitted to its height', () => {
-  const tree = drawnTree(toasts() as unknown as DrawnElement[]);
+const sampleNamed = (label: string): DrawnElement => {
+  const parts = toasts() as unknown as DrawnElement[];
+  const found = parts.find((part) => drawnTexts(part).includes(label));
 
-  const ids = descendants(tree)
-    .map((part) => part.styles['id']?.[0])
-    .filter((id): id is string => typeof id === 'string');
+  if (found === undefined) {
+    throw new Error(`The gallery has no sample named ${label}.`);
+  }
 
-  expect(ids).toEqual([
-    'toast-info',
-    'toast-success',
-    'toast-warning',
-    'toast-error',
-    'toast-icon',
-    'toast-two-line',
-    'toast-login',
-  ]);
+  return found;
+};
 
-  expect(drawnTexts(tree)).toContain('The first line of the body.\nThe second line of the body.');
+test('draws every level and the icon sample with its message', () => {
+  const texts = drawnTexts(drawnTree(toasts() as unknown as DrawnElement[]));
+
+  for (const title of ['Update available', 'Build finished', 'Checks are stale', 'Build failed']) {
+    expect(texts).toContain(title);
+  }
+
+  expect(texts).toContain('All checks passed.');
+  expect(texts).toContain('Icon instead of the level dot');
+});
+
+test('draws the fitted two-line body in full and clips the fixed card to its first line', () => {
+  const fitted = sampleNamed('Two-line body');
+  const fixed = sampleNamed('Fixed height, as a notification shows');
+  const bothLines = 'The first line of the body.\nThe second line of the body.';
+  const firstLine = 'The first line of the body.';
+
+  expect(drawnTexts(fitted)).toContain(bothLines);
+  expect(drawnTexts(fixed)).toContain(firstLine);
+  expect(drawnTexts(fixed)).not.toContain(bothLines);
+});
+
+test('draws the login command with its Copy control', () => {
+  const login = sampleNamed('Machine login with a Copy button');
+
+  expect(drawnTexts(login)).toContain('hc machine login devbox');
+  expect(elementWithText(login, 'Copy')).not.toBeNull();
 });

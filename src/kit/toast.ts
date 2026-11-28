@@ -87,7 +87,7 @@ const sized = (card: Element, fitHeight: boolean): Element =>
     : card.size_full();
 
 export const toastCommandBody = (command: string, actionElement: Element): Element => {
-  const commandText = roleText('detail', command).flex_1();
+  const commandText = roleText('detail', command).flex_1().tooltip(command);
 
   return h_flex()
     .flex_1()

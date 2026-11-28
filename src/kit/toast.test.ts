@@ -3,7 +3,7 @@ import { afterAll, expect, mock, test } from 'bun:test';
 import type { Element } from 'gpui-kit';
 
 import type { DrawnElement } from '../../tests/drawn.ts';
-import { descendants, drawn, drawnIcons, drawnTexts } from '../../tests/drawn.ts';
+import { descendants, drawn, drawnIcons, drawnTexts, elementWithText } from '../../tests/drawn.ts';
 import { gpuiBaseFake, gpuiKitFake, herdrFake } from '../../tests/moduleFakes.ts';
 
 interface ToastCardOptions {
@@ -35,8 +35,9 @@ await mock.module('gpui-kit', () =>
 
 await mock.module('herdr', () => herdrFake({ theme: () => palette }));
 
-const { toastCard } = (await import('./toast.ts')) as unknown as {
+const { toastCard, toastCommandBody } = (await import('./toast.ts')) as unknown as {
   toastCard: (options: ToastCardOptions) => DrawnElement;
+  toastCommandBody: (command: string, action: Element) => DrawnElement;
 };
 
 const { div } = (await import('gpui-kit')) as { div: () => Element };
@@ -58,6 +59,9 @@ const twoLineBody = 'The first line of the body.\nThe second line of the body.';
 
 const hasBackground = (card: DrawnElement, color: string): boolean =>
   descendants(card).some((part) => part.backgroundColors.includes(color));
+
+const hasStyle = (card: DrawnElement, style: string): boolean =>
+  descendants(card).some((part) => part.styles[style] !== undefined);
 
 test('shows the icon instead of the level dot', () => {
   const withIcon = toastCard({ ...options, icon: '/x.png' });
@@ -81,6 +85,40 @@ test('draws only the first body line when the card fills the overlay', () => {
 
   expect(texts).toContain('The first line of the body.');
   expect(texts).not.toContain('The second line of the body.');
+});
+
+test('truncates the title and body only when the card fills the overlay', () => {
+  const fitted = toastCard({ ...options, body: twoLineBody, fitHeight: true });
+  const fixed = toastCard({ ...options, body: twoLineBody, fitHeight: false });
+
+  const fittedTitle = elementWithText(fitted, options.title);
+  const fittedBody = elementWithText(fitted, twoLineBody);
+  const fixedTitle = elementWithText(fixed, options.title);
+  const fixedBody = elementWithText(fixed, 'The first line of the body.');
+
+  expect(fittedTitle?.styles['truncate']).toBeUndefined();
+  expect(fittedBody?.styles['truncate']).toBeUndefined();
+  expect(fixedTitle?.styles['truncate']).toBeDefined();
+  expect(fixedBody?.styles['truncate']).toBeDefined();
+});
+
+test('fills the overlay for a fixed card and fits a fitted card to its content', () => {
+  const fitted = toastCard({ ...options, fitHeight: true });
+  const fixed = toastCard({ ...options, fitHeight: false });
+
+  expect(hasStyle(fitted, 'size_full')).toBe(false);
+  expect(hasStyle(fitted, 'py')).toBe(true);
+  expect(hasStyle(fixed, 'size_full')).toBe(true);
+  expect(hasStyle(fixed, 'py')).toBe(false);
+});
+
+test('keeps the full command on the truncated login text', () => {
+  const copy = div().child('Copy');
+  const body = toastCommandBody('hc machine login devbox', copy);
+  const command = elementWithText(body, 'hc machine login devbox');
+
+  expect(command?.styles['truncate']).toBeDefined();
+  expect(command?.tooltipText).toBe('hc machine login devbox');
 });
 
 test('draws no body when the body is null', () => {

@@ -177,6 +177,8 @@ export const markSize = {
 
 export const toastSize = {
   minHeight: 70,
+  // The host's notification window before zoom; the gallery frames a fixed card at this width.
+  width: 340,
 } as const;
 
 export const factSize = {

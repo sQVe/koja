@@ -46,4 +46,14 @@ describe('toastProps', () => {
       body: 'typecheck exited with code 1.',
     });
   });
+
+  test('reads a plain body with an absent title as an empty title', () => {
+    const toast = readToastProps({ body: 'typecheck exited with code 1.' });
+
+    expect(toast.content).toEqual({
+      kind: 'plain',
+      title: '',
+      body: 'typecheck exited with code 1.',
+    });
+  });
 });

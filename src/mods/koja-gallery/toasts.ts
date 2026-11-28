@@ -1,4 +1,5 @@
 import type { Element } from 'gpui-kit';
+import { div } from 'gpui-kit';
 import { notify } from 'herdr';
 
 import type { ToastCardOptions, ToastLevel } from '../../kit/index.ts';
@@ -8,6 +9,7 @@ import {
   toastCard,
   toastCommandBody,
   toastLevels,
+  toastSize,
 } from '../../kit/index.ts';
 import { sample, surfaceSample } from './sample.ts';
 
@@ -48,14 +50,33 @@ const iconSample = (): Element => {
   });
 };
 
+const twoLineBody = 'The first line of the body.\nThe second line of the body.';
+
 const twoLineSample = (): Element =>
   toastSample('Two-line body', {
     id: 'toast-two-line',
     level: 'info',
     icon: null,
     title: 'Two lines',
-    body: 'The first line of the body.\nThe second line of the body.',
+    body: twoLineBody,
   });
+
+const fixedSample = (): Element => {
+  const message = messages.error;
+
+  const card = toastCard({
+    id: 'toast-fixed',
+    level: 'error',
+    icon: null,
+    title: message.title,
+    body: twoLineBody,
+    fitHeight: false,
+  });
+
+  const frame = div().w(toastSize.width).h(toastSize.minHeight).child(card);
+
+  return sample('Fixed height, as a notification shows', surfaceSample('chrome', frame));
+};
 
 const loginCommand = 'hc machine login devbox';
 
@@ -86,6 +107,7 @@ export const toasts = (): Element[] => [
   ...toastLevels.map(levelSample),
   iconSample(),
   twoLineSample(),
+  fixedSample(),
   loginSample(),
   sample('Post a notification', postNotification()),
 ];
