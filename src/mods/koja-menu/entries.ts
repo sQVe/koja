@@ -96,10 +96,13 @@ const isMenuKind = (value: string | null): value is MenuKind =>
 // `open_url` takes an absolute http or https URL with a host and refuses every other scheme.
 const webUrl = /^https?:\/\/[^\s/?#@:]+(?::\d+)?(?:[/?#]|$)/;
 
+const isPresent = (text: string | null | undefined): text is string =>
+  text !== null && text !== undefined && text !== '';
+
 const namedTextOf = (value: unknown): string | null => {
   const text = stringOf(value)?.trim();
 
-  return text === undefined || text === '' ? null : text;
+  return isPresent(text) ? text : null;
 };
 
 const ticketLinkOf = (value: unknown): MenuTicketLink | null => {
@@ -150,9 +153,6 @@ export const readMenuProps = (value: unknown): MenuProps => {
     zoomed: props['zoomed'] === true,
   };
 };
-
-const isPresent = (text: string | null | undefined): text is string =>
-  text !== null && text !== undefined && text !== '';
 
 export const menuDetails = (menu: MenuProps): PaneHeaderMenuFieldOptions => {
   const details: PaneHeaderMenuFieldOptions = {};
