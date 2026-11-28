@@ -1,22 +1,18 @@
 import type { Context, Element } from 'gpui-kit';
 
 import type { DataState } from '../../data/consumer.ts';
-import type { TicketFacts } from '../../data/snapshot.ts';
 import { linkText, spaceFooter } from '../../kit/index.ts';
-import type { ListModel, RowModel } from './listModel.ts';
+import type { ListModel } from './listModel.ts';
 import { stackProgressOf } from './progress.ts';
-
-interface PullLink {
-  number: number;
-  url: string;
-}
+import type { SpaceLinks } from './spaceLinks.ts';
+import { spaceLinksOf } from './spaceLinks.ts';
 
 const linkOf = (text: string, url: string): Element =>
   linkText(text).on_click((_event, cx: Context) => {
     cx.open_url(url);
   });
 
-const ticketLinksOf = (ticket: TicketFacts | null): Element[] => {
+const ticketLinksOf = (ticket: SpaceLinks['ticket']): Element[] => {
   if (ticket === null) {
     return [];
   }
@@ -24,25 +20,7 @@ const ticketLinksOf = (ticket: TicketFacts | null): Element[] => {
   return [linkOf(ticket.id, ticket.url)];
 };
 
-const footerPullOf = (model: RowModel): PullLink | null => {
-  if (model.stack === null) {
-    return model.pull;
-  }
-
-  const checkedOut = model.stack.pulls.find((pull) => pull.checkedOut);
-
-  if (checkedOut === undefined) {
-    return null;
-  }
-
-  if (checkedOut.number === null || checkedOut.url === null) {
-    return null;
-  }
-
-  return { number: checkedOut.number, url: checkedOut.url };
-};
-
-const pullLinksOf = (pull: PullLink | null): Element[] => {
+const pullLinksOf = (pull: SpaceLinks['pull']): Element[] => {
   if (pull === null) {
     return [];
   }
@@ -66,11 +44,11 @@ export const selectedFooter = (
   }
 
   const progress = stackProgressOf(rowModel.stack);
-  const pull = footerPullOf(rowModel);
+  const links = spaceLinksOf(rowModel);
 
   return spaceFooter({
     title: rowModel.title,
     ...(progress === null ? {} : { progress }),
-    links: [...ticketLinksOf(rowModel.ticket), ...pullLinksOf(pull)],
+    links: [...ticketLinksOf(links.ticket), ...pullLinksOf(links.pull)],
   });
 };

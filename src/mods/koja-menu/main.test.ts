@@ -38,6 +38,10 @@ let sharedNormalMode = false;
 
 let askedCommands: { command: string; args: Record<string, unknown> }[] = [];
 
+let openedUrls: string[] = [];
+
+let copiedTexts: string[] = [];
+
 const paneOf = (pane: string): unknown => ({
   pane,
   terminal: 'terminal-1',
@@ -66,6 +70,12 @@ const context = {
   focus_handle: () => ({ focus: () => undefined }),
   notify: () => undefined,
   stop_propagation: () => undefined,
+  open_url: (url: string) => {
+    openedUrls.push(url);
+  },
+  write_to_clipboard: (text: string) => {
+    copiedTexts.push(text);
+  },
   spawn: (body: (cx: unknown) => Promise<void>) => {
     tasks.push(body(context));
   },
@@ -174,6 +184,8 @@ beforeEach(() => {
   terminalList = [];
   sharedNormalMode = false;
   askedCommands = [];
+  openedUrls = [];
+  copiedTexts = [];
 });
 
 describe('space menu', () => {
@@ -248,6 +260,36 @@ describe('space menu', () => {
     keyDown(tree, { key: 'enter' }, { notify: () => undefined });
 
     expect(askedCommands).toEqual([{ command: 'space.close', args: { id: 'space-1' } }]);
+  });
+
+  test('choosing Open PR on GitHub hands the pull URL to the system', async () => {
+    menuProps = {
+      tab: 'space',
+      target: { id: 'space-1' },
+      pull: { number: 505, url: 'https://example.invalid/koja/pull/505' },
+    };
+
+    const view = await openMenu();
+    const [row] = clickablesWithText(view.render(), 'Open PR on GitHub');
+
+    if (row !== undefined) {
+      click(row, context);
+    }
+
+    expect(openedUrls).toEqual(['https://example.invalid/koja/pull/505']);
+  });
+
+  test('pressing Enter on Copy branch name writes the branch to the clipboard', () => {
+    menuProps = { tab: 'space', target: { id: 'space-1' }, branch: 'me-1182-space-menu-links' };
+
+    const view = new loaded.default();
+
+    view.init(null, context);
+
+    keyDown(view.render(), { key: 'down' }, context);
+    keyDown(view.render(), { key: 'enter' }, context);
+
+    expect(copiedTexts).toEqual(['me-1182-space-menu-links']);
   });
 
   test('replaces the error line with the worktree rows when Retry succeeds', async () => {

@@ -20,6 +20,7 @@ import {
 } from '../../kit/index.ts';
 import type { Project } from './projects.ts';
 import { rowCut } from './rows.ts';
+import type { SpaceLinks } from './spaceLinks.ts';
 import { openSpaceMenu } from './spaceMenu.ts';
 import type { ListedSpace } from './tree.ts';
 
@@ -47,6 +48,7 @@ export interface RowState extends RowBaseState {
   need: StackNeed | null;
   progress: { merged: number; total: number } | null;
   card: StackCardModel | null;
+  links: SpaceLinks;
   interaction: RowInteraction;
 }
 
@@ -61,6 +63,7 @@ export interface HeaderState extends RowBaseState {
   onHover: (spaceId: string, hovered: boolean, cx: Context) => void;
   toggleFold: (key: string, cx: Context) => void;
   reorder: ReorderCallbacks;
+  links: SpaceLinks;
 }
 
 const dropMark = (state: RowBaseState, id: string, ids: readonly string[]): DropMark | undefined =>
@@ -86,8 +89,10 @@ const attachInteraction = (
   element: Element,
   space: SpaceInfo,
   ids: readonly string[],
-  interaction: RowInteraction,
+  state: RowState,
 ): void => {
+  const { interaction } = state;
+
   if (interaction.kind === 'reorder') {
     attachReorder(element, {
       start: () => {
@@ -107,7 +112,7 @@ const attachInteraction = (
   }
 
   element.on_mouse_down('right', () => {
-    openSpaceMenu(space);
+    openSpaceMenu(space, state.links);
   });
 };
 
@@ -165,7 +170,7 @@ export const row = (
     end,
   }).id(`space-${space.id}`);
 
-  attachInteraction(element, space, ids, state.interaction);
+  attachInteraction(element, space, ids, state);
 
   return cardWrap(element, space, state.card);
 };
@@ -202,7 +207,7 @@ export const headerRow = (
   attachReorder(element, state.reorder);
 
   element.on_mouse_down('right', () => {
-    openSpaceMenu(space);
+    openSpaceMenu(space, state.links);
   });
 
   if (foldable(project)) {

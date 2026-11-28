@@ -23,6 +23,7 @@ import type { Pull } from '../../data/pulls.ts';
 import { controlSize } from '../../kit/size.ts';
 import type { Project } from './projects.ts';
 import { rowTitleOf } from './rows.ts';
+import type { SpaceLinks } from './spaceLinks.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 import type { WaitTimes } from './waitTimes.ts';
 import { advanceWaitTimes, emptyWaitTimes, readWaitTimes, waitAge } from './waitTimes.ts';
@@ -32,6 +33,7 @@ interface BaseStateLike {
   refused: string | null;
   cursor: string | null;
   age: string | null;
+  links: SpaceLinks;
 }
 
 type ReorderStart = (space: SpaceInfo, ids: readonly string[]) => void;
@@ -177,6 +179,7 @@ const baseState = (age: string | null = null): BaseStateLike => ({
   refused: null,
   cursor: null,
   age,
+  links: { ticket: null, pull: null, branch: null },
 });
 
 const reorder = (

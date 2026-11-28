@@ -342,7 +342,7 @@ describe('koja-spaces drag and drop', () => {
     expect(state.overlayCalls).toEqual([
       expect.objectContaining({
         mod: 'koja-menu',
-        props: { tab: 'space', target: { id: 'alpha' } },
+        props: { tab: 'space', target: { id: 'alpha' }, branch: 'main' },
       }),
     ]);
   });

@@ -113,7 +113,12 @@ describe('koja-spaces row interaction', () => {
         kind: 'popup',
         width: overlaySize.menuWidth,
         height: overlaySize.menuHeight,
-        props: { tab: 'space', target: { id: 'w' } },
+        props: {
+          tab: 'space',
+          target: { id: 'w' },
+          pull: { number: 505, url: 'https://github.com/example/example/pull/505' },
+          branch: 'me-3-top',
+        },
       }),
     ]);
   });

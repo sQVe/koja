@@ -48,6 +48,7 @@ import { selectedFooter } from './selectedFooter.ts';
 import { sidebarViewKey, readSidebarView } from './sidebarView.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
 import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
+import { spaceLinksOf } from './spaceLinks.ts';
 import { createOrderPublisher } from './spaceOrder.ts';
 import type { HeaderState, ReorderCallbacks, RowInteraction, RowState } from './spaceRows.ts';
 import { attachReorder, headerRow, row as spaceRow } from './spaceRows.ts';
@@ -440,23 +441,19 @@ export default class Spaces extends View {
     now: number,
     interaction: RowInteraction,
   ): RowState {
-    const waiting = {
-      id: model.row.space.id,
-      status: model.row.status,
-      active: model.row.space.active,
-    };
-
-    const title = model.title;
+    const { space, status } = model.row;
+    const waiting = { id: space.id, status, active: space.active };
 
     return {
-      title,
+      title: model.title,
       drag: this.dragFor('space'),
       refused: this.refused,
       cursor,
       age: waitAge(this.waitTimes, waiting, now),
       need: model.need,
       progress: stackProgressOf(model.stack),
-      card: stackCardOf(model, title),
+      card: stackCardOf(model, model.title),
+      links: spaceLinksOf(model),
       interaction,
     };
   }
@@ -503,12 +500,13 @@ export default class Spaces extends View {
 
   private drawMain(
     project: Project,
-    main: ListedSpace,
+    model: RowModel,
     ids: readonly string[],
     keys: readonly string[],
     cursor: string | null,
     now: number,
   ): Element {
+    const main = model.row;
     const waiting = { id: main.space.id, status: main.status, active: main.space.active };
 
     const state: HeaderState = {
@@ -520,6 +518,7 @@ export default class Spaces extends View {
       reorder: this.projectReorder(project, ids),
       onHover: this.setHovered,
       toggleFold: this.toggleFold,
+      links: spaceLinksOf(model),
     };
 
     return headerRow(project, main, keys, state);
@@ -594,7 +593,7 @@ export default class Spaces extends View {
       loading: this.isWaiting(),
       draw: (row) => keepRow(row, this.drawProjectRow(modelOf(row), ids, cursor, now)),
       drawMain: (project, main) =>
-        keepRow(main, this.drawMain(project, main, ids, keys, cursor, now)),
+        keepRow(main, this.drawMain(project, modelOf(main), ids, keys, cursor, now)),
       foldDrag: (project) => {
         const drag = this.dragFor('project');
 

@@ -1,6 +1,8 @@
+import type { Context } from 'gpui-kit';
+
 import type { GitIdentity } from '../../data/gitIdentity.ts';
 import { bindingAction } from '../../kit/binding.ts';
-import { recordOf, stringOf } from '../../kit/fields.ts';
+import { numberOf, recordOf, stringOf } from '../../kit/fields.ts';
 import type { IconName } from '../../kit/iconNames.ts';
 import { paneActions } from '../../kit/paneHeaderMenuModel.ts';
 import type { PaneHeaderMenuFieldOptions } from '../../kit/paneHeaderMenuModel.ts';
@@ -18,12 +20,24 @@ export interface MenuTarget {
   space: string | null;
 }
 
+export interface MenuTicketLink {
+  id: string;
+  url: string;
+}
+
+export interface MenuPullLink {
+  number: number;
+  url: string;
+}
+
 export interface MenuProps {
   kind: MenuKind;
   target: MenuTarget;
   task?: string | null;
   branch?: string | null;
   folder?: string | null;
+  ticket?: MenuTicketLink | null;
+  pull?: MenuPullLink | null;
   overflow?: boolean;
   zoomed?: boolean;
 }
@@ -35,7 +49,7 @@ export interface MenuAction {
   shortcuts: string[];
   group: boolean;
   state?: 'on' | 'off';
-  action: () => void;
+  action: (cx: Context) => void;
 }
 
 // A line that reports a failed read in place of the rows that read would have drawn.
@@ -79,6 +93,41 @@ export const checkoutOf = (identity: GitIdentity): Checkout => {
 const isMenuKind = (value: string | null): value is MenuKind =>
   menuKinds.some((kind) => kind === value);
 
+// `open_url` takes an absolute http or https URL with a host and refuses every other scheme.
+const webUrl = /^https?:\/\/[^\s/?#]+/;
+
+const namedTextOf = (value: unknown): string | null => {
+  const text = stringOf(value);
+
+  return text !== null && text.trim() !== '' ? text : null;
+};
+
+const ticketLinkOf = (value: unknown): MenuTicketLink | null => {
+  const ticket = recordOf(value);
+  const id = namedTextOf(ticket['id']);
+  const url = stringOf(ticket['url']);
+
+  if (id === null || url === null || !webUrl.test(url)) {
+    return null;
+  }
+
+  return { id, url };
+};
+
+const pullLinkOf = (value: unknown): MenuPullLink | null => {
+  const pull = recordOf(value);
+  const number = numberOf(pull['number']);
+  const url = stringOf(pull['url']);
+
+  if (number === null || url === null) {
+    return null;
+  }
+
+  const counted = Number.isInteger(number) && number > 0 && webUrl.test(url);
+
+  return counted ? { number, url } : null;
+};
+
 export const readMenuProps = (value: unknown): MenuProps => {
   const props = recordOf(value);
   const target = recordOf(props['target']);
@@ -93,8 +142,10 @@ export const readMenuProps = (value: unknown): MenuProps => {
       space: stringOf(target['space']),
     },
     task: stringOf(props['task']),
-    branch: stringOf(props['branch']),
+    branch: namedTextOf(props['branch']),
     folder: stringOf(props['folder']),
+    ticket: ticketLinkOf(props['ticket']),
+    pull: pullLinkOf(props['pull']),
     overflow: props['overflow'] === true,
     zoomed: props['zoomed'] === true,
   };
@@ -299,10 +350,58 @@ const worktreeItems = (host: MenuHost, target: MenuTarget, checkout: Checkout): 
   return rows;
 };
 
-const spaceEntries = (host: MenuHost, target: MenuTarget, checkout: Checkout): MenuEntry[] => [
-  commandEntry(host, 'Rename', 'square-pen', 'space.rename', { id: target.id }),
-  ...worktreeItems(host, target, checkout),
-  commandEntry(host, 'Close', 'x', 'space.close', { id: target.id }, true),
+const urlEntry = (label: string, icon: IconName, url: string): MenuAction => ({
+  kind: 'action',
+  label,
+  icon,
+  shortcuts: [],
+  group: false,
+  action: (cx) => {
+    cx.open_url(url);
+  },
+});
+
+const clipboardEntry = (label: string, text: string): MenuAction => ({
+  kind: 'action',
+  label,
+  icon: 'git-branch',
+  shortcuts: [],
+  group: false,
+  action: (cx) => {
+    cx.write_to_clipboard(text);
+  },
+});
+
+const linkEntries = (menu: MenuProps): MenuEntry[] => {
+  const rows: MenuAction[] = [];
+
+  if (menu.ticket !== null && menu.ticket !== undefined) {
+    rows.push(urlEntry('Open ticket', 'file', menu.ticket.url));
+  }
+
+  if (menu.pull !== null && menu.pull !== undefined) {
+    rows.push(urlEntry('Open PR on GitHub', 'git-pull-request', menu.pull.url));
+  }
+
+  if (menu.branch !== null && menu.branch !== undefined) {
+    rows.push(clipboardEntry('Copy branch name', menu.branch));
+  }
+
+  const [first] = rows;
+
+  if (first !== undefined) {
+    first.group = true;
+  }
+
+  return rows;
+};
+
+const spaceEntries = (host: MenuHost, menu: MenuProps, checkout: Checkout): MenuEntry[] => [
+  commandEntry(host, 'Rename', 'square-pen', 'space.rename', { id: menu.target.id }),
+  // The PR watch entry goes after `Open PR on GitHub` and before `Copy branch name`.
+  ...linkEntries(menu),
+  ...worktreeItems(host, menu.target, checkout),
+  commandEntry(host, 'Close', 'x', 'space.close', { id: menu.target.id }, true),
 ];
 
 const globalEntries = (host: MenuHost): MenuEntry[] => [
@@ -356,5 +455,5 @@ export const menuEntries = (menu: MenuProps, checkout: Checkout, host: MenuHost)
     return tabEntries(host, menu.target);
   }
 
-  return menu.kind === 'space' ? spaceEntries(host, menu.target, checkout) : globalEntries(host);
+  return menu.kind === 'space' ? spaceEntries(host, menu, checkout) : globalEntries(host);
 };
