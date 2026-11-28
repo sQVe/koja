@@ -21,7 +21,7 @@ import {
 import type { Project } from './projects.ts';
 import { rowCut } from './rows.ts';
 import type { SpaceLinks } from './spaceLinks.ts';
-import { openSpaceMenu } from './spaceMenu.ts';
+import { bindSpaceMenu } from './spaceMenu.ts';
 import type { ListedSpace } from './tree.ts';
 
 interface RowBaseState {
@@ -89,10 +89,8 @@ const attachInteraction = (
   element: Element,
   space: SpaceInfo,
   ids: readonly string[],
-  state: RowState,
+  interaction: RowInteraction,
 ): void => {
-  const { interaction } = state;
-
   if (interaction.kind === 'reorder') {
     attachReorder(element, {
       start: () => {
@@ -110,10 +108,6 @@ const attachInteraction = (
       interaction.select(space.id, cx);
     });
   }
-
-  element.on_mouse_down('right', () => {
-    openSpaceMenu(space, state.links);
-  });
 };
 
 const cardWrap = (element: Element, space: SpaceInfo, card: StackCardModel | null): Element => {
@@ -170,7 +164,8 @@ export const row = (
     end,
   }).id(`space-${space.id}`);
 
-  attachInteraction(element, space, ids, state);
+  attachInteraction(element, space, ids, state.interaction);
+  bindSpaceMenu(element, space, state.links);
 
   return cardWrap(element, space, state.card);
 };
@@ -206,9 +201,7 @@ export const headerRow = (
 
   attachReorder(element, state.reorder);
 
-  element.on_mouse_down('right', () => {
-    openSpaceMenu(space, state.links);
-  });
+  bindSpaceMenu(element, space, state.links);
 
   if (foldable(project)) {
     element.on_hover((hovered, cx) => {

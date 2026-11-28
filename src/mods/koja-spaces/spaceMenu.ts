@@ -1,3 +1,4 @@
+import type { Element } from 'gpui-kit';
 import type { SpaceInfo } from 'herdr';
 import { openOverlay } from 'herdr';
 
@@ -18,5 +19,11 @@ export const openSpaceMenu = (space: SpaceInfo, links: SpaceLinks): void => {
       ...(links.pull === null ? {} : { pull: links.pull }),
       ...(links.branch === null ? {} : { branch: links.branch }),
     },
+  });
+};
+
+export const bindSpaceMenu = (element: Element, space: SpaceInfo, links: SpaceLinks): void => {
+  element.on_mouse_down('right', () => {
+    openSpaceMenu(space, links);
   });
 };
