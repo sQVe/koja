@@ -1,20 +1,6 @@
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const compareKeys = <Value>([first]: [string, Value], [second]: [string, Value]): number => {
-  if (first === second) {
-    return 0;
-  }
-
-  return first < second ? -1 : 1;
-};
-
-export const sortRecordKeys = <Value>(record: Record<string, Value>): Record<string, Value> => {
-  const entries = Object.entries(record).toSorted(compareKeys);
-
-  return Object.fromEntries(entries);
-};
-
 export const recordOf = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
 export const hasOnlyKeys = (fields: Record<string, unknown>, keys: readonly string[]): boolean =>
