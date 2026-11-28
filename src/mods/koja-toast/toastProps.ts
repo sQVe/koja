@@ -15,8 +15,8 @@ export interface ToastProps {
   content: ToastContent;
 }
 
-// Matches the login guidance Herdr shows with Copy in Settings > Machines, a sidebar group, the welcome screen, and the failed New space toast.
-const loginPattern = /^\s*([a-z0-9][a-z0-9_.-]{0,31}) needs login; run (hc machine login \1)\s*$/;
+// Matches the login guidance Herdr shows with Copy in Settings > Machines, a sidebar group, the welcome screen, and the failed New space toast. The lookahead repeats the captured name in the command, so equality stays inside the match and the match itself is the machine name.
+const loginPattern = /^(\S.*?)(?= needs login; run hc machine login \1$)/;
 
 const readLevel = (value: unknown): ToastLevel => {
   const level = stringOf(value);
@@ -43,15 +43,15 @@ const readAction = (value: unknown): ToastProps['action'] => {
 };
 
 const readContent = (title: string, body: string | null): ToastContent => {
-  const login = body === null ? null : loginPattern.exec(body);
-  const machine = login?.[1];
-  const command = login?.[2];
+  const login = body === null ? null : loginPattern.exec(body.trim());
 
-  if (machine === undefined || command === undefined) {
+  if (login === null) {
     return { kind: 'plain', title, body };
   }
 
-  return { kind: 'login', machine, command };
+  const machine = login[0];
+
+  return { kind: 'login', machine, command: `hc machine login ${machine}` };
 };
 
 export const readToastProps = (value: unknown): ToastProps => {

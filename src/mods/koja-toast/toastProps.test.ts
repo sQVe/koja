@@ -20,6 +20,65 @@ describe('toastProps', () => {
     expect(toast.content).toEqual({ kind: 'plain', title: 'Agent blocked', body });
   });
 
+  test('reads a machine name with uppercase letters as a login', () => {
+    const toast = readToastProps({ body: 'DevBox needs login; run hc machine login DevBox' });
+
+    expect(toast.content).toEqual({
+      kind: 'login',
+      machine: 'DevBox',
+      command: 'hc machine login DevBox',
+    });
+  });
+
+  test('reads a machine name longer than 32 characters as a login', () => {
+    const machine = 'workstation-with-a-very-long-name';
+
+    const toast = readToastProps({
+      body: `${machine} needs login; run hc machine login ${machine}`,
+    });
+
+    expect(toast.content).toEqual({
+      kind: 'login',
+      machine,
+      command: `hc machine login ${machine}`,
+    });
+  });
+
+  test('reads a machine name with a space as a login', () => {
+    const machine = 'my laptop';
+
+    const toast = readToastProps({
+      body: `${machine} needs login; run hc machine login ${machine}`,
+    });
+
+    expect(toast.content).toEqual({
+      kind: 'login',
+      machine,
+      command: `hc machine login ${machine}`,
+    });
+  });
+
+  test('reads a machine name that contains the separator as a login', () => {
+    const machine = 'east needs login; run hc machine login west';
+
+    const toast = readToastProps({
+      body: `${machine} needs login; run hc machine login ${machine}`,
+    });
+
+    expect(toast.content).toEqual({
+      kind: 'login',
+      machine,
+      command: `hc machine login ${machine}`,
+    });
+  });
+
+  test('keeps a blank machine name as a plain body', () => {
+    const body = '  needs login; run hc machine login  ';
+    const toast = readToastProps({ title: 'Agent blocked', body });
+
+    expect(toast.content).toEqual({ kind: 'plain', title: 'Agent blocked', body });
+  });
+
   test('reads a login body padded with whitespace as a login toast', () => {
     const toast = readToastProps({ body: ' devbox needs login; run hc machine login devbox\n' });
 
