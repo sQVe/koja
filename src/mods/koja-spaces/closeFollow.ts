@@ -74,7 +74,7 @@ export const closeFollowStep = (watch: CloseWatch, look: CloseLook): CloseFollow
   const still = stillPending(watch.pending, look);
   const landed = still !== null && look.focused === still.id;
   const carried = landed ? null : still;
-  const keepsPlace = still !== null && still.id !== watch.focused;
+  const keepsPlace = still !== null;
   const pending = moved ? pickStarted(look) : carried;
   const blocked = moved || keepsPlace;
 
