@@ -1,5 +1,21 @@
 # koja
 
+## 0.9.0
+
+### Minor Changes
+
+- [#151](https://github.com/sQVe/koja/pull/151)
+  [`313d350`](https://github.com/sQVe/koja/commit/313d35087b6e42ea6d8ab15337bda54ecfaa4eda) Thanks
+  [@sQVe](https://github.com/sQVe)! - The space menu opens the space's ticket and PR, and copies its
+  branch name.
+
+### Patch Changes
+
+- [#148](https://github.com/sQVe/koja/pull/148)
+  [`3631706`](https://github.com/sQVe/koja/commit/36317062f1904dc458d7484aa869a6af18d8117a) Thanks
+  [@sQVe](https://github.com/sQVe)! - The picker matches, filters, and targets panes correctly, and
+  keeps its chips and Control release in check.
+
 ## 0.8.0
 
 ### Minor Changes
