@@ -24,7 +24,9 @@ afterAll(() => {
 const context = { notify: () => undefined, stop_propagation: () => undefined };
 
 const rightPress = (view: FakeView, id: string): void => {
-  rowOf(view, id).mouseHandlers['on_mouse_down:right']?.[0]?.({}, context);
+  for (const handler of rowOf(view, id).mouseHandlers['on_mouse_down:right'] ?? []) {
+    handler({}, context);
+  }
 };
 
 const rowLinks = {

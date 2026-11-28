@@ -13,15 +13,16 @@ const repository = repositoryOf(null, '/code/koja/.git');
 
 const stackBranches = ['me-1-low', 'me-2-mid', 'me-3-top'];
 
-const stackCheckouts = [
-  { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
-  {
-    folder: '/code/koja-top',
-    commonDirectory: '/code/koja/.git',
-    linked: true,
-    branch: 'me-3-top',
-  },
-];
+const trunkCheckout = { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false };
+
+const topCheckout = {
+  folder: '/code/koja-top',
+  commonDirectory: '/code/koja/.git',
+  linked: true,
+  branch: 'me-3-top',
+};
+
+const stackCheckouts = [trunkCheckout, topCheckout];
 
 const stackPulls = () => [
   pullFacts({
@@ -49,46 +50,21 @@ export const useStackSpaces = (withStack: boolean): void => {
   state.spaceList = [space('m', true, '/code/koja'), space('w', false, '/code/koja-top')];
 };
 
-const linkCheckouts = [
-  {
-    folder: '/code/koja',
-    commonDirectory: '/code/koja/.git',
-    linked: false,
-    branch: 'me-4-header',
-  },
-  {
-    folder: '/code/koja-top',
-    commonDirectory: '/code/koja/.git',
-    linked: true,
-    branch: 'me-3-top',
-  },
-];
+const linkCheckouts = [{ ...trunkCheckout, branch: 'me-4-header' }, topCheckout];
 
 // The top branch's own pull is not the pull its stack records, so a fallback to the branch pull
-// shows up as the wrong number.
+// shows up as the wrong number. The recorded pull reuses the branch name from a fork, so only the
+// pull the stack names can answer the branch lookup.
 const linkPulls = (): Pull[] => [
   pullFacts({ number: 503, headRefName: 'me-1-low', checks: { kind: 'read', value: 'failing' } }),
   pullFacts({ number: 504, headRefName: 'me-2-mid', state: 'MERGED' }),
   pullFacts({ number: 506, headRefName: 'me-4-header' }),
   readyPull({ number: 999, headRefName: 'me-3-top' }),
-  readyPull({ number: 505, headRefName: 'me-3-top' }),
+  readyPull({ number: 505, headRefName: 'me-3-top-fork' }),
 ];
 
-const linkStack = (owner: RepositoryIdentity): Record<string, RepositoryStacks> => ({
-  [owner.key]: {
-    stacks: [
-      {
-        trunk: 'main',
-        branches: [
-          { branch: 'me-1-low', pullNumber: 503, restack: 'none' },
-          { branch: 'me-2-mid', pullNumber: 504, restack: 'none' },
-          { branch: 'me-3-top', pullNumber: 505, restack: 'none' },
-        ],
-      },
-    ],
-    failed: false,
-  },
-});
+const linkStack = (owner: RepositoryIdentity): Record<string, RepositoryStacks> =>
+  stacksOf(owner, stackBranches, 'none', [503, 504, 505]);
 
 const linkTicket = (id: string): TicketFacts => ({
   id,

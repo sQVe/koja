@@ -279,12 +279,10 @@ describe('space menu', () => {
     expect(openedUrls).toEqual(['https://example.invalid/koja/pull/505']);
   });
 
-  test('pressing Enter on Copy branch name writes the branch to the clipboard', () => {
+  test('pressing Enter on Copy branch name writes the branch to the clipboard', async () => {
     menuProps = { tab: 'space', target: { id: 'space-1' }, branch: 'me-1182-space-menu-links' };
 
-    const view = new loaded.default();
-
-    view.init(null, context);
+    const view = await openMenu();
 
     keyDown(view.render(), { key: 'down' }, context);
     keyDown(view.render(), { key: 'enter' }, context);

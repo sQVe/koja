@@ -25,12 +25,17 @@ export const stacksOf = (
   repository: RepositoryIdentity,
   branches: readonly string[],
   restack: StackBranch['restack'] = 'none',
+  pullNumbers: readonly (number | null)[] = [],
 ): Record<string, RepositoryStacks> => ({
   [repository.key]: {
     stacks: [
       {
         trunk: 'main',
-        branches: branches.map((branch) => ({ branch, pullNumber: null, restack })),
+        branches: branches.map((branch, index) => ({
+          branch,
+          pullNumber: pullNumbers[index] ?? null,
+          restack,
+        })),
       },
     ],
     failed: false,
