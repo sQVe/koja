@@ -1,5 +1,14 @@
 # koja
 
+## 0.8.0
+
+### Minor Changes
+
+- [#149](https://github.com/sQVe/koja/pull/149)
+  [`25d35cb`](https://github.com/sQVe/koja/commit/25d35cbbf2a3242a9a5097911fc19df11d41c87c) Thanks
+  [@sQVe](https://github.com/sQVe)! - Stack rows show how far they have merged, and the selected
+  space's footer links to its ticket and PR.
+
 ## 0.7.0
 
 ### Minor Changes
