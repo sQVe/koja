@@ -65,7 +65,7 @@ export default class Menu extends View {
     this.normalMode = shared('koja-modal') === true;
     this.handle = cx.focus_handle();
     this.handle.focus();
-    this.lookAtCheckout(cx);
+    this.lookAtCheckout(readMenuProps(props()), cx);
   }
 
   override render(): Element {
@@ -112,12 +112,11 @@ export default class Menu extends View {
     return [line];
   }
 
-  private lookAtCheckout(cx: Context): void {
+  private lookAtCheckout(menu: MenuProps, cx: Context): void {
     if (checking()) {
       return;
     }
 
-    const menu = readMenuProps(props());
     const space = spaces().find((candidate) => candidate.id === menu.target.id);
 
     if (menu.kind !== 'space' || space === undefined) {

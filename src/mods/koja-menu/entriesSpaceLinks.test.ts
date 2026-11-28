@@ -125,6 +125,17 @@ describe('space menu links', () => {
   test.each([
     ['a ticket URL that is not http or https', { ticket: { id: 'ME-1182', url: 'file:///tmp' } }],
     ['a pull URL that is not http or https', { pull: { number: 505, url: 'file:///tmp' } }],
+    [
+      'a URL whose port is not a number',
+      { ticket: { id: 'ME-1182', url: 'https://example.invalid:notaport/1' } },
+    ],
+    [
+      'a URL with a space after its host',
+      { pull: { number: 505, url: 'https://example.invalid /1' } },
+    ],
+    ['a blank ticket id', { ticket: { id: '   ', url: ticket.url } }],
+    ['a ticket without an id', { ticket: { url: ticket.url } }],
+    ['a pull number that is not a whole number', { pull: { number: 5.5, url: pull.url } }],
     ['a pull number that is not a positive whole number', { pull: { number: 0, url: pull.url } }],
     ['a blank branch', { branch: '   ' }],
   ])('%s drops its entry', (_name, links) => {
