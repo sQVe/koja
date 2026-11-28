@@ -1,5 +1,14 @@
 # koja
 
+## 0.9.1
+
+### Patch Changes
+
+- [#153](https://github.com/sQVe/koja/pull/153)
+  [`5ae8355`](https://github.com/sQVe/koja/commit/5ae83550811034b43bb1d039bf8476e3712f4f0d) Thanks
+  [@sQVe](https://github.com/sQVe)! - A space picked in the picker stays shown when the space that
+  was shown closes before Herdr applies the pick.
+
 ## 0.9.0
 
 ### Minor Changes
