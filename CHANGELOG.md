@@ -1,5 +1,14 @@
 # koja
 
+## 0.9.4
+
+### Patch Changes
+
+- [#159](https://github.com/sQVe/koja/pull/159)
+  [`b766f7d`](https://github.com/sQVe/koja/commit/b766f7dbe5b55a48f70525afa050acd0f1cdbdbc) Thanks
+  [@sQVe](https://github.com/sQVe)! - Each mock scene registers its renderer and the input it starts
+  focused on in one entry, so the window and the keyboard cannot drift apart.
+
 ## 0.9.3
 
 ### Patch Changes
