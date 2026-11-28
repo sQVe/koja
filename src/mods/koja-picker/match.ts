@@ -468,14 +468,14 @@ const routeMatch = (
     }
 
     const remainingStarts = firstPositions.length - cursor + requeued.length;
-    const fromSource = cursor < firstPositions.length;
-    const firstFolded = fromSource ? (firstPositions[cursor] ?? 0) : (requeued.shift() ?? 0);
-
-    if (fromSource) {
-      cursor += 1;
-    }
-
+    let firstFolded = firstPositions[cursor] ?? 0;
     const share = Math.max(1, Math.floor(remainingWork / remainingStarts));
+
+    if (cursor < firstPositions.length) {
+      cursor += 1;
+    } else {
+      firstFolded = requeued.shift() ?? 0;
+    }
 
     search.budget.limit = search.budget.spent + share;
 
