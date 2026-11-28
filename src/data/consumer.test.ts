@@ -92,7 +92,7 @@ describe('readDataState', () => {
   });
 
   test('is unavailable for a newer snapshot', () => {
-    const newer = { version: 10, revision: 3, facts: emptyFacts() };
+    const newer = { version: snapshotVersion + 1, revision: 3, facts: emptyFacts() };
     const read = memoryStore({ [snapshotKey]: newer, [heartbeatKey]: heartbeat });
 
     expect(readDataState(read, writtenAt)).toEqual({ kind: 'unavailable' });
