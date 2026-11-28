@@ -110,29 +110,22 @@ describe('spaceLinksOf', () => {
   });
 
   test('the footer and the menu name the same pull', () => {
+    const stackPull = { number: 11, url: 'https://example.invalid/koja/pull/11' };
+
     const branchPull = pullFacts({
       number: 99,
       headRefName: 'me-11-eleven',
       url: 'https://example.invalid/koja/pull/99',
     });
 
-    const model = rowModelOf(
-      branchPull,
-      checkedOutStack(11, 'https://example.invalid/koja/pull/11'),
-    );
-
-    const links = spaceLinksOf(model);
+    const model = rowModelOf(branchPull, checkedOutStack(stackPull.number, stackPull.url));
     const footer = selectedFooter(liveState, modelOf([model]), 'w');
-
-    if (links.pull === null) {
-      throw new Error('The space has no pull link.');
-    }
 
     if (footer === null) {
       throw new Error('The selected space draws no footer.');
     }
 
-    const [link] = clickablesWithText(footer, `#${links.pull.number}`);
+    const [link] = clickablesWithText(footer, `#${stackPull.number}`);
 
     if (link === undefined) {
       throw new Error('The footer draws no pull link.');
@@ -146,6 +139,7 @@ describe('spaceLinksOf', () => {
       },
     });
 
-    expect(opened).toEqual([links.pull.url]);
+    expect(spaceLinksOf(model).pull).toEqual(stackPull);
+    expect(opened).toEqual([stackPull.url]);
   });
 });
