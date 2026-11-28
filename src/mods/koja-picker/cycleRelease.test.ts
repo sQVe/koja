@@ -57,6 +57,22 @@ describe('cycle release', () => {
     expect(cycle.releasedRow(wrapped)).toEqual(rowOf('space:a', 'space'));
   });
 
+  test('throws for an index outside the rows and keeps the armed row', () => {
+    const cycle = createCycleRelease<CycleRow>();
+
+    cycle.armRow(rows, 1);
+
+    expect(() => {
+      cycle.armRow(rows, rows.length);
+    }).toThrow(RangeError);
+
+    expect(() => {
+      cycle.armRow(rows, -2);
+    }).toThrow(RangeError);
+
+    expect(cycle.releasedRow(rows)).toEqual(rowOf('tab:t', 'tab'));
+  });
+
   test('answers the armed row once', () => {
     const cycle = createCycleRelease<CycleRow>();
 

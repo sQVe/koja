@@ -4,6 +4,7 @@ export type CycleRow = Pick<PickerRow, 'key' | 'kind'>;
 
 export interface CycleRelease<Row extends CycleRow> {
   armRow: (rows: readonly Row[], index: number) => void;
+  armed: () => boolean;
   disarm: () => void;
   releasedRow: (rows: readonly Row[]) => Row | undefined;
 }
@@ -14,7 +15,9 @@ export const nextSpaceIndex = (rows: readonly CycleRow[], selectedKey: string | 
     rows.findIndex((row) => row.key === selectedKey),
   );
 
-  const ordered = [...rows.slice(selectedIndex + 1), ...rows.slice(0, selectedIndex + 1)];
+  const afterSelected = rows.slice(selectedIndex + 1);
+  const upToSelected = rows.slice(0, selectedIndex + 1);
+  const ordered = [...afterSelected, ...upToSelected];
 
   const nextSpace = ordered.find((row) => row.kind === 'space');
 
@@ -33,8 +36,21 @@ export const createCycleRelease = <Row extends CycleRow>(): CycleRelease<Row> =>
   };
 
   return {
+    armed: () => armedKey !== null,
     armRow: (rows, index) => {
-      armedKey = index === -1 ? null : (rows[index]?.key ?? null);
+      if (index === -1) {
+        armedKey = null;
+
+        return;
+      }
+
+      const row = rows[index];
+
+      if (row === undefined) {
+        throw new RangeError(`No row at index ${index}; the rows hold ${rows.length}`);
+      }
+
+      armedKey = row.key;
     },
     disarm: () => {
       armedKey = null;

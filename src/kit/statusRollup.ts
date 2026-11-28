@@ -171,18 +171,18 @@ export const rollupStatuses = (
   return { spaces, tabs };
 };
 
-const panePosition = (paneList: readonly PaneInfo[]): Map<PaneInfo, number> =>
-  new Map(paneList.map((pane, index) => [pane, index]));
+const panePosition = (paneList: readonly PaneInfo[]): Map<string, number> =>
+  new Map(paneList.map((pane, index) => [pane.pane, index]));
 
 const earliestPane = (
   panes: readonly PaneInfo[],
-  position: ReadonlyMap<PaneInfo, number>,
+  position: ReadonlyMap<string, number>,
 ): PaneInfo | null => {
   let earliest: PaneInfo | null = null;
   let earliestAt = Number.POSITIVE_INFINITY;
 
   for (const pane of panes) {
-    const at = position.get(pane) ?? Number.POSITIVE_INFINITY;
+    const at = position.get(pane.pane) ?? Number.POSITIVE_INFINITY;
 
     if (at < earliestAt) {
       earliest = pane;
@@ -202,7 +202,7 @@ const tabOwner = (
   tabStatus: Status | null,
   paneStatuses: readonly (Status | null)[],
   contributions: readonly DescendantContribution[],
-  position: ReadonlyMap<PaneInfo, number>,
+  position: ReadonlyMap<string, number>,
 ): PaneInfo | null => {
   if (!comesOnlyFromBackground(tabStatus, paneStatuses)) {
     return null;
@@ -233,11 +233,7 @@ const spaceOwner = (
       continue;
     }
 
-    const owner = tabOwners[tab.id] ?? null;
-
-    if (owner !== null) {
-      return owner;
-    }
+    return tabOwners[tab.id] ?? null;
   }
 
   return null;

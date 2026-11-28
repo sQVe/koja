@@ -218,6 +218,30 @@ describe('rollupOwners', () => {
     expect(owners.spaces['s1']?.pane).toBe('p1');
   });
 
+  test('gives a tab whose blocked descendant sits under a later pane the blocked pane', () => {
+    const { spaces } = fixtures();
+    const panes = [paneOf('p1', 'k1'), paneOf('p2', 'k1')];
+
+    const owners = rollupOwners(spaces, panes, [
+      terminalOf('t-working', 't-p1', 'working'),
+      terminalOf('t-blocked', 't-p2', 'error'),
+    ]);
+
+    expect(owners.tabs['k1']?.pane).toBe('p2');
+  });
+
+  test("gives a space whose blocked status comes from a later tab that tab's owner", () => {
+    const { spaces } = fixtures();
+    const panes = [paneOf('p1', 'k1'), paneOf('p2', 'k2')];
+
+    const owners = rollupOwners(spaces, panes, [
+      terminalOf('t-working', 't-p1', 'working'),
+      terminalOf('t-blocked', 't-p2', 'error'),
+    ]);
+
+    expect(owners.spaces['s1']?.pane).toBe('p2');
+  });
+
   test('gives no owner when a pane itself holds the status', () => {
     const { spaces } = fixtures();
     const panes = [paneOf('p1', 'k1', 'working'), paneOf('p2', 'k1', 'idle')];
