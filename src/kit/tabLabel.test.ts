@@ -260,6 +260,11 @@ describe('tabLabel live agent titles', () => {
     );
   });
 
+  test('rejects a live title that is a quoted path', () => {
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', '"~/code/koja"')])).toBe('Claude Code');
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', "'C:\\code'")])).toBe('Claude Code');
+  });
+
   test('rejects a live title that is a path', () => {
     expect(labelOf(unnamedTab, [liveAgentPane('p1', '~/code/koja')])).toBe('Claude Code');
     expect(labelOf(unnamedTab, [liveAgentPane('p1', 'C:\\code')])).toBe('Claude Code');

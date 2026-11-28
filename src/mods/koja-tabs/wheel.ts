@@ -22,7 +22,7 @@ const nextStepPixels = 60;
 
 const stepIntervalMilliseconds = 100;
 
-const pauseMilliseconds = 250;
+export const pauseMilliseconds = 250;
 
 export const noWheelGesture: WheelGesture = {
   accumulated: 0,
