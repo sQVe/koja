@@ -272,36 +272,20 @@ const decodePullNeeds = (fields: Record<string, unknown>): PullNeedsFields | nul
   return { mergeable, mergeState, review, checks, threads };
 };
 
-export const parseStoredPull = (value: unknown): Pull | null => {
+const parseStoredPullWith = <T extends PullBase>(
+  value: unknown,
+  keys: readonly string[],
+  decode: (fields: Record<string, unknown>) => T | null,
+): (T & PullNeedsFields) | null => {
   if (!isRecord(value)) {
     return null;
   }
 
-  if (!hasOnlyKeys(value, storedPullFieldNames)) {
+  if (!hasOnlyKeys(value, keys)) {
     return null;
   }
 
-  const pull = decodePull(value);
-
-  if (pull === null) {
-    return null;
-  }
-
-  const needs = decodePullNeeds(value);
-
-  return needs === null ? null : { ...pull, ...needs };
-};
-
-export const parseStoredPullWithoutUrl = (value: unknown): PullWithoutUrl | null => {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  if (!hasOnlyKeys(value, storedPullFieldNamesWithoutUrl)) {
-    return null;
-  }
-
-  const base = decodePullBase(value);
+  const base = decode(value);
 
   if (base === null) {
     return null;
@@ -311,6 +295,12 @@ export const parseStoredPullWithoutUrl = (value: unknown): PullWithoutUrl | null
 
   return needs === null ? null : { ...base, ...needs };
 };
+
+export const parseStoredPull = (value: unknown): Pull | null =>
+  parseStoredPullWith(value, storedPullFieldNames, decodePull);
+
+export const parseStoredPullWithoutUrl = (value: unknown): PullWithoutUrl | null =>
+  parseStoredPullWith(value, storedPullFieldNamesWithoutUrl, decodePullBase);
 
 const openPullOf = (node: unknown, errors: BatchErrors, branch: number): Pull | null => {
   if (!isRecord(node)) {
