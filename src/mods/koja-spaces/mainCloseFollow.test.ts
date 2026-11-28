@@ -331,8 +331,6 @@ describe('koja-spaces close follow', () => {
     return [pick(live, random)];
   };
 
-  // A pick of a live space lands in the look it is made in or the one after it, the way Herdr
-  // applies the tab.select that follows the record.
   const nextLook = (previous: Look, random: () => number): Look => {
     const live = liveAfter(previous.live, random);
 
