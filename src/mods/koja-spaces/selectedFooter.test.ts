@@ -94,7 +94,14 @@ describe('selectedFooter', () => {
 
     const footer = selectedFooter(
       liveState,
-      modelOf([rowModel({ id: 'w', pull: branchPull, stack: checkedOutStack(11, cardPull.url) })]),
+      modelOf([
+        rowModel({
+          id: 'w',
+          branch: 'me-11-eleven',
+          pull: branchPull,
+          stack: checkedOutStack({ branch: 'me-11-eleven', number: 11, url: cardPull.url }),
+        }),
+      ]),
       'w',
     );
 
@@ -121,7 +128,14 @@ describe('selectedFooter', () => {
 
     const footer = selectedFooter(
       liveState,
-      modelOf([rowModel({ id: 'w', pull: otherPull, stack: checkedOutStack(11, cardPull.url) })]),
+      modelOf([
+        rowModel({
+          id: 'w',
+          branch: 'me-11-eleven',
+          pull: otherPull,
+          stack: checkedOutStack({ branch: 'me-11-eleven', number: 11, url: cardPull.url }),
+        }),
+      ]),
       'w',
     );
 
@@ -141,7 +155,14 @@ describe('selectedFooter', () => {
 
     const footer = selectedFooter(
       liveState,
-      modelOf([rowModel({ id: 'w', pull: branchPull, stack: checkedOutStack(11, null) })]),
+      modelOf([
+        rowModel({
+          id: 'w',
+          branch: 'me-11-eleven',
+          pull: branchPull,
+          stack: checkedOutStack({ branch: 'me-11-eleven', number: 11, url: null }),
+        }),
+      ]),
       'w',
     );
 

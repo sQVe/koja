@@ -51,7 +51,8 @@ const ticket: TicketFacts = {
 
 describe('spaceLinksOf', () => {
   test('a space with no git has no branch and no pull', () => {
-    const model: RowModel = { ...stackSpaceOf({}), row: { ...stackSpaceOf({}).row, git: null } };
+    const withGit = stackSpaceOf({});
+    const model: RowModel = { ...withGit, row: { ...withGit.row, git: null } };
 
     expect(spaceLinksOf(model)).toEqual({ ticket: null, pull: null, branch: null });
   });
@@ -60,7 +61,11 @@ describe('spaceLinksOf', () => {
     const model = stackSpaceOf({
       ticket,
       pull: pullFacts({ number: 99, headRefName: 'me-11-eleven' }),
-      stack: checkedOutStack(11, 'https://example.invalid/koja/pull/11'),
+      stack: checkedOutStack({
+        branch: 'me-11-eleven',
+        number: 11,
+        url: 'https://example.invalid/koja/pull/11',
+      }),
     });
 
     expect(spaceLinksOf(model)).toEqual({
@@ -84,7 +89,7 @@ describe('spaceLinksOf', () => {
       branch: 'me-11-eleven',
       folder: '/code/me-11-eleven',
       pull: branchPull,
-      stack: checkedOutStack(checkedOut.number, checkedOut.url),
+      stack: checkedOutStack({ branch: 'me-11-eleven', ...checkedOut }),
     });
 
     const footer = selectedFooter(liveState, modelOf([model]), 'w');

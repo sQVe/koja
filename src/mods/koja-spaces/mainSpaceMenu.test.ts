@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 
+import { rightPress } from '../../../tests/drawn.ts';
 import type { FakeView } from '../../../tests/kojaSpacesView.ts';
 import {
   loadView,
@@ -23,10 +24,8 @@ afterAll(() => {
 
 const context = { notify: () => undefined, stop_propagation: () => undefined };
 
-const rightPress = (view: FakeView, id: string): void => {
-  for (const handler of rowOf(view, id).mouseHandlers['on_mouse_down:right'] ?? []) {
-    handler({}, context);
-  }
+const pressRow = (view: FakeView, id: string): void => {
+  rightPress(rowOf(view, id), context);
 };
 
 const rowLinks = {
@@ -43,7 +42,7 @@ describe('koja-spaces space menu links', () => {
 
     const view = await loadView();
 
-    rightPress(view, 'w');
+    pressRow(view, 'w');
 
     expect(state.overlayCalls).toEqual([
       expect.objectContaining({ mod: 'koja-menu', props: rowLinks }),
@@ -55,7 +54,7 @@ describe('koja-spaces space menu links', () => {
 
     const view = await loadView();
 
-    rightPress(view, 'm');
+    pressRow(view, 'm');
 
     expect(state.overlayCalls).toEqual([
       expect.objectContaining({
@@ -77,7 +76,7 @@ describe('koja-spaces space menu links', () => {
 
     const view = await loadView();
 
-    rightPress(view, 'w');
+    pressRow(view, 'w');
 
     expect(state.overlayCalls).toEqual([
       expect.objectContaining({ mod: 'koja-menu', props: rowLinks }),

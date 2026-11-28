@@ -6,6 +6,7 @@ import { emptyFacts, snapshotVersion } from '../src/data/snapshot.ts';
 import type { TicketFacts } from '../src/data/snapshot.ts';
 import type { SpaceStack, StackPull } from '../src/data/spaceStack.ts';
 import type { ListModel, RowModel } from '../src/mods/koja-spaces/listModel.ts';
+import { groupProjects, noFolds, shownSpaces } from '../src/mods/koja-spaces/projects.ts';
 import type { GitInfo, ListedSpace } from '../src/mods/koja-spaces/tree.ts';
 
 const kojaRepository = repositoryOf(null, '/code/koja/.git');
@@ -28,7 +29,7 @@ const listedSpaceOf = (options: {
   const folder = options.folder ?? `/code/${options.id}`;
 
   const git: GitInfo = {
-    branch: options.branch ?? 'main',
+    branch: options.branch === undefined ? 'main' : options.branch,
     worktreeKey: worktreeOf(null, folder).key,
     repo: kojaRepository,
     root: folder,
@@ -77,12 +78,19 @@ export const rowModelOf = (options: {
   stack: options.stack ?? null,
 });
 
-export const modelOf = (rows: RowModel[]): ListModel => ({
-  view: 'projects',
-  projects: [],
-  rows: new Map(rows.map((row) => [row.row.space.id, row])),
-  ids: rows.map((row) => row.row.space.id),
-});
+export const modelOf = (rows: RowModel[]): ListModel => {
+  const projects = groupProjects(
+    rows.map((row) => row.row),
+    noFolds,
+  );
+
+  return {
+    view: 'projects',
+    projects,
+    rows: new Map(rows.map((row) => [row.row.space.id, row])),
+    ids: shownSpaces(projects).map((row) => row.space.id),
+  };
+};
 
 export const stackPull = (options: {
   branch: string;
@@ -103,12 +111,16 @@ export const stackPull = (options: {
   need: null,
 });
 
-export const checkedOutStack = (number: number | null, url: string | null): SpaceStack => ({
+export const checkedOutStack = (options: {
+  branch: string;
+  number: number | null;
+  url: string | null;
+}): SpaceStack => ({
   pulls: [
     stackPull({
-      branch: 'me-11-eleven',
-      number,
-      url,
+      branch: options.branch,
+      number: options.number,
+      url: options.url,
       title: 'The checked-out pull',
       state: 'open',
       checkedOut: true,

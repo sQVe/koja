@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 
-import { drawnTexts, elementsWithId, elementsWithStyle } from '../../../tests/drawn.ts';
+import { drawnTexts, elementsWithId, elementsWithStyle, rightPress } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import type { FakeView } from '../../../tests/kojaSpacesView.ts';
 import {
@@ -105,7 +105,7 @@ describe('koja-spaces row interaction', () => {
 
     const view = await loadView();
 
-    rowOf(view, 'w').mouseHandlers['on_mouse_down:right']?.[0]?.({}, context);
+    rightPress(rowOf(view, 'w'), context);
 
     expect(state.overlayCalls).toEqual([
       expect.objectContaining({

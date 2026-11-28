@@ -8,6 +8,7 @@ import {
   drawnTexts,
   elementsWithBorder,
   elementsWithStyle,
+  rightPress,
 } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
@@ -278,7 +279,7 @@ describe('row', () => {
     expect(rowElement.mouseHandlers['on_mouse_down:left']).toBeUndefined();
 
     rowElement.clickHandlers[0]?.({}, {});
-    rowElement.mouseHandlers['on_mouse_down:right']?.[0]?.({}, {});
+    rightPress(rowElement, {});
 
     expect(selected).toEqual(['a']);
 

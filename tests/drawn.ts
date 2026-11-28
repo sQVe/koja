@@ -264,5 +264,12 @@ export const press = (element: DrawnElement, cx: unknown): void => {
   }
 };
 
+// A right press on the element alone; the fake does not pass events to parents.
+export const rightPress = (element: DrawnElement, cx: unknown): void => {
+  for (const handler of element.mouseHandlers['on_mouse_down:right'] ?? []) {
+    handler({}, cx);
+  }
+};
+
 export const elementsWithMouseHandlers = (element: DrawnElement): DrawnElement[] =>
   descendants(element).filter((part) => Object.keys(part.mouseHandlers).length > 0);

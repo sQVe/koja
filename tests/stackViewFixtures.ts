@@ -64,7 +64,7 @@ const linkPulls = (): Pull[] => [
 ];
 
 const linkStack = (owner: RepositoryIdentity): Record<string, RepositoryStacks> =>
-  stacksOf(owner, stackBranches, 'none', [503, 504, 505]);
+  stacksOf(owner, stackBranches, 'none', { 'me-1-low': 503, 'me-2-mid': 504, 'me-3-top': 505 });
 
 const linkTicket = (id: string): TicketFacts => ({
   id,

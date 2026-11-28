@@ -1,6 +1,11 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 
-import { clickablesWithText, drawnTexts, elementsWithMouseHandlers } from '../../../tests/drawn.ts';
+import {
+  clickablesWithText,
+  drawnTexts,
+  elementsWithMouseHandlers,
+  rightPress,
+} from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import {
   listChildren,
@@ -335,9 +340,7 @@ describe('koja-spaces drag and drop', () => {
 
     const view = await loadView();
 
-    for (const handler of handlersOf(rowOf(view, 'alpha'), 'on_mouse_down:right')) {
-      handler({}, context);
-    }
+    rightPress(rowOf(view, 'alpha'), context);
 
     expect(state.overlayCalls).toEqual([
       expect.objectContaining({
