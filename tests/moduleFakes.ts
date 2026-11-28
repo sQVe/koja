@@ -275,6 +275,8 @@ export const kitIndexFake = (overrides: ModuleFake = {}): ModuleFake => ({
   textSize: {},
   themeChoices: [],
   toastCard: noop,
+  toastCommandBody: noop,
+  toastLevels: [],
   toastSize: {},
   toggleButton: noop,
   viewSwitch: noop,

@@ -1,9 +1,8 @@
-import { h_flex } from 'gpui-base';
 import type { AsyncContext, Context, Element } from 'gpui-kit';
 import { View } from 'gpui-kit';
 import { props, run } from 'herdr';
 
-import { actionButton, closeOverlay, roleText, spacing, toastCard } from '../../kit/index.ts';
+import { actionButton, closeOverlay, toastCard, toastCommandBody } from '../../kit/index.ts';
 import type { ToastContent, ToastProps } from './toastProps.ts';
 import { readToastProps } from './toastProps.ts';
 
@@ -43,14 +42,13 @@ export default class Toast extends View {
   }
 
   private loginBody(content: LoginContent): Element {
-    const command = roleText('detail', content.command).flex_1();
     const label = this.copied ? 'Copied' : 'Copy';
 
     const copy = actionButton({ label, enabled: true }).on_click((_event, cx) => {
       this.copyCommand(content.command, cx);
     });
 
-    return h_flex().flex_1().min_w(0).gap(spacing.medium).items_center().child(command).child(copy);
+    return toastCommandBody(content.command, copy);
   }
 
   private parts(content: ToastContent): ToastParts {

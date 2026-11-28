@@ -1,7 +1,13 @@
 import { afterAll, expect, mock, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { click, clickablesWithText, drawnTree } from '../../../tests/drawn.ts';
+import {
+  click,
+  clickablesWithText,
+  descendants,
+  drawnTexts,
+  drawnTree,
+} from '../../../tests/drawn.ts';
 import { mockGalleryModules } from '../../../tests/gallery.ts';
 
 interface Notification {
@@ -45,4 +51,24 @@ test('posts a notification with an action and a timeout', () => {
   expect(notifications).toHaveLength(1);
   expect(notifications[0]?.action?.name).toBeTruthy();
   expect(notifications[0]?.timeout ?? 0).toBeGreaterThan(0);
+});
+
+test('draws every toast specimen in order, fitted to its height', () => {
+  const tree = drawnTree(toasts() as unknown as DrawnElement[]);
+
+  const ids = descendants(tree)
+    .map((part) => part.styles['id']?.[0])
+    .filter((id): id is string => typeof id === 'string');
+
+  expect(ids).toEqual([
+    'toast-info',
+    'toast-success',
+    'toast-warning',
+    'toast-error',
+    'toast-icon',
+    'toast-two-line',
+    'toast-login',
+  ]);
+
+  expect(drawnTexts(tree)).toContain('The first line of the body.\nThe second line of the body.');
 });

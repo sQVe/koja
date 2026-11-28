@@ -3,14 +3,14 @@ import type { Element } from 'gpui-kit';
 import { div, image } from 'gpui-kit';
 
 import { withHover } from './hover.ts';
+import type { ThemeToken } from './palette.ts';
 import { popupSurface } from './popupSurface.ts';
 import { iconSize, markSize, spacing, toastSize } from './size.ts';
 import { dot } from './statusMark.ts';
 import type { TextRole } from './textRole.ts';
-import { withTextRole } from './textRole.ts';
+import { roleText, withTextRole } from './textRole.ts';
 import { colors } from './theme.ts';
-
-export type ToastLevel = 'info' | 'success' | 'warning' | 'error';
+import type { ToastLevel } from './toast/toastLevel.ts';
 
 export interface ToastCardOptions {
   id: string;
@@ -21,12 +21,12 @@ export interface ToastCardOptions {
   fitHeight: boolean;
 }
 
-const levelTokens = {
+const levelTokens: Record<ToastLevel, ThemeToken> = {
   error: 'blocked',
   warning: 'working',
   success: 'done',
   info: 'accent',
-} as const;
+};
 
 const firstLine = (text: string): string => {
   const [line = ''] = text.split('\n');
@@ -85,6 +85,18 @@ const sized = (card: Element, fitHeight: boolean): Element =>
   fitHeight
     ? card.w_full().min_h(toastSize.minHeight).flex_none().py(spacing.large)
     : card.size_full();
+
+export const toastCommandBody = (command: string, actionElement: Element): Element => {
+  const commandText = roleText('detail', command).flex_1();
+
+  return h_flex()
+    .flex_1()
+    .min_w(0)
+    .gap(spacing.medium)
+    .items_center()
+    .child(commandText)
+    .child(actionElement);
+};
 
 export const toastCard = (options: ToastCardOptions): Element => {
   const palette = colors();

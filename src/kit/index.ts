@@ -96,12 +96,14 @@ export { projectHeader } from './projectHeader.ts';
 
 export { popupSurface } from './popupSurface.ts';
 
-export { toastCard } from './toast.ts';
+export { toastCard, toastCommandBody } from './toast.ts';
 
 /** @public */
 export type { ToastCardOptions } from './toast.ts';
 
-export type { ToastLevel } from './toast.ts';
+export { toastLevels } from './toast/toastLevel.ts';
+
+export type { ToastLevel } from './toast/toastLevel.ts';
 
 export type { DropMark, RowState } from './listRow.ts';
 

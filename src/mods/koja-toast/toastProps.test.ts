@@ -13,6 +13,13 @@ describe('toastProps', () => {
     });
   });
 
+  test('keeps a body plain when the run command names another machine', () => {
+    const body = 'devbox needs login; run hc machine login otherbox';
+    const toast = readToastProps({ title: 'Agent blocked', body });
+
+    expect(toast.content).toEqual({ kind: 'plain', title: 'Agent blocked', body });
+  });
+
   test('falls back to info for an unknown level', () => {
     const toast = readToastProps({ level: 'loud' });
 

@@ -1,5 +1,6 @@
 import { recordOf, stringOf } from '../../kit/fields.ts';
-import type { ToastLevel } from '../../kit/index.ts';
+import type { ToastLevel } from '../../kit/toast/toastLevel.ts';
+import { toastLevels } from '../../kit/toast/toastLevel.ts';
 
 export type ToastContent =
   | { kind: 'plain'; title: string; body: string | null }
@@ -14,9 +15,7 @@ export interface ToastProps {
   content: ToastContent;
 }
 
-const toastLevels: ToastLevel[] = ['info', 'success', 'warning', 'error'];
-
-const loginPattern = /^([a-z0-9][a-z0-9_.-]{0,31}) needs login; run hc machine login \1$/;
+const loginPattern = /^([a-z0-9][a-z0-9_.-]{0,31}) needs login; run (hc machine login \1)$/;
 
 const readLevel = (value: unknown): ToastLevel => {
   const level = stringOf(value);
@@ -37,19 +36,15 @@ const readAction = (value: unknown): ToastProps['action'] => {
 };
 
 const readContent = (title: string, body: string | null): ToastContent => {
-  if (body === null) {
+  const login = body === null ? null : loginPattern.exec(body);
+  const machine = login?.[1];
+  const command = login?.[2];
+
+  if (machine === undefined || command === undefined) {
     return { kind: 'plain', title, body };
   }
 
-  const login = loginPattern.exec(body);
-
-  if (login === null) {
-    return { kind: 'plain', title, body };
-  }
-
-  const machine = login[1] ?? '';
-
-  return { kind: 'login', machine, command: `hc machine login ${machine}` };
+  return { kind: 'login', machine, command };
 };
 
 export const readToastProps = (value: unknown): ToastProps => {

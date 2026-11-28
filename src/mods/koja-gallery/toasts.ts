@@ -1,12 +1,17 @@
-import { h_flex } from 'gpui-base';
 import type { Element } from 'gpui-kit';
 import { notify } from 'herdr';
 
-import type { ToastLevel } from '../../kit/index.ts';
-import { actionButton, modName, roleText, spacing, toastCard } from '../../kit/index.ts';
+import type { ToastCardOptions, ToastLevel } from '../../kit/index.ts';
+import {
+  actionButton,
+  modName,
+  toastCard,
+  toastCommandBody,
+  toastLevels,
+} from '../../kit/index.ts';
 import { sample, surfaceSample } from './sample.ts';
 
-const levels: ToastLevel[] = ['info', 'success', 'warning', 'error'];
+type ToastSpecimen = Omit<ToastCardOptions, 'fitHeight'>;
 
 const messages: Record<ToastLevel, { title: string; body: string }> = {
   info: { title: 'Update available', body: 'Restart to install the new version.' },
@@ -15,89 +20,56 @@ const messages: Record<ToastLevel, { title: string; body: string }> = {
   error: { title: 'Build failed', body: 'typecheck exited with code 1.' },
 };
 
+const toastSample = (label: string, card: ToastSpecimen): Element =>
+  sample(label, surfaceSample('chrome', toastCard({ ...card, fitHeight: true })));
+
 const levelSample = (level: ToastLevel): Element => {
   const message = messages[level];
 
-  return sample(
-    `${level} toast`,
-    surfaceSample(
-      'chrome',
-      toastCard({
-        id: `toast-${level}`,
-        level,
-        icon: null,
-        title: message.title,
-        body: message.body,
-        fitHeight: true,
-      }),
-    ),
-  );
+  return toastSample(`${level} toast`, {
+    id: `toast-${level}`,
+    level,
+    icon: null,
+    title: message.title,
+    body: message.body,
+  });
 };
 
 const iconSample = (): Element => {
   const icon = ['mods', modName, 'icons', 'palette.svg'].join('/');
+  const message = messages.info;
 
-  return sample(
-    'Icon instead of the level dot',
-    surfaceSample(
-      'chrome',
-      toastCard({
-        id: 'toast-icon',
-        level: 'info',
-        icon,
-        title: 'Update available',
-        body: 'Restart to install the new version.',
-        fitHeight: true,
-      }),
-    ),
-  );
+  return toastSample('Icon instead of the level dot', {
+    id: 'toast-icon',
+    level: 'info',
+    icon,
+    title: message.title,
+    body: message.body,
+  });
 };
 
 const twoLineSample = (): Element =>
-  sample(
-    'Two-line body',
-    surfaceSample(
-      'chrome',
-      toastCard({
-        id: 'toast-two-line',
-        level: 'info',
-        icon: null,
-        title: 'Two lines',
-        body: 'The first line of the body.\nThe second line of the body.',
-        fitHeight: true,
-      }),
-    ),
-  );
+  toastSample('Two-line body', {
+    id: 'toast-two-line',
+    level: 'info',
+    icon: null,
+    title: 'Two lines',
+    body: 'The first line of the body.\nThe second line of the body.',
+  });
 
 const loginCommand = 'hc machine login devbox';
 
-const loginBody = (): Element => {
-  const command = roleText('detail', loginCommand).flex_1();
-
-  return h_flex()
-    .flex_1()
-    .min_w(0)
-    .gap(spacing.medium)
-    .items_center()
-    .child(command)
-    .child(actionButton({ label: 'Copy', enabled: true }));
-};
+const loginBody = (): Element =>
+  toastCommandBody(loginCommand, actionButton({ label: 'Copy', enabled: true }));
 
 const loginSample = (): Element =>
-  sample(
-    'Machine login with a Copy button',
-    surfaceSample(
-      'chrome',
-      toastCard({
-        id: 'toast-login',
-        level: 'info',
-        icon: null,
-        title: 'devbox needs a login: run',
-        body: loginBody(),
-        fitHeight: true,
-      }),
-    ),
-  );
+  toastSample('Machine login with a Copy button', {
+    id: 'toast-login',
+    level: 'info',
+    icon: null,
+    title: 'devbox needs a login: run',
+    body: loginBody(),
+  });
 
 const postNotification = (): Element =>
   actionButton({ label: 'Post a notification', enabled: true }).on_click(() => {
@@ -111,7 +83,7 @@ const postNotification = (): Element =>
   });
 
 export const toasts = (): Element[] => [
-  ...levels.map(levelSample),
+  ...toastLevels.map(levelSample),
   iconSample(),
   twoLineSample(),
   loginSample(),

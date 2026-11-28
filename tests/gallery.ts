@@ -52,6 +52,7 @@ const galleryKitParts = [
   'textRole',
   'theme',
   'toast',
+  'toast/toastLevel',
   'viewSwitch',
   'workIcon',
 ] as const;
