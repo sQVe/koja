@@ -39,6 +39,11 @@ describe('actionIdentity', () => {
     );
   });
 
+  test('rejects an action that names no command', () => {
+    expect(actionIdentity('{"args":{"name":"a"}}')).toBeNull();
+    expect(actionIdentity('{"command":7,"args":{"name":"a"}}')).toBeNull();
+  });
+
   test('still rejects a null argument record', () => {
     expect(actionIdentity('{"command":"x","args":null}')).toBeNull();
   });
