@@ -1,7 +1,7 @@
-import type { SpaceCommand, SpaceOrder } from '../spaceOrder.ts';
-import { closedSpaceCommand } from '../spaceOrder.ts';
-import type { SpaceSelection } from './spaceSelection.ts';
-import { selectionMoved } from './spaceSelection.ts';
+import type { SpaceSelection } from '../../kit/space/spaceSelection.ts';
+import { selectionMoved } from '../../kit/space/spaceSelection.ts';
+import type { SpaceCommand, SpaceOrder } from '../../kit/spaceOrder.ts';
+import { closedSpaceCommand } from '../../kit/spaceOrder.ts';
 
 export interface PendingPick {
   id: string;

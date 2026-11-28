@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { SpaceOrder } from '../spaceOrder.ts';
+import type { SpaceSelection } from '../../kit/space/spaceSelection.ts';
+import type { SpaceOrder } from '../../kit/spaceOrder.ts';
 import type { CloseLook, CloseWatch, PendingPick } from './closeFollow.ts';
 import { closeFollowStep } from './closeFollow.ts';
-import type { SpaceSelection } from './spaceSelection.ts';
 
 const order = (shown: string[]): SpaceOrder => ({ shown, hidden: [], roots: [...shown] });
 

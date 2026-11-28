@@ -25,11 +25,11 @@ import {
   spacing,
   withTextRole,
 } from '../../kit/index.ts';
-import type { CloseWatch } from '../../kit/space/closeFollow.ts';
-import { closeFollowStep } from '../../kit/space/closeFollow.ts';
 import type { SpaceSelectionDeps } from '../../kit/space/spaceSelection.ts';
 import { readSpaceSelection, runSpaceCommand } from '../../kit/space/spaceSelection.ts';
 import type { SpaceOrder } from '../../kit/spaceOrder.ts';
+import type { CloseWatch } from './closeFollow.ts';
+import { closeFollowStep } from './closeFollow.ts';
 import { cursorRow, halfPageOf, moveCursor } from './cursor.ts';
 import { foldedSet } from './folded.ts';
 import type { KeptNeed } from './gitFacts.ts';
