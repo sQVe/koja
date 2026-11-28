@@ -210,7 +210,7 @@ const press = (keystroke: string): void => {
   actionHandlers[binding?.action ?? '']?.({}, renderedContext);
 };
 
-const renderFilterChange = async (): Promise<Awaited<ReturnType<typeof loadView>>> => {
+const renderFilterChange = async (): Promise<void> => {
   focusedValue = { space: 's1' };
   spaceValues = [spaceOf('s1', 1), spaceOf('s2', 2)];
 
@@ -221,8 +221,6 @@ const renderFilterChange = async (): Promise<Awaited<ReturnType<typeof loadView>
 
   press('tab');
   press('shift-tab');
-
-  return view;
 };
 
 describe('filter chips', () => {

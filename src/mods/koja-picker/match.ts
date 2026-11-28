@@ -54,13 +54,12 @@ const spreadSlack = 4;
 
 const routeWorkBudget = 4096;
 
-// The word-start separators `\s`, `/`, `_`, `.`, `-`, and `~`, as a Set so each check is a lookup.
-const wordSeparators = new Set(
-  '\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff/_.-~',
-);
+// The ECMAScript `\s` set plus `/`, `_`, `.`, `-`, and `~`. The hyphen is escaped so the class
+// keeps it literal instead of spanning `.` to `~`.
+const wordSeparatorPattern = /[\s/_.\-~]/;
 
 const isWordStart = (text: string, index: number): boolean =>
-  index === 0 || wordSeparators.has(text.charAt(index - 1));
+  index === 0 || wordSeparatorPattern.test(text.charAt(index - 1));
 
 const startsWordAt = (folded: FoldedText, originalIndex: number): boolean =>
   folded.startsWord[folded.foldedStarts[originalIndex] ?? 0] ?? false;

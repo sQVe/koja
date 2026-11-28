@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test';
 
 import { bestFieldMatch, fuzzyMatch } from './match.ts';
 
+const spreadTextAfter = (separator: string): string => `a${'x'.repeat(20)}${separator}b`;
+
 describe('fuzzyMatch', () => {
   test('finds the letters in order, whatever their case', () => {
     expect(fuzzyMatch('KJ', 'koja')?.positions).toEqual([0, 2]);
@@ -80,6 +82,16 @@ describe('fuzzyMatch', () => {
     expect(fuzzyMatch('abc', `xab${'x'.repeat(10)} c`)?.positions).toEqual([1, 2, 14]);
   });
 
+  test('starts a word after each separator and not after a letter', () => {
+    const separators = [' ', '\t', '\n', '\u00a0', '/', '_', '.', '-', '~'];
+
+    for (const separator of separators) {
+      expect(fuzzyMatch('ab', spreadTextAfter(separator))?.positions).toEqual([0, 22]);
+    }
+
+    expect(fuzzyMatch('ab', spreadTextAfter('x'))).toBeNull();
+  });
+
   test('refuses a compact match one letter past the spread limit', () => {
     expect(fuzzyMatch('ab', `a${'x'.repeat(7)}b`)).toBeNull();
   });
@@ -125,9 +137,9 @@ describe('fuzzyMatch', () => {
   });
 
   test('gives leftover route work back to an early start that ran out', () => {
-    const deadStarts = 50;
+    const deadWordStarts = 50;
     const lateStarts = 100;
-    const text = `a ${'b '.repeat(deadStarts)}x bc ${'a '.repeat(lateStarts)}`;
+    const text = `a ${'b '.repeat(deadWordStarts)}x bc ${'a '.repeat(lateStarts)}`;
 
     expect(fuzzyMatch('abc', text)?.positions).toEqual([0, 104, 105]);
   });
