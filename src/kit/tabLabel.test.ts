@@ -8,7 +8,7 @@ import {
   tabName,
   tabProgram,
   taskIndexOf,
-  taskOfPaneWithTasks,
+  taskOfPane,
 } from './tabLabel.ts';
 
 const shell: Program = {
@@ -252,6 +252,36 @@ describe('tabLabel live agent titles', () => {
 });
 
 describe('tabName', () => {
+  test('reads no terminal records for a tab that keeps its name', () => {
+    let reads = 0;
+
+    const records = new Proxy([terminalRecord('p1', 'Fix status counts')], {
+      get: (target, key, receiver) => {
+        reads += 1;
+
+        return Reflect.get(target, key, receiver) as unknown;
+      },
+    });
+
+    expect(labelOf(tab, [terminalPane('p1')], records)).toBe('Board');
+    expect(reads).toBe(0);
+  });
+
+  test('reads terminal records for a tab that needs a task label', () => {
+    let reads = 0;
+
+    const records = new Proxy([terminalRecord('p1', 'Fix status counts')], {
+      get: (target, key, receiver) => {
+        reads += 1;
+
+        return Reflect.get(target, key, receiver) as unknown;
+      },
+    });
+
+    expect(labelOf(unnamedTab, [terminalPane('p1')], records)).toBe('Fix status counts');
+    expect(reads).toBeGreaterThan(0);
+  });
+
   test('leaves the zoom marker to the label', () => {
     const zoomed = { ...unnamedTab, zoomed: true };
     const panes = [terminalPane('p1')];
@@ -286,6 +316,6 @@ describe('lookups with a task index', () => {
   test('finds a pane task through the index', () => {
     const tasks = taskIndexOf([terminalRecord('p1', 'Fix status counts')]);
 
-    expect(taskOfPaneWithTasks(terminalPane('p1'), tasks)).toBe('Fix status counts');
+    expect(taskOfPane(terminalPane('p1'), tasks)).toBe('Fix status counts');
   });
 });

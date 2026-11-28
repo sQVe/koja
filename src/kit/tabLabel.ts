@@ -14,10 +14,8 @@ export const taskIndexOf = (terminalRecords: readonly unknown[]): Map<unknown, s
   return tasks;
 };
 
-export const taskOfPaneWithTasks = (
-  pane: PaneInfo,
-  tasks: ReadonlyMap<unknown, string>,
-): string | null => tasks.get(pane.terminal) ?? null;
+export const taskOfPane = (pane: PaneInfo, tasks: ReadonlyMap<unknown, string>): string | null =>
+  tasks.get(pane.terminal) ?? null;
 
 const workerTasksOf = (
   tabInfo: TabInfo,
@@ -86,14 +84,19 @@ const liveTitle = (tabInfo: TabInfo, paneList: PaneInfo[]): string | null => {
   return tellsTheWork(lead) ? cleanTitle(lead.title) : null;
 };
 
+const ownName = (tabInfo: TabInfo, program: PaneInfo['program'] | undefined): string | null =>
+  tabInfo.named && tabInfo.name !== program?.name ? tabInfo.name : null;
+
 export const tabNameWithTasks = (
   tabInfo: TabInfo,
   program: PaneInfo['program'] | undefined,
   paneList: PaneInfo[],
   tasks: ReadonlyMap<unknown, string>,
 ): string => {
-  if (tabInfo.named && tabInfo.name !== program?.name) {
-    return tabInfo.name;
+  const own = ownName(tabInfo, program);
+
+  if (own !== null) {
+    return own;
   }
 
   const workerName = workerLabel(workerTasksOf(tabInfo, paneList, tasks));
@@ -116,7 +119,15 @@ export const tabName = (
   program: PaneInfo['program'] | undefined,
   paneList: PaneInfo[],
   terminalRecords: readonly unknown[],
-): string => tabNameWithTasks(tabInfo, program, paneList, taskIndexOf(terminalRecords));
+): string => {
+  const own = ownName(tabInfo, program);
+
+  if (own !== null) {
+    return own;
+  }
+
+  return tabNameWithTasks(tabInfo, program, paneList, taskIndexOf(terminalRecords));
+};
 
 const zoomedLabel = (tabInfo: TabInfo, name: string): string =>
   tabInfo.zoomed ? `${name} Z` : name;
