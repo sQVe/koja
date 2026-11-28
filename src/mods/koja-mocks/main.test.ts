@@ -167,10 +167,7 @@ const layOut = (tree: DrawnElement): void => {
 const rowWithIcon = (tree: DrawnElement, name: string): DrawnElement => {
   const icon = elementWithIcon(tree, name);
 
-  const row =
-    icon === null
-      ? undefined
-      : descendants(tree).find((part) => part !== tree && descendants(part).includes(icon));
+  const row = icon === null ? undefined : tree.kids.find((kid) => descendants(kid).includes(icon));
 
   if (row === undefined) {
     throw new Error(`No row with ${name}.`);
