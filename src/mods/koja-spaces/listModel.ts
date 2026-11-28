@@ -48,9 +48,7 @@ const readableRowOf = (state: DataState, row: ListedSpace): ReadableRow | null =
 const stackFactsOf = (readable: ReadableRow): WorktreeStackFacts | null =>
   worktreeStackFactsOf(readable.facts, readable.git.worktreeKey);
 
-const ticketOf = (state: DataState, row: ListedSpace): TicketFacts | null => {
-  const readable = readableRowOf(state, row);
-
+const ticketOf = (readable: ReadableRow | null): TicketFacts | null => {
   if (readable === null) {
     return null;
   }
@@ -81,7 +79,7 @@ const rowModelOf = (
 ): RowModel => {
   const readable = readableRowOf(state, row);
   const stackFacts = readable === null ? null : stackFactsOf(readable);
-  const ticket = ticketOf(state, row);
+  const ticket = ticketOf(readable);
   const pull = pullOf(row.git, pullFactsOf(state));
   const ticketTitle = ticketTitleOf(ticket, stackFacts?.title ?? null);
 
