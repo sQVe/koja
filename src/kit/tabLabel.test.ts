@@ -250,6 +250,16 @@ describe('tabLabel live agent titles', () => {
     expect(labelOf(unnamedTab, [liveAgentPane('p1', '')])).toBe('Claude Code');
   });
 
+  test('keeps the quotes an agent puts around its live title', () => {
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', '"Review the diff"')])).toBe(
+      '"Review the diff"',
+    );
+
+    expect(labelOf(unnamedTab, [liveAgentPane('p1', "'Review the diff'")])).toBe(
+      "'Review the diff'",
+    );
+  });
+
   test('rejects a live title that is a path', () => {
     expect(labelOf(unnamedTab, [liveAgentPane('p1', '~/code/koja')])).toBe('Claude Code');
     expect(labelOf(unnamedTab, [liveAgentPane('p1', 'C:\\code')])).toBe('Claude Code');
