@@ -187,13 +187,8 @@ describe('koja-spaces selected footer', () => {
     const view = await loadView();
     const root = rootOf(view);
     const listIndex = listIndexOf(root);
-    const footer = root.kids[listIndex + 1];
 
-    if (footer === undefined) {
-      throw new Error('No footer child follows the list.');
-    }
-
-    expect(drawnTexts(footer)).toContain('#12');
+    expect(drawnTexts(footerOf(view))).toContain('#12');
     expect(root.kids).toHaveLength(listIndex + 2);
   });
 

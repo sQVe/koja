@@ -66,6 +66,12 @@ const stackOf = (pulls: StackPull[]): SpaceStack => ({
   total: pulls.length,
 });
 
+const cardOf = (stack: SpaceStack) => {
+  const model = rowModel(stack);
+
+  return stackCardOf(model, model.title);
+};
+
 describe('stackCardOf', () => {
   test('stackCardOf keeps merged numbers apart and the rest in stack order', () => {
     const stack = stackOf([
@@ -75,7 +81,7 @@ describe('stackCardOf', () => {
       stackPull({ branch: 'me-4-higher', number: 506, state: 'merged' }),
     ]);
 
-    const card = stackCardOf(rowModel(stack), 'The stack');
+    const card = cardOf(stack);
 
     expect(card?.merged).toEqual([504, 506]);
     expect(card?.pulls.map((pull) => pull.number)).toEqual([503, 505]);
@@ -87,7 +93,7 @@ describe('stackCardOf', () => {
       stackPull({ branch: 'me-2-mid', number: 504, title: '' }),
     ]);
 
-    const card = stackCardOf(rowModel(stack), 'The stack');
+    const card = cardOf(stack);
 
     expect(card?.pulls.map((pull) => pull.title)).toEqual(['me-1-low', 'me-2-mid']);
   });
@@ -100,7 +106,7 @@ describe('stackCardOf', () => {
       stackPull({ number: 514 }),
     ]);
 
-    const card = stackCardOf(rowModel(stack), 'The stack');
+    const card = cardOf(stack);
 
     expect(card?.pulls.map((pull) => pull.end)).toEqual(['review', 'draft', 'closed', null]);
   });

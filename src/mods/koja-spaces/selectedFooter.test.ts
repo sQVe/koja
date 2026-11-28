@@ -9,7 +9,7 @@ import { placeOf, repositoryOf, worktreeOf } from '../../data/gitIdentity.ts';
 import type { Pull } from '../../data/pulls.ts';
 import type { TicketFacts } from '../../data/snapshot.ts';
 import { emptyFacts, snapshotVersion } from '../../data/snapshot.ts';
-import type { SpaceStack } from '../../data/spaceStack.ts';
+import type { SpaceStack, StackPull } from '../../data/spaceStack.ts';
 import type { ListModel, RowModel } from './listModel.ts';
 import type { GitInfo, ListedSpace } from './tree.ts';
 
@@ -37,18 +37,6 @@ const liveState: DataState = {
   heartbeatAt: 0,
   staleAt: 30_000,
 };
-
-const stateWithPulls = (pulls: Pull[]): DataState => ({
-  ...liveState,
-  snapshot: {
-    version: snapshotVersion,
-    revision: 1,
-    facts: {
-      ...emptyFacts(),
-      pulls: { [repository.key]: { pulls, failed: false } },
-    },
-  },
-});
 
 const listedSpace = (id: string, linked: boolean): ListedSpace => {
   const folder = `/code/${id}`;
@@ -103,20 +91,25 @@ const modelOf = (rows: RowModel[]): ListModel => ({
   ids: rows.map((row) => row.row.space.id),
 });
 
+const stackPull = (options: {
+  number: number | null;
+  url: string | null;
+  state: StackPull['state'];
+  checkedOut?: boolean;
+}): StackPull => ({
+  branch: 'me-11-eleven',
+  ticket: 'ME-11',
+  number: options.number,
+  url: options.url,
+  title: 'The checked-out pull',
+  state: options.state,
+  checkedOut: options.checkedOut ?? false,
+  restack: 'none',
+  need: null,
+});
+
 const checkedOutStack = (number: number | null, url: string | null): SpaceStack => ({
-  pulls: [
-    {
-      branch: 'me-11-eleven',
-      ticket: 'ME-11',
-      number,
-      url,
-      title: 'The checked-out pull',
-      state: 'open',
-      checkedOut: true,
-      restack: 'none',
-      need: null,
-    },
-  ],
+  pulls: [stackPull({ number, url, state: 'open', checkedOut: true })],
   merged: 0,
   total: 1,
 });
@@ -184,7 +177,7 @@ describe('selectedFooter', () => {
     });
 
     const footer = selectedFooter(
-      stateWithPulls([cardPull, branchPull]),
+      liveState,
       modelOf([rowModel({ id: 'w', pull: branchPull, stack: checkedOutStack(11, cardPull.url) })]),
       'w',
     );
@@ -211,8 +204,8 @@ describe('selectedFooter', () => {
     });
 
     const footer = selectedFooter(
-      stateWithPulls([otherPull, cardPull]),
-      modelOf([rowModel({ id: 'w', pull: cardPull, stack: checkedOutStack(11, cardPull.url) })]),
+      liveState,
+      modelOf([rowModel({ id: 'w', pull: otherPull, stack: checkedOutStack(11, cardPull.url) })]),
       'w',
     );
 
@@ -231,7 +224,7 @@ describe('selectedFooter', () => {
     });
 
     const footer = selectedFooter(
-      stateWithPulls([branchPull]),
+      liveState,
       modelOf([rowModel({ id: 'w', pull: branchPull, stack: checkedOutStack(11, null) })]),
       'w',
     );
@@ -245,7 +238,20 @@ describe('selectedFooter', () => {
   });
 
   test("a selected stack space's footer shows merged over total merged", () => {
-    const stack: SpaceStack = { pulls: [], merged: 1, total: 3 };
+    const stack: SpaceStack = {
+      pulls: [
+        stackPull({ number: 9, url: 'https://example.invalid/koja/pull/9', state: 'merged' }),
+        stackPull({
+          number: 10,
+          url: 'https://example.invalid/koja/pull/10',
+          state: 'open',
+          checkedOut: true,
+        }),
+        stackPull({ number: 11, url: null, state: 'open' }),
+      ],
+      merged: 1,
+      total: 3,
+    };
 
     const footer = selectedFooter(liveState, modelOf([rowModel({ id: 'w', stack })]), 'w');
 
