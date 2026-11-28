@@ -10,15 +10,20 @@ const repository = repositoryOf(null, '/code/koja/.git');
 
 const stackBranches = ['me-1-low', 'me-2-mid', 'me-3-top'];
 
-const stackCheckouts = [
-  { folder: '/code/koja', commonDirectory: '/code/koja/.git', linked: false },
-  {
-    folder: '/code/koja-top',
-    commonDirectory: '/code/koja/.git',
-    linked: true,
-    branch: 'me-3-top',
-  },
-];
+export const trunkCheckout = {
+  folder: '/code/koja',
+  commonDirectory: '/code/koja/.git',
+  linked: false,
+};
+
+export const topCheckout = {
+  folder: '/code/koja-top',
+  commonDirectory: '/code/koja/.git',
+  linked: true,
+  branch: 'me-3-top',
+};
+
+const stackCheckouts = [trunkCheckout, topCheckout];
 
 const stackPulls = () => [
   pullFacts({

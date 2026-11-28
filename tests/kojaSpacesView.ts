@@ -8,6 +8,7 @@ import type { Facts, PlaceGit, RepositoryPulls, WorktreeGit } from '../src/data/
 import { emptyFacts, snapshotKey, snapshotVersion } from '../src/data/snapshot.ts';
 import { writeSection } from '../src/kit/section.ts';
 import { rowHeight } from '../src/kit/size.ts';
+import type * as selectedFooterModule from '../src/mods/koja-spaces/selectedFooter.ts';
 import {
   drawn,
   drawnTexts,
@@ -338,6 +339,19 @@ const mockKit = async (): Promise<void> => {
   const kitFake = await realKitIndexFake(kitParts);
 
   await mock.module('../src/kit/index.ts', () => kitFake);
+};
+
+// The drawn tree of the fake view is not the element type the module declares.
+export const loadSelectedFooter = async (): Promise<
+  (...args: Parameters<typeof selectedFooterModule.selectedFooter>) => DrawnElement | null
+> => {
+  const loaded = (await import('../src/mods/koja-spaces/selectedFooter.ts')) as unknown as {
+    selectedFooter: (
+      ...args: Parameters<typeof selectedFooterModule.selectedFooter>
+    ) => DrawnElement | null;
+  };
+
+  return loaded.selectedFooter;
 };
 
 export const setupKojaSpaces = async (): Promise<void> => {

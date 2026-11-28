@@ -65,7 +65,7 @@ export default class Menu extends View {
     this.normalMode = shared('koja-modal') === true;
     this.handle = cx.focus_handle();
     this.handle.focus();
-    this.lookAtCheckout(cx);
+    this.lookAtCheckout(readMenuProps(props()), cx);
   }
 
   override render(): Element {
@@ -112,12 +112,11 @@ export default class Menu extends View {
     return [line];
   }
 
-  private lookAtCheckout(cx: Context): void {
+  private lookAtCheckout(menu: MenuProps, cx: Context): void {
     if (checking()) {
       return;
     }
 
-    const menu = readMenuProps(props());
     const space = spaces().find((candidate) => candidate.id === menu.target.id);
 
     if (menu.kind !== 'space' || space === undefined) {
@@ -151,13 +150,13 @@ export default class Menu extends View {
     });
   }
 
-  private choose(item: MenuEntry | undefined): void {
+  private choose(item: MenuEntry | undefined, cx: Context): void {
     if (item === undefined || item.kind === 'error') {
       return;
     }
 
     this.closeMenu();
-    item.action();
+    item.action(cx);
   }
 
   private closeMenu(): void {
@@ -170,7 +169,7 @@ export default class Menu extends View {
     } else if (event.key === 'up') {
       this.selected = stepSelection(items, this.selected, -1);
     } else if (event.key === 'enter') {
-      this.choose(items[selectedIndex(items, this.selected)]);
+      this.choose(items[selectedIndex(items, this.selected)], cx);
     } else if (event.key === 'escape') {
       this.closeMenu();
     } else {
@@ -210,8 +209,8 @@ export default class Menu extends View {
       end,
     })
       .id(`menu-item-${index}`)
-      .on_click(() => {
-        this.choose(item);
+      .on_click((_event, cx) => {
+        this.choose(item, cx);
       });
 
     return group.child(row);

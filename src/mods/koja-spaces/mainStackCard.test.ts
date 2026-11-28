@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 
-import { drawnTexts, elementsWithId, elementsWithStyle } from '../../../tests/drawn.ts';
+import { drawnTexts, elementsWithId, elementsWithStyle, rightPress } from '../../../tests/drawn.ts';
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import type { FakeView } from '../../../tests/kojaSpacesView.ts';
 import {
@@ -105,7 +105,7 @@ describe('koja-spaces row interaction', () => {
 
     const view = await loadView();
 
-    rowOf(view, 'w').mouseHandlers['on_mouse_down:right']?.[0]?.({}, context);
+    rightPress(rowOf(view, 'w'), context);
 
     expect(state.overlayCalls).toEqual([
       expect.objectContaining({
@@ -113,7 +113,12 @@ describe('koja-spaces row interaction', () => {
         kind: 'popup',
         width: overlaySize.menuWidth,
         height: overlaySize.menuHeight,
-        props: { tab: 'space', target: { id: 'w' } },
+        props: {
+          tab: 'space',
+          target: { id: 'w' },
+          pull: { number: 505, url: 'https://github.com/example/example/pull/505' },
+          branch: 'me-3-top',
+        },
       }),
     ]);
   });

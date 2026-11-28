@@ -253,15 +253,39 @@ export const click = (element: DrawnElement, context: unknown = quietContext): v
   element.clickHandlers[0]?.({}, context);
 };
 
+const dispatchMouse = (element: DrawnElement, name: string, cx: unknown): void => {
+  for (const handler of element.mouseHandlers[name] ?? []) {
+    handler({}, cx);
+  }
+};
+
 // A left press and release on the element alone; the fake does not pass events to parents.
 export const press = (element: DrawnElement, cx: unknown): void => {
-  for (const handler of element.mouseHandlers['on_mouse_down:left'] ?? []) {
-    handler({}, cx);
+  dispatchMouse(element, 'on_mouse_down:left', cx);
+  dispatchMouse(element, 'on_mouse_up:left', cx);
+};
+
+// A right press on the element alone; the fake does not pass events to parents.
+export const rightPress = (element: DrawnElement, cx: unknown): void => {
+  dispatchMouse(element, 'on_mouse_down:right', cx);
+};
+
+export const openedUrls = (element: DrawnElement, text: string): string[] => {
+  const link = clickablesWithText(element, text).find((part) => part.texts.includes(text));
+
+  if (link === undefined) {
+    throw new Error(`The element draws no ${text} link.`);
   }
 
-  for (const handler of element.mouseHandlers['on_mouse_up:left'] ?? []) {
-    handler({}, cx);
-  }
+  const opened: string[] = [];
+
+  click(link, {
+    open_url: (url: string) => {
+      opened.push(url);
+    },
+  });
+
+  return opened;
 };
 
 export const elementsWithMouseHandlers = (element: DrawnElement): DrawnElement[] =>

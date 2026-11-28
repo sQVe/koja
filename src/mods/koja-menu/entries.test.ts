@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 
+import type { Context } from 'gpui-kit';
+
 import type { GitIdentity } from '../../data/gitIdentity.ts';
 import type {
   Checkout,
@@ -44,6 +46,11 @@ const host: MenuHost = {
   themes: () => themes,
 };
 
+const context = {
+  open_url: () => undefined,
+  write_to_clipboard: () => undefined,
+} as unknown as Context;
+
 const actionsOf = (menu: MenuProps, checkout: Checkout): MenuAction[] =>
   menuEntries(menu, checkout, host).filter(isAction);
 
@@ -57,7 +64,7 @@ const rowLabels = (menu: MenuProps, checkout: Checkout): string[] =>
 
 const runEntries = (menu: MenuProps, checkout: Checkout): void => {
   for (const entry of actionsOf(menu, checkout)) {
-    entry.action();
+    entry.action(context);
   }
 };
 
@@ -249,6 +256,8 @@ describe('menu commands', () => {
       task: null,
       branch: null,
       folder: null,
+      ticket: null,
+      pull: null,
       overflow: false,
       zoomed: false,
     });
@@ -397,7 +406,7 @@ describe('menu commands', () => {
     ]);
 
     for (const item of entries) {
-      item.action();
+      item.action(context);
     }
 
     expect(runCalls).toStrictEqual([
@@ -435,7 +444,7 @@ describe('menu commands', () => {
     ]);
 
     for (const item of entries) {
-      item.action();
+      item.action(context);
     }
 
     expect(runCalls).toStrictEqual([
@@ -458,7 +467,7 @@ describe('menu commands', () => {
       (candidate) => candidate.label === 'Send right-clicks to pane',
     );
 
-    entry?.action();
+    entry?.action(context);
 
     expect(runCalls).toStrictEqual([
       { command: 'terminal.right_click', args: { to: 'program', terminal: 'terminal-1' } },
@@ -508,7 +517,7 @@ describe('menu commands', () => {
     expect(rowLabels(menu, null)).toEqual(['Rename', 'New tab', 'Close']);
 
     for (const item of entries) {
-      item.action();
+      item.action(context);
     }
 
     expect(runCalls).toStrictEqual([
@@ -603,7 +612,7 @@ describe('menu commands', () => {
     const entries = actionsOf(menu, null);
 
     for (const item of entries) {
-      item.action();
+      item.action(context);
     }
 
     expect(runCalls).toStrictEqual([
