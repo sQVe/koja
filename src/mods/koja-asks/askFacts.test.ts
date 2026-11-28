@@ -29,6 +29,7 @@ const blocked = (
   address: 't1',
   parent: null,
   labels: {},
+  turn: 1,
   report: report ?? defaultReport,
   ...overrides,
 });
@@ -132,6 +133,13 @@ describe('asksOf', () => {
     const addresses = asksOf(sources(terminals, agents)).map((ask) => ask.address);
 
     expect(addresses).toEqual(['t2', 't1']);
+  });
+
+  test('gives an ask repeated in a later turn its own identity', () => {
+    const first = asksOf(sources([blocked(undefined, { turn: 1 })], [agent()]));
+    const later = asksOf(sources([blocked(undefined, { turn: 2 })], [agent()]));
+
+    expect(later[0]?.identity).not.toBe(first[0]?.identity);
   });
 
   test('yields nothing once the ask is answered', () => {
