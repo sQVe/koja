@@ -52,6 +52,11 @@ describe('sortedValue', () => {
     const second = [{ a: 2, b: 1, '2': [2, 1] }];
 
     expect(JSON.stringify(sortedValue(first))).toBe(JSON.stringify(sortedValue(second)));
+
+    expect(JSON.stringify(sortedValue({ '10': 1, '2': 2, b: 3, a: 4 }))).toBe(
+      '{"2":2,"10":1,"a":4,"b":3}',
+    );
+
     expect(sortedValue([2, 1])).toEqual([2, 1]);
   });
 
@@ -67,6 +72,7 @@ describe('sortedValue', () => {
 
   test('tells apart records whose values differ', () => {
     expect(sameValue({ a: 1 }, { a: 2 })).toBe(false);
+    expect(sameValue({ a: { b: 1 } }, { a: { b: 2 } })).toBe(false);
     expect(sameValue({ a: 1, b: 2 }, { b: 2, a: 1 })).toBe(true);
   });
 });
