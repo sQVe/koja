@@ -83,7 +83,21 @@ describe('fuzzyMatch', () => {
   });
 
   test('starts a word after each separator and not after a letter', () => {
-    const separators = [' ', '\t', '\n', '\u00a0', '/', '_', '.', '-', '~'];
+    const separators = [
+      ' ',
+      '\t',
+      '\n',
+      '\r',
+      '\v',
+      '\f',
+      '\u00a0',
+      '\u2028',
+      '/',
+      '_',
+      '.',
+      '-',
+      '~',
+    ];
 
     for (const separator of separators) {
       expect(fuzzyMatch('ab', spreadTextAfter(separator))?.positions).toEqual([0, 22]);
