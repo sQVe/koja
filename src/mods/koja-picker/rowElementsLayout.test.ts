@@ -22,39 +22,43 @@ const compoundFilterFixture = (): PickerData =>
     ],
   });
 
-const rowWithText = (element: DrawnElement, text: string): DrawnElement => {
-  const row = element.kids.find((kid) => drawnTexts(kid).includes(text));
+const rowMatching = (
+  element: DrawnElement,
+  matches: (kid: DrawnElement) => boolean,
+  description: string,
+): DrawnElement => {
+  const row = element.kids.find(matches);
 
   if (row === undefined) {
-    throw new Error(`no row with ${text}`);
+    throw new Error(`no row ${description}`);
   }
 
   return row;
 };
 
-const rowWithExactText = (element: DrawnElement, text: string): DrawnElement => {
-  const row = element.kids.find((kid) => {
+const hasText =
+  (text: string) =>
+  (kid: DrawnElement): boolean =>
+    drawnTexts(kid).includes(text);
+
+const hasOnlyText =
+  (text: string) =>
+  (kid: DrawnElement): boolean => {
     const texts = drawnTexts(kid);
 
     return texts.length === 1 && texts[0] === text;
-  });
-
-  if (row === undefined) {
-    throw new Error(`no row with only ${text}`);
-  }
-
-  return row;
-};
+  };
 
 describe('list layout under a status filter', () => {
   test('a filtered pane without a tab row aligns with other direct children', () => {
     const data = compoundFilterFixture();
     const drawn = listOf('', data, ['done', 'blocked']);
 
-    const pane = rowWithText(drawn, 'zsh · title p1');
-    const tabRow = rowWithExactText(drawn, 'zsh');
+    const pane = rowMatching(drawn, hasText('zsh · title p1'), 'with zsh · title p1');
+    const tabRows = drawn.kids.filter(hasText('zsh'));
+    const tabRow = rowMatching(drawn, hasOnlyText('zsh'), 'with only zsh');
 
-    expect(tabRow).not.toBe(pane);
+    expect(tabRows).toHaveLength(1);
     expect(numberStyle(pane, 'pl')).toBe(numberStyle(tabRow, 'pl'));
   });
 });
@@ -64,10 +68,9 @@ describe('list layout without a status filter', () => {
     const data = compoundFilterFixture();
     const drawn = listOf('', data);
 
-    const pane = rowWithText(drawn, 'zsh · title p1');
-    const tabRow = rowWithExactText(drawn, 'zsh');
+    const pane = rowMatching(drawn, hasText('zsh · title p1'), 'with zsh · title p1');
+    const tabRow = rowMatching(drawn, hasOnlyText('zsh'), 'with only zsh');
 
-    expect(tabRow).not.toBe(pane);
     expect(numberStyle(pane, 'pl')).toBeGreaterThan(numberStyle(tabRow, 'pl'));
   });
 });

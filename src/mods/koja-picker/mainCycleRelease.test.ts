@@ -3,9 +3,14 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { PaneInfo, SpaceInfo } from 'herdr';
 
 import { gpuiBaseFake, gpuiKitFake, herdrFake, kitIndexFake } from '../../../tests/moduleFakes.ts';
-import { paneOf, tabOf } from '../../../tests/pickerFixtures.ts';
+import { paneOf, spaceOf, tabOf } from '../../../tests/pickerFixtures.ts';
 
 type ModifierHandler = (event: { modifiers: { control: boolean; shift?: boolean } }) => void;
+
+type KeyDownHandler = (
+  event: { key: string; modifiers: { control: boolean } },
+  cx: unknown,
+) => void;
 
 interface RunCall {
   command: string;
@@ -16,6 +21,7 @@ interface RunCall {
 Object.assign(globalThis, { kojaModName: 'koja-picker' });
 
 let modifierHandler: ModifierHandler | null = null;
+let keyDownHandler: KeyDownHandler | null = null;
 let keyBindings: { keystroke: string; action: string; context?: string }[] = [];
 let props: Record<string, unknown> = {};
 let spaceValues: SpaceInfo[] = [];
@@ -44,6 +50,14 @@ const chainable = (): unknown => {
       if (key === 'on_modifiers_changed') {
         return (handler: ModifierHandler) => {
           modifierHandler = handler;
+
+          return element;
+        };
+      }
+
+      if (key === 'on_key_down') {
+        return (handler: KeyDownHandler) => {
+          keyDownHandler = handler;
 
           return element;
         };
@@ -203,6 +217,7 @@ afterAll(() => {
 
 beforeEach(() => {
   modifierHandler = null;
+  keyDownHandler = null;
   keyBindings = [];
   props = { part: 'list' };
   spaceValues = [];
@@ -238,23 +253,10 @@ const releaseControl = (): void => {
 const selectionCommands = (): RunCall[] =>
   runCalls.filter((call) => call.command === 'space.select');
 
-const spaceOf = (id: string, index: number, tabs: SpaceInfo['tabs'] = []): SpaceInfo => ({
-  id,
-  index,
-  name: `name-${id}`,
-  named: true,
-  folder: `/code/${id}`,
-  machine: null,
-  branch: null,
-  active: index === 1,
-  status: null,
-  tabs,
-});
-
 describe('Control release', () => {
   test('Control release does not commit after a cycle with no matching space', async () => {
     focusedValue = { space: 's1' };
-    spaceValues = [spaceOf('s1', 1), spaceOf('s2', 2)];
+    spaceValues = [spaceOf('s1', 1, 'name-s1'), spaceOf('s2', 2, 'name-s2')];
 
     const view = await loadView();
 
@@ -273,7 +275,12 @@ describe('Control release', () => {
 
   test('Control release commits the space the cycle selected', async () => {
     focusedValue = { space: 's1' };
-    spaceValues = [spaceOf('s1', 1), spaceOf('s2', 2), spaceOf('s3', 3)];
+
+    spaceValues = [
+      spaceOf('s1', 1, 'name-s1'),
+      spaceOf('s2', 2, 'name-s2'),
+      spaceOf('s3', 3, 'name-s3'),
+    ];
 
     const view = await loadView();
 
@@ -287,9 +294,36 @@ describe('Control release', () => {
     expect(closeOverlayCalls).toBe(1);
   });
 
+  test('Escape after a cycle disarms the release', async () => {
+    focusedValue = { space: 's1' };
+
+    spaceValues = [
+      spaceOf('s1', 1, 'name-s1'),
+      spaceOf('s2', 2, 'name-s2'),
+      spaceOf('s3', 3, 'name-s3'),
+    ];
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    await cycle();
+    keyDownHandler?.({ key: 'escape', modifiers: { control: false } }, renderedContext);
+    releaseControl();
+
+    expect(selectionCommands()).toEqual([]);
+    expect(closeOverlayCalls).toBe(1);
+  });
+
   test('Control release commits nothing when the cycled space vanished', async () => {
     focusedValue = { space: 's1' };
-    spaceValues = [spaceOf('s1', 1), spaceOf('s2', 2), spaceOf('s3', 3)];
+
+    spaceValues = [
+      spaceOf('s1', 1, 'name-s1'),
+      spaceOf('s2', 2, 'name-s2'),
+      spaceOf('s3', 3, 'name-s3'),
+    ];
 
     const view = await loadView();
 
@@ -298,7 +332,7 @@ describe('Control release', () => {
 
     await cycle();
 
-    spaceValues = [spaceOf('s1', 1), spaceOf('s2', 2)];
+    spaceValues = [spaceOf('s1', 1, 'name-s1'), spaceOf('s2', 2, 'name-s2')];
     releaseControl();
 
     expect(selectionCommands()).toEqual([]);
@@ -307,7 +341,12 @@ describe('Control release', () => {
 
   test('a modifier change with Control still held commits nothing', async () => {
     focusedValue = { space: 's1' };
-    spaceValues = [spaceOf('s1', 1), spaceOf('s2', 2), spaceOf('s3', 3)];
+
+    spaceValues = [
+      spaceOf('s1', 1, 'name-s1'),
+      spaceOf('s2', 2, 'name-s2'),
+      spaceOf('s3', 3, 'name-s3'),
+    ];
 
     const view = await loadView();
 
@@ -326,8 +365,8 @@ describe('Control release', () => {
     focusedValue = null;
 
     spaceValues = [
-      spaceOf('s1', 1, [tabOf('k1', 1, true), tabOf('k2', 2)]),
-      spaceOf('s2', 2, [tabOf('n1', 1, true)]),
+      spaceOf('s1', 1, 'name-s1', [tabOf('k1', 1, true), tabOf('k2', 2)]),
+      spaceOf('s2', 2, 'name-s2', [tabOf('n1', 1, true)]),
     ];
 
     paneValues = [paneOf('p1', 'k1'), paneOf('p2', 'k1'), paneOf('p3', 'k2'), paneOf('p4', 'n1')];
@@ -347,7 +386,7 @@ describe('Control release', () => {
 
   test('a query edit after a cycle disarms the release', async () => {
     focusedValue = { space: 's1' };
-    spaceValues = [spaceOf('s1', 1), spaceOf('s2', 2)];
+    spaceValues = [spaceOf('s1', 1, 'name-s1'), spaceOf('s2', 2, 'name-s2')];
 
     const view = await loadView();
 

@@ -94,7 +94,7 @@ describe('buildRows search under a status filter', () => {
   test('an empty query under a filter keeps the first eligible pane', () => {
     const fixture = pickerData({
       spaces: [spaceOf('s1', 1, 'koja', [tabOf('k1', 1, true)])],
-      panes: [paneOf('p1', 'k1', 'blocked'), paneOf('p2', 'k1', 'blocked')],
+      panes: [paneOf('p1', 'k1', 'blocked'), { ...paneOf('p2', 'k1', 'blocked'), focused: true }],
     });
 
     const [spaceRow] = buildRows('', ['blocked'], fixture);

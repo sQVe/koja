@@ -30,4 +30,11 @@ describe('highlightRuns', () => {
       { text: 'b', highlighted: false },
     ]);
   });
+
+  test('highlights a whole astral character before a later mark', () => {
+    expect(highlightRuns('😀b', [2])).toEqual([
+      { text: '😀', highlighted: false },
+      { text: 'b', highlighted: true },
+    ]);
+  });
 });
