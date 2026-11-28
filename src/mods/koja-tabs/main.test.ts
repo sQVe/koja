@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, setSystemTime, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
 import { click, drawn, elementsWithId } from '../../../tests/drawn.ts';
@@ -132,6 +132,7 @@ const loaded = (await import(modulePath)) as {
 };
 
 afterAll(() => {
+  setSystemTime();
   mock.restore();
 });
 
@@ -178,9 +179,10 @@ describe('the active tab in view', () => {
     const view = new loaded.default();
 
     view.render();
+    scrollCalls = [];
     view.render();
 
-    expect(scrollCalls).toEqual([0]);
+    expect(scrollCalls).toEqual([]);
   });
 
   test('reveals the active tab again when a tab before it changes size', () => {
@@ -364,5 +366,45 @@ describe('the new menu button', () => {
     new loaded.default().init(null, context);
 
     expect(sharedWrites).toEqual([]);
+  });
+});
+
+const wheelHandlerOf = (view: { render: () => unknown }): ((event: unknown) => void) => {
+  const root = view.render() as DrawnElement;
+  const [handler] = (root.styles['on_scroll_wheel'] ?? []) as ((event: unknown) => void)[];
+
+  if (handler === undefined) {
+    throw new Error('The tab strip draws no wheel handler.');
+  }
+
+  return handler;
+};
+
+const wheelOver = (view: { render: () => unknown }, y: number): void => {
+  wheelHandlerOf(view)({ delta: { y }, touch_phase: 'moved' });
+};
+
+describe('the wheel over the tab strip', () => {
+  test('switches to the tab before on a downward wheel and to the tab after on an upward one', () => {
+    wheelOver(new loaded.default(), 20);
+
+    expect(actions).toEqual([{ name: 'tab.prev', args: undefined }]);
+
+    actions = [];
+
+    wheelOver(new loaded.default(), -20);
+
+    expect(actions).toEqual([{ name: 'tab.next', args: undefined }]);
+  });
+
+  test('switches nothing on a second wheel event inside the step interval', () => {
+    setSystemTime(new Date(1_000));
+
+    const view = new loaded.default();
+
+    wheelOver(view, 20);
+    wheelOver(view, 60);
+
+    expect(actions).toEqual([{ name: 'tab.prev', args: undefined }]);
   });
 });
