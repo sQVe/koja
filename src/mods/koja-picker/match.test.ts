@@ -54,6 +54,13 @@ describe('fuzzyMatch', () => {
     expect(fuzzyMatch('abc', text)).toBeNull();
   });
 
+  test('returns no match when the route work budget runs out', () => {
+    const count = 200;
+    const text = `${'a b '.repeat(count)}${'x'.repeat(12)}${'c'.repeat(count)}`;
+
+    expect(fuzzyMatch('abc', text)).toBeNull();
+  });
+
   test('matches a compact rescue after a supplementary first character', () => {
     const text = `😀${'x'.repeat(20)}😀b`;
 
@@ -109,7 +116,7 @@ describe('fuzzyMatch', () => {
   });
 
   for (const [name, separator] of separatorCases) {
-    test(`starts a word after the ${name} separator ${JSON.stringify(separator)}`, () => {
+    test(`starts a word after the ${name}`, () => {
       expect(fuzzyMatch('ab', spreadTextAfter(separator))?.positions).toEqual([0, 22]);
     });
   }

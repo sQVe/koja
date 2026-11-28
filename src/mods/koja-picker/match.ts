@@ -51,11 +51,8 @@ const spreadPerLetter = 2;
 
 const spreadSlack = 4;
 
+// The route search is bounded by this many steps, and running out yields no route match.
 const routeWorkBudget = 4096;
-
-// 4096 steps covers the word-start and adjacent candidates one keystroke explores while keeping
-// the search bounded. Running out returns no route match, so a matching row can be missing; change
-// it only as a deliberate tradeoff against keystroke time.
 
 // The ECMAScript `\s` set plus `/`, `_`, `.`, `-`, and `~`. The hyphen is escaped so the class
 // keeps it literal instead of spanning `.` to `~`.
@@ -537,7 +534,7 @@ export const fuzzyMatch = (query: string, text: string): Match | null => {
   let best: Match | null = null;
   let bestScore = Number.NEGATIVE_INFINITY;
 
-  // The first occurrence already had its greedy match; the rest can rescue a spread-out one.
+  // An iterator skips the first start without copying the long positions array.
   const laterStarts = firstPositions.values();
 
   laterStarts.next();
