@@ -17,7 +17,7 @@ import {
   stringOf,
 } from '../../kit/index.ts';
 import { findScene, sceneOrigin, sceneReadyLine } from './catalog.ts';
-import type { SceneName } from './catalog.ts';
+import type { SceneLookup, SceneName } from './catalog.ts';
 import { briefScene } from './directions/attention/brief.ts';
 import { cornerScene } from './directions/attention/corner.ts';
 import { createMixState, mixScene } from './directions/attention/mix.ts';
@@ -51,6 +51,7 @@ import { directionWindow } from './directions/window.ts';
 import { controlsScene } from './scenes/controls.ts';
 import { headerMarksScene } from './scenes/headerMarks.ts';
 import type { SceneInputs } from './scenes/inputs.ts';
+import { sceneField } from './scenes/inputs.ts';
 import { paneHeadersRolesScene } from './scenes/paneHeaderRoles.ts';
 import { paneHeadersScene } from './scenes/paneHeaders.ts';
 import { popupQuery, popupScene } from './scenes/popup.ts';
@@ -76,6 +77,13 @@ import { statesScene } from './scenes/states.ts';
 interface SceneRender {
   element: Element;
   readyName: SceneName | null;
+}
+
+type ResolvedScene = Extract<SceneLookup, { scene: unknown }>;
+
+interface WindowScene {
+  name: string;
+  scene: SceneLookup;
 }
 
 const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
@@ -226,6 +234,8 @@ const renderers: Record<SceneName, (inputs: SceneInputs) => Element> = {
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.
 const refocusMilliseconds = 600;
 
+const isResolvedScene = (lookup: SceneLookup): lookup is ResolvedScene => 'scene' in lookup;
+
 const pickerHint = 'Type a scene name and press Enter.';
 
 const sceneName = (): string | null => stringOf(recordOf(props())['scene']);
@@ -245,14 +255,16 @@ export default class Mocks extends View {
 
   private readonly input: InputState = InputStates.new({ placeholder: 'Scene name…' });
 
-  private readyLogged = false;
+  private firstFrameDone = false;
 
   private sceneInputs: SceneInputs | null = null;
 
   override init(_props: unknown, cx: AsyncContext): void {
     this.handle = cx.focus_handle();
 
-    if (sceneName() !== null) {
+    const lookup = this.currentScene();
+
+    if (lookup !== null && isResolvedScene(lookup.scene)) {
       this.sceneInputs = createSceneInputs();
     }
 
@@ -273,27 +285,51 @@ export default class Mocks extends View {
   }
 
   override render(): Element {
-    const name = sceneName();
+    const lookup = this.currentScene();
 
-    if (name === null) {
+    if (lookup === null) {
       return this.picker();
     }
 
-    return this.scene(name);
+    return this.sceneWindow(lookup);
+  }
+
+  private currentScene(): WindowScene | null {
+    const name = sceneName();
+
+    return name === null ? null : { name, scene: findScene(name) };
+  }
+
+  private focusedField(lookup: SceneLookup): InputState | null {
+    if (!isResolvedScene(lookup) || this.sceneInputs === null) {
+      return null;
+    }
+
+    return sceneField(lookup.scene.name, this.sceneInputs);
   }
 
   private focusSelf(): void {
-    if (sceneName() === null) {
+    const lookup = this.currentScene();
+
+    if (lookup === null) {
       this.input.focus();
-    } else {
+
+      return;
+    }
+
+    const field = this.focusedField(lookup.scene);
+
+    if (field === null) {
       this.handle?.focus();
+    } else {
+      field.focus();
     }
   }
 
   private openScene(cx: Context): void {
     const lookup = findScene(this.input.value());
 
-    if ('error' in lookup) {
+    if (!isResolvedScene(lookup)) {
       this.error = lookup.error;
       cx.notify();
 
@@ -329,9 +365,9 @@ export default class Mocks extends View {
     return this.tracked(surface);
   }
 
-  private scene(name: string): Element {
-    const content = this.sceneContent(name);
-    const title = content.readyName ?? name;
+  private sceneWindow(lookup: WindowScene): Element {
+    const content = this.sceneContent(lookup.scene);
+    const title = content.readyName ?? lookup.name;
 
     const closeButton = iconButton({ name: 'x', size: 'small' })
       .accessibility_label('Close scene')
@@ -351,7 +387,15 @@ export default class Mocks extends View {
     const surface = popupSurface('mocks-scene')
       .h_full()
       .on_size_change((_size, layoutCx) => {
-        this.announceReady(content.readyName, layoutCx);
+        const drawn = content.readyName;
+
+        if (drawn === null || this.firstFrameDone) {
+          return;
+        }
+
+        this.firstFrameDone = true;
+        this.focusSelf();
+        this.announceReady(drawn, layoutCx);
       })
       .on_key_down((event, keyCx) => {
         if (event.key === 'escape') {
@@ -365,10 +409,8 @@ export default class Mocks extends View {
     return this.tracked(surface);
   }
 
-  private sceneContent(name: string): SceneRender {
-    const lookup = findScene(name);
-
-    if ('error' in lookup) {
+  private sceneContent(lookup: SceneLookup): SceneRender {
+    if (!isResolvedScene(lookup)) {
       return { element: stateLine({ kind: 'error', text: lookup.error }), readyName: null };
     }
 
@@ -378,19 +420,12 @@ export default class Mocks extends View {
       return { element, readyName: null };
     }
 
-    return {
-      element: renderers[lookup.scene.name](this.sceneInputs),
-      readyName: lookup.scene.name,
-    };
+    const { name } = lookup.scene;
+
+    return { element: renderers[name](this.sceneInputs), readyName: name };
   }
 
-  private announceReady(name: SceneName | null, cx: Context): void {
-    if (name === null || this.readyLogged) {
-      return;
-    }
-
-    this.readyLogged = true;
-
+  private announceReady(name: SceneName, cx: Context): void {
     // Layout runs in the frame that draws the scene, so the frame after it is the first one
     // that shows the scene. A capture that waits for the line then shoots a drawn scene.
     cx.timer.after(0, () => {
