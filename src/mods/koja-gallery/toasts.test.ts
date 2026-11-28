@@ -25,10 +25,41 @@ interface Notification {
 const notifications: Notification[] = [];
 
 const palette = {
+  accent: '#a100aa',
+  blocked: '#c0392b',
+  done: '#1f8f4e',
   raised: '#101010',
   solid: '#202020',
   solid_foreground: '#303030',
+  working: '#b7791f',
 };
+
+const levelSamples = [
+  {
+    caption: 'info toast',
+    title: 'Update available',
+    body: 'Restart to install the new version.',
+    mark: palette.accent,
+  },
+  {
+    caption: 'success toast',
+    title: 'Build finished',
+    body: 'All checks passed.',
+    mark: palette.done,
+  },
+  {
+    caption: 'warning toast',
+    title: 'Checks are stale',
+    body: 'The last check ran 8 minutes ago.',
+    mark: palette.working,
+  },
+  {
+    caption: 'error toast',
+    title: 'Build failed',
+    body: 'typecheck exited with code 1.',
+    mark: palette.blocked,
+  },
+];
 
 Object.assign(globalThis, { kojaModName: 'koja' });
 
@@ -75,14 +106,15 @@ const sampleNamed = (label: string): DrawnElement => {
   return found;
 };
 
-test('draws every level with its message', () => {
-  const texts = drawnTexts(drawnTree(toasts() as unknown as DrawnElement[]));
+test('draws each level as its own card with its message and mark', () => {
+  for (const level of levelSamples) {
+    const card = sampleNamed(level.caption);
+    const backgrounds = descendants(card).flatMap((part) => part.backgroundColors);
 
-  for (const title of ['Update available', 'Build finished', 'Checks are stale', 'Build failed']) {
-    expect(texts).toContain(title);
+    expect(drawnTexts(card)).toContain(level.title);
+    expect(drawnTexts(card)).toContain(level.body);
+    expect(backgrounds).toContain(level.mark);
   }
-
-  expect(texts).toContain('All checks passed.');
 });
 
 test('draws the icon sample with its icon and message', () => {

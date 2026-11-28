@@ -32,6 +32,18 @@ describe('toastProps', () => {
     expect(toast.action).toBeNull();
   });
 
+  test('drops an action with an empty name', () => {
+    const toast = readToastProps({ action: { name: '', args: {} } });
+
+    expect(toast.action).toBeNull();
+  });
+
+  test('reads an empty icon as absent', () => {
+    const toast = readToastProps({ icon: '' });
+
+    expect(toast.icon).toBeNull();
+  });
+
   test('reads fitHeight only when it is true', () => {
     expect(readToastProps({ fitHeight: true }).fitHeight).toBe(true);
     expect(readToastProps({ fitHeight: 'true' }).fitHeight).toBe(false);

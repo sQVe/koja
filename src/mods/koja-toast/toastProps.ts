@@ -24,9 +24,15 @@ const readLevel = (value: unknown): ToastLevel => {
   return known ?? 'info';
 };
 
+const presentStringOf = (value: unknown): string | null => {
+  const text = stringOf(value);
+
+  return text === '' ? null : text;
+};
+
 const readAction = (value: unknown): ToastProps['action'] => {
   const record = recordOf(value);
-  const name = stringOf(record['name']);
+  const name = presentStringOf(record['name']);
 
   if (name === null) {
     return null;
@@ -54,7 +60,7 @@ export const readToastProps = (value: unknown): ToastProps => {
   return {
     overlay: stringOf(record['overlay']),
     level: readLevel(record['level']),
-    icon: stringOf(record['icon']),
+    icon: presentStringOf(record['icon']),
     action: readAction(record['action']),
     fitHeight: record['fitHeight'] === true,
     content: readContent(title, stringOf(record['body'])),
