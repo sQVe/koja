@@ -1,5 +1,5 @@
 import { ScrollHandle, h_flex } from 'gpui-base';
-import type { AsyncContext, Context, Element, MouseButtonEvent } from 'gpui-kit';
+import type { AsyncContext, Context, Element, MouseButtonEvent, Size } from 'gpui-kit';
 import { div, View } from 'gpui-kit';
 import type { SpaceInfo, Status, TabInfo } from 'herdr';
 import { openOverlay, panes, run, setShared, settings, shared, spaces, terminals } from 'herdr';
@@ -106,6 +106,13 @@ const readStoredPanels = (): Record<string, string | null> => {
 const tabIds = (space: SpaceInfo | undefined): string[] =>
   space?.tabs.map((tabInfo) => tabInfo.id) ?? [];
 
+const activeTabOf = (shown: TabInfo[]): { index: number; id: string | null } => {
+  const active = shown.find((tabInfo) => tabInfo.active);
+  const index = active === undefined ? -1 : shown.indexOf(active);
+
+  return { index, id: active?.id ?? null };
+};
+
 const shownPanel = (root: LayoutNode): string | null => {
   const panel = findLayoutNode('panel', root);
   const body = findLayoutNode('panel-body', root);
@@ -195,26 +202,15 @@ export default class Tabs extends View {
     const startSpacer = div().w(startPadding).flex_none();
     const endSpacer = div().flex_1().min_w(0);
 
-    const active = shown.find((tabInfo) => tabInfo.active);
-    const activeId = active?.id ?? null;
-    const activeIndex = active === undefined ? -1 : shown.indexOf(active);
+    const active = activeTabOf(shown);
+
+    this.revealOnChange(active.index, active.id);
 
     const tabItems = shown.map((tabInfo, index) => {
       const item = this.tabItem(space, tabInfo, statuses.tabs[tabInfo.id] ?? null, index);
 
-      return index <= activeIndex
-        ? item.on_size_change((_size, cx) => {
-            this.revealTab(activeIndex);
-            cx.notify();
-          })
-        : item;
+      return index <= active.index ? item.on_size_change(this.revealOnSizeChange) : item;
     });
-
-    if (activeIndex !== this.revealedIndex || activeId !== this.revealedTab) {
-      this.revealedIndex = activeIndex;
-      this.revealedTab = activeId;
-      this.revealTab(activeIndex);
-    }
 
     const scroller = h_flex()
       .id('tab-scroll')
@@ -225,10 +221,7 @@ export default class Tabs extends View {
       .gap(spacing.xxsmall)
       .overflow_x_scrollbar()
       .track_scroll(this.scroll)
-      .on_size_change((_size, cx) => {
-        this.revealTab(this.revealedIndex);
-        cx.notify();
-      })
+      .on_size_change(this.revealOnSizeChange)
       .children(tabItems)
       .child(endSpacer);
 
@@ -255,6 +248,21 @@ export default class Tabs extends View {
       .child(startSpacer)
       .child(scroller)
       .child(this.controls(enabled, root));
+  }
+
+  private readonly revealOnSizeChange = (_size: Size, cx: Context): void => {
+    this.revealTab(this.revealedIndex);
+    cx.notify();
+  };
+
+  private revealOnChange(index: number, id: string | null): void {
+    if (index === this.revealedIndex && id === this.revealedTab) {
+      return;
+    }
+
+    this.revealedIndex = index;
+    this.revealedTab = id;
+    this.revealTab(index);
   }
 
   private revealTab(index: number): void {
