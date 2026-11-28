@@ -437,10 +437,19 @@ describe('keyboard focus', () => {
     runTimers();
 
     expect(log.mock.calls).toEqual([[sceneReadyLine('smoke-2')]]);
+  });
+
+  test('a scene laid out again does not take the keyboard again', async () => {
+    sceneProps = { scene: 'smoke-2' };
+
+    const view = await loadView();
+
+    view.init(undefined, { ...asyncContext, timer: layoutContext.timer });
+    drawScene(view);
+    runTimers();
 
     focusedInputs.length = 0;
     drawScene(view);
-    runTimers();
 
     expect(focusedInputs).toEqual([]);
   });
