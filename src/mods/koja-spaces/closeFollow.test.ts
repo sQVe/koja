@@ -1,0 +1,101 @@
+import { describe, expect, test } from 'bun:test';
+
+import type { SpaceSelection } from '../../kit/space/spaceSelection.ts';
+import type { SpaceOrder } from '../../kit/spaceOrder.ts';
+import type { CloseLook, CloseWatch, PendingPick } from './closeFollow.ts';
+import { closeFollowStep } from './closeFollow.ts';
+
+const order = (shown: string[]): SpaceOrder => ({ shown, hidden: [], roots: [...shown] });
+
+const selection = (count: number, id: string | null): SpaceSelection => ({
+  version: 1,
+  count,
+  id,
+});
+
+const pending = (id: string, seenAt: number): PendingPick => ({ id, seenAt });
+
+const watchOf = (changes: Partial<CloseWatch>): CloseWatch => ({
+  focused: 'b',
+  order: order(['a', 'b', 'c', 'd']),
+  selection: selection(1, 'c'),
+  pending: null,
+  ...changes,
+});
+
+const lookOf = (changes: Partial<CloseLook>): CloseLook => ({
+  focused: 'b',
+  order: order(['a', 'b', 'c', 'd']),
+  selection: selection(1, 'c'),
+  liveIds: ['a', 'b', 'c', 'd'],
+  now: 100,
+  ...changes,
+});
+
+describe('closeFollowStep', () => {
+  test('a pending pick clears when focus lands on it', () => {
+    const step = closeFollowStep(
+      watchOf({ pending: pending('c', 0) }),
+      lookOf({ focused: 'c', now: 100 }),
+    );
+
+    expect(step.watch.pending).toBeNull();
+  });
+
+  test('a pending pick clears when its space closes', () => {
+    const step = closeFollowStep(
+      watchOf({ pending: pending('c', 0) }),
+      lookOf({ liveIds: ['a', 'b', 'd'], now: 100 }),
+    );
+
+    expect(step.watch.pending).toBeNull();
+  });
+
+  test('a newer pick replaces the pending one', () => {
+    const step = closeFollowStep(
+      watchOf({ pending: pending('c', 0) }),
+      lookOf({ selection: selection(2, 'd'), now: 100 }),
+    );
+
+    expect(step.watch.pending).toEqual(pending('d', 100));
+  });
+
+  test('a pending pick expires after a second', () => {
+    const step = closeFollowStep(watchOf({ pending: pending('c', 0) }), lookOf({ now: 1000 }));
+
+    expect(step.watch.pending).toBeNull();
+  });
+
+  test('a pick that landed in its own look is not pending', () => {
+    const step = closeFollowStep(
+      watchOf({ selection: selection(0, null) }),
+      lookOf({ focused: 'c', selection: selection(1, 'c'), now: 100 }),
+    );
+
+    expect(step.watch.pending).toBeNull();
+  });
+
+  test('a close of the focused space follows to the space above', () => {
+    const step = closeFollowStep(
+      watchOf({ selection: null }),
+      lookOf({ focused: 'c', liveIds: ['a', 'c'], selection: null }),
+    );
+
+    expect(step.command).toEqual({ name: 'space.select', args: { id: 'a' } });
+  });
+
+  test('a close seen while a pick is pending is dropped, so only the next close is followed', () => {
+    const blocked = closeFollowStep(
+      watchOf({ focused: 'b', pending: pending('c', 0) }),
+      lookOf({ focused: 'c', liveIds: ['a', 'c'], now: 100 }),
+    );
+
+    const later = closeFollowStep(
+      blocked.watch,
+      lookOf({ focused: 'd', liveIds: ['d'], now: 200 }),
+    );
+
+    expect(blocked.command).toBeNull();
+    expect(later.command).toEqual({ name: 'space.select', args: { id: 'd' } });
+  });
+});
