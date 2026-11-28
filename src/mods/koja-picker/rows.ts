@@ -9,7 +9,7 @@ import {
   tabNameWithTasks,
   tabProgram,
   taskIndexOf,
-  taskOfPaneWithTasks,
+  taskOfPane,
 } from '../../kit/tabLabel.ts';
 import { bestFieldMatch, fuzzyMatch } from './match.ts';
 import type { SpaceFacts } from './spaceFacts.ts';
@@ -72,6 +72,12 @@ interface RowScope {
   statuses: Status[] | null;
   owners: StatusOwners | null;
   data: PickerData;
+}
+
+interface TabMatch {
+  tabPanes: PaneInfo[];
+  tabMatches: boolean;
+  eligiblePanes: PaneInfo[];
 }
 
 const statusWords: Record<Status, string> = {
@@ -141,14 +147,11 @@ export const tabRowDisplay = (
 const statusInList = (status: Status | null, statuses: Status[]): boolean =>
   status !== null && statuses.includes(status);
 
-const hasStatus = (pane: PaneInfo, statuses: Status[]): boolean =>
-  statusInList(pane.status, statuses);
-
-const inStatus = (pane: PaneInfo, statuses: Status[] | null): boolean =>
-  statuses === null || hasStatus(pane, statuses);
-
 const matchesStatus = (status: Status | null, statuses: Status[] | null): boolean =>
   statuses === null || statusInList(status, statuses);
+
+const inStatus = (pane: PaneInfo, statuses: Status[] | null): boolean =>
+  matchesStatus(pane.status, statuses);
 
 const paneSearchFields = (
   pane: PaneInfo,
@@ -163,22 +166,29 @@ const paneSearchFields = (
     pane.program.name,
     folderNameOf(pane.cwd),
     pane.branch,
-    taskOfPaneWithTasks(pane, tasks),
+    taskOfPane(pane, tasks),
   ];
 };
 
 const explicitTabName = (tab: TabInfo, program: PaneInfo['program'] | undefined): string | null =>
   tab.named && tab.name !== program?.name ? tab.name : null;
 
-const tabSearchFields = (
-  tab: TabInfo,
-  status: Status | null,
-  scope: RowScope,
-): (string | null)[] => {
+const tabMatchOf = (tab: TabInfo, scope: RowScope): TabMatch => {
   const tabPanes = panesOf(tab, scope.data.panes);
-  const statuses = scope.statuses;
+  const tabStatus = scope.data.statuses.tabs[tab.id] ?? null;
 
-  if (statuses === null) {
+  return {
+    tabPanes,
+    tabMatches: matchesStatus(tabStatus, scope.statuses),
+    eligiblePanes: tabPanes.filter((pane) => inStatus(pane, scope.statuses)),
+  };
+};
+
+const tabSearchFields = (tab: TabInfo, scope: RowScope): (string | null)[] => {
+  const { tabPanes, tabMatches, eligiblePanes } = tabMatchOf(tab, scope);
+  const status = scope.data.statuses.tabs[tab.id] ?? null;
+
+  if (scope.statuses === null) {
     return [
       tabNameWithTasks(tab, tabProgram(tab, tabPanes), tabPanes, scope.tasks),
       statusWord(status),
@@ -186,8 +196,6 @@ const tabSearchFields = (
     ];
   }
 
-  const tabMatches = matchesStatus(status, statuses);
-  const eligiblePanes = tabPanes.filter((pane) => inStatus(pane, statuses));
   const fields: (string | null)[] = [];
 
   if (tabMatches) {
@@ -219,9 +227,7 @@ const spaceOwnFields = (space: SpaceInfo, data: PickerData): (string | null)[] =
 ];
 
 const spaceSearchTabs = (space: SpaceInfo, scope: RowScope): (string | null)[] =>
-  space.tabs.flatMap((tab) =>
-    tabSearchFields(tab, scope.data.statuses.tabs[tab.id] ?? null, scope),
-  );
+  space.tabs.flatMap((tab) => tabSearchFields(tab, scope));
 
 const recentOrder = (data: PickerData): SpaceInfo[] => {
   const position = (space: SpaceInfo): number => {
@@ -234,11 +240,9 @@ const recentOrder = (data: PickerData): SpaceInfo[] => {
 };
 
 const tabChildRows = (space: SpaceInfo, tab: TabInfo, scope: RowScope): PickerRow[] => {
-  const tabPanes = panesOf(tab, scope.data.panes);
-  const shownPanes = tabPanes.filter((pane) => inStatus(pane, scope.statuses));
-  const tabMatches = matchesStatus(scope.data.statuses.tabs[tab.id] ?? null, scope.statuses);
+  const { tabPanes, tabMatches, eligiblePanes } = tabMatchOf(tab, scope);
 
-  if (scope.statuses !== null && !tabMatches && shownPanes.length === 0) {
+  if (scope.statuses !== null && !tabMatches && eligiblePanes.length === 0) {
     return [];
   }
 
@@ -247,14 +251,14 @@ const tabChildRows = (space: SpaceInfo, tab: TabInfo, scope: RowScope): PickerRo
 
   if (tabRowShown) {
     const pane =
-      scope.statuses === null ? null : (shownPanes[0] ?? scope.owners?.tabs[tab.id] ?? null);
+      scope.statuses === null ? null : (eligiblePanes[0] ?? scope.owners?.tabs[tab.id] ?? null);
 
     rows.push({ kind: 'tab', key: `tab:${tab.id}`, space, tab, pane });
   }
 
   if (tabPanes.length > 1) {
     rows.push(
-      ...shownPanes.map((pane): PickerRow => ({
+      ...eligiblePanes.map((pane): PickerRow => ({
         kind: 'pane',
         key: `pane:${pane.pane}`,
         space,
@@ -312,13 +316,6 @@ const uniquePaneMatch = (
 
   return ownMatch !== null && ownMatch.score >= best.score ? null : best.pane;
 };
-
-const statusMatchingTab = (
-  space: SpaceInfo,
-  statuses: Status[],
-  data: PickerData,
-): TabInfo | undefined =>
-  space.tabs.find((tab) => matchesStatus(data.statuses.tabs[tab.id] ?? null, statuses));
 
 const fieldScoreOf = (
   space: SpaceInfo,
@@ -403,10 +400,7 @@ const spaceRows = (space: SpaceInfo, scope: RowScope): RowGroup | null => {
   const target = spaceTarget(space, scope, ownMatch, firstShownPane);
 
   const filteredTab = space.tabs.find((tab) => tab.id === target?.tab);
-  const statusTab = statuses === null ? undefined : statusMatchingTab(space, statuses, data);
-
-  const shownTab =
-    filteredTab ?? statusTab ?? space.tabs.find((tab) => tab.active) ?? space.tabs[0];
+  const shownTab = filteredTab ?? space.tabs.find((tab) => tab.active) ?? space.tabs[0];
 
   const scored =
     scope.query === ''

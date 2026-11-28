@@ -196,6 +196,10 @@ describe('fuzzyMatch', () => {
     expect(fuzzyMatch('x', 'İ xz')?.positions).toEqual([2]);
   });
 
+  test('returns the original index for a query after a character that folds to two', () => {
+    expect(fuzzyMatch('xz', 'İ xz')?.positions).toEqual([2, 3]);
+  });
+
   test('İ against İ gives one position', () => {
     expect(fuzzyMatch('İ', 'İ')?.positions).toEqual([0]);
   });

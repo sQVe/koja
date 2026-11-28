@@ -75,15 +75,11 @@ const isRunOrWordStart = (
   return follows || startsWord;
 };
 
-// Lowercasing one character at a time can pick a different case form than the whole string does,
-// so only the per-character folded length is used.
-const foldedLengths = (characters: readonly string[]): number[] =>
-  characters.map((character) => Array.from(character.toLowerCase()).length);
-
 const foldText = (text: string): FoldedText => {
   const characters = Array.from(text);
   const folded = Array.from(text.toLowerCase());
-  const lengths = foldedLengths(characters);
+  // Lowercasing never drops a code point, so equal lengths mean each character folds to exactly one.
+  const singleFolded = folded.length === characters.length;
   const originalOffsets: number[] = [];
   const foldedStarts: number[] = [];
   const originalOf: number[] = [];
@@ -95,7 +91,7 @@ const foldText = (text: string): FoldedText => {
     originalOffsets.push(offset);
     foldedStarts.push(foldedStart);
 
-    const foldedLength = lengths[index] ?? 0;
+    const foldedLength = singleFolded ? 1 : Array.from(character.toLowerCase()).length;
     const startsWordHere = isWordStart(text, offset);
 
     for (let count = 0; count < foldedLength; count += 1) {
@@ -461,21 +457,25 @@ const routeMatch = (
     budget: { spent: 0, limit: routeWorkBudget },
   };
 
-  const starts = [...firstPositions];
-  let nextStart = 0;
+  const requeued: number[] = [];
+  let cursor = 0;
 
-  while (nextStart < starts.length) {
+  while (cursor < firstPositions.length || requeued.length > 0) {
     const remainingWork = routeWorkBudget - search.budget.spent;
 
     if (remainingWork <= 0) {
       break;
     }
 
-    const remainingStarts = starts.length - nextStart;
-    const share = Math.max(1, Math.floor(remainingWork / remainingStarts));
-    const firstFolded = starts[nextStart] ?? 0;
+    const remainingStarts = firstPositions.length - cursor + requeued.length;
+    const fromSource = cursor < firstPositions.length;
+    const firstFolded = fromSource ? (firstPositions[cursor] ?? 0) : (requeued.shift() ?? 0);
 
-    nextStart += 1;
+    if (fromSource) {
+      cursor += 1;
+    }
+
+    const share = Math.max(1, Math.floor(remainingWork / remainingStarts));
 
     search.budget.limit = search.budget.spent + share;
 
@@ -496,7 +496,7 @@ const routeMatch = (
 
     // A start that spent its whole share gets the work the cheaper starts left over.
     if (!hasRouteWork(search.budget)) {
-      starts.push(firstFolded);
+      requeued.push(firstFolded);
     }
   }
 
