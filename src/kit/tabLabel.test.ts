@@ -292,7 +292,10 @@ describe('tabName', () => {
 describe('ownName', () => {
   test('keeps the name someone gave a tab, unless it repeats the program name', () => {
     expect(ownName(tab, shell)).toBe('Board');
-    expect(ownName({ ...tab, name: 'zsh' }, shell)).toBeNull();
+    expect(ownName({ ...tab, name: shell.name }, shell)).toBeNull();
+  });
+
+  test('gives no own name to a tab nobody named', () => {
     expect(ownName(unnamedTab, shell)).toBeNull();
   });
 });

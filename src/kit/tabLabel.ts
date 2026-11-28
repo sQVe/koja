@@ -89,7 +89,7 @@ export const ownName = (
   program: PaneInfo['program'] | undefined,
 ): string | null => (tabInfo.named && tabInfo.name !== program?.name ? tabInfo.name : null);
 
-const tabNameFromTasks = (
+const tabNameFromTaskLookup = (
   tabInfo: TabInfo,
   program: PaneInfo['program'] | undefined,
   paneList: PaneInfo[],
@@ -121,14 +121,14 @@ export const tabNameWithTasks = (
   program: PaneInfo['program'] | undefined,
   paneList: PaneInfo[],
   tasks: ReadonlyMap<unknown, string>,
-): string => tabNameFromTasks(tabInfo, program, paneList, () => tasks);
+): string => tabNameFromTaskLookup(tabInfo, program, paneList, () => tasks);
 
 export const tabName = (
   tabInfo: TabInfo,
   program: PaneInfo['program'] | undefined,
   paneList: PaneInfo[],
   terminalRecords: readonly unknown[],
-): string => tabNameFromTasks(tabInfo, program, paneList, () => taskIndexOf(terminalRecords));
+): string => tabNameFromTaskLookup(tabInfo, program, paneList, () => taskIndexOf(terminalRecords));
 
 const zoomedLabel = (tabInfo: TabInfo, name: string): string =>
   tabInfo.zoomed ? `${name} Z` : name;
