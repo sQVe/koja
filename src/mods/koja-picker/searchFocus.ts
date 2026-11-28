@@ -35,6 +35,8 @@ const focusSearch = (
 
   host.input.focus();
 
+  // focus() can emit 'focus' synchronously, which cancels a retry that is not yet scheduled, so
+  // this guard is the only thing that stops the retry in that case.
   if (host.isSearchFocused()) {
     return;
   }

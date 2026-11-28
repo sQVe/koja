@@ -26,6 +26,7 @@ let keyBindings: { keystroke: string; action: string; context?: string }[] = [];
 let props: Record<string, unknown> = {};
 let spaceValues: SpaceInfo[] = [];
 let paneValues: PaneInfo[] = [];
+let spaceReads = 0;
 let focusedValue: { space: string } | null = null;
 let runCalls: RunCall[] = [];
 let sharedValues: Record<string, unknown> = {};
@@ -148,7 +149,11 @@ await mock.module('herdr', () =>
       return null;
     },
     shared: (key: string) => sharedValues[key],
-    spaces: () => spaceValues,
+    spaces: () => {
+      spaceReads += 1;
+
+      return spaceValues;
+    },
     terminals: () => [],
   }),
 );
@@ -225,6 +230,7 @@ beforeEach(() => {
   props = { part: 'list' };
   spaceValues = [];
   paneValues = [];
+  spaceReads = 0;
   focusedValue = null;
   runCalls = [];
   sharedValues = {};
@@ -250,6 +256,7 @@ const typeQuery = (query: string): void => {
 };
 
 const releaseControl = (): void => {
+  expect(modifierHandler).not.toBeNull();
   modifierHandler?.({ modifiers: { control: false } });
 };
 
@@ -257,6 +264,23 @@ const selectionCommands = (): RunCall[] =>
   runCalls.filter((call) => call.command === 'space.select');
 
 describe('Control release', () => {
+  test('a modifier change with nothing armed reads no facts', async () => {
+    focusedValue = { space: 's1' };
+    spaceValues = [spaceOf('s1', 1, 'name-s1'), spaceOf('s2', 2, 'name-s2')];
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+    view.render();
+
+    const readsAfterRender = spaceReads;
+
+    releaseControl();
+
+    expect(spaceReads).toBe(readsAfterRender);
+    expect(selectionCommands()).toEqual([]);
+  });
+
   test('Control release does not commit after a cycle with no matching space', async () => {
     focusedValue = { space: 's1' };
     spaceValues = [spaceOf('s1', 1, 'name-s1'), spaceOf('s2', 2, 'name-s2')];

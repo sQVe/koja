@@ -328,11 +328,7 @@ export default class Picker extends View {
     const data = pickerData();
     const rows = this.rowsFrom(data);
 
-    this.cycleRelease.disarm();
-    this.selectedKey = rows[0]?.key ?? null;
-    this.scroll.scroll_to_item(0);
-    this.updatePreview(rows[0], data);
-    cx.notify();
+    this.select(rows, 0, data, cx);
   }
 
   private selectedRow(rows: PickerRow[]): PickerRow | undefined {
@@ -472,6 +468,10 @@ export default class Picker extends View {
 
   private onModifiersChanged(event: ModifiersChangedEvent): void {
     if (event.modifiers.control) {
+      return;
+    }
+
+    if (!this.cycleRelease.armed()) {
       return;
     }
 
