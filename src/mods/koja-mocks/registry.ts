@@ -57,8 +57,6 @@ import {
 } from './scenes/smoke/palette.ts';
 import { statesScene } from './scenes/states.ts';
 
-// What a window keeps for its scene: the draw function bound to the scene's retained state, and
-// the input that takes the keyboard when the window opens.
 export interface OpenScene {
   draw: () => Element;
   field: InputState | null;
@@ -86,7 +84,6 @@ const fieldScene = <Fields extends Record<string, InputState>>(spec: {
 }): SceneSetup => {
   return () => {
     const fields = spec.fields();
-    // An index access on a generic object adds undefined, but focus is always a key of Fields.
     const field: Fields[Extract<keyof Fields, string>] = fields[spec.focus];
 
     return { draw: () => spec.draw(fields), field };
