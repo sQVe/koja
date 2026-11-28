@@ -26,11 +26,14 @@ const wheelEvent = (
   ...(deltaLines === undefined ? {} : { delta_lines: deltaLines }),
 });
 
-const pixels = (y: number): ScrollWheelEvent => wheelEvent({ x: 0, y }, 'moved');
+const pixelEvent = (y: number, touchPhase: ScrollWheelEvent['touch_phase']): ScrollWheelEvent =>
+  wheelEvent({ x: 0, y }, touchPhase);
+
+const pixels = (y: number): ScrollWheelEvent => pixelEvent(y, 'moved');
 
 const lines = (y: number): ScrollWheelEvent => wheelEvent({ x: 0, y: 0 }, 'moved', { x: 0, y });
 
-const started = (y: number): ScrollWheelEvent => wheelEvent({ x: 0, y }, 'started');
+const started = (y: number): ScrollWheelEvent => pixelEvent(y, 'started');
 
 const turned = (
   gesture: WheelGesture,
@@ -185,7 +188,7 @@ describe('wheelTurn', () => {
 
 const deltas = [0, 1, 5, 19, 20, 21, 59, 60, 61, 100, -1, -5, -19, -20, -21, -59, -60, -61, -100];
 
-const forwardDeltas = [0, 1, 5, 19, 20, 21, 59, 60, 61, 100];
+const forwardDeltas = deltas.filter((delta) => delta >= 0);
 
 const widePhases: ScrollWheelEvent['touch_phase'][] = [
   'started',
@@ -195,9 +198,6 @@ const widePhases: ScrollWheelEvent['touch_phase'][] = [
   'ended',
   'cancelled',
 ];
-
-const pixelEvent = (y: number, touchPhase: ScrollWheelEvent['touch_phase']): ScrollWheelEvent =>
-  wheelEvent({ x: 0, y }, touchPhase);
 
 // One gesture that turns one way: no pause ends it, no touch start or reversal restarts it.
 const steadyEvents = (random: () => number, count: number): GeneratedEvent[] =>
@@ -259,7 +259,7 @@ describe('wheelTurn over generated event sequences', () => {
         const turn = wheelTurn(gesture, event, now);
         const paused = now - gesture.eventAt > pauseMilliseconds;
 
-        if (paused && event.touch_phase !== 'started') {
+        if (paused) {
           expect(turn).toEqual(wheelTurn(noWheelGesture, event, now));
         }
 
