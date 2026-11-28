@@ -55,26 +55,6 @@ const pickStarted = (look: CloseLook): PendingPick | null => {
   return { id, seenAt: look.now };
 };
 
-const pickCarried = (pending: PendingPick | null, look: CloseLook): PendingPick | null => {
-  const still = stillPending(pending, look);
-
-  if (still === null || look.focused === still.id) {
-    return null;
-  }
-
-  return still;
-};
-
-const pickBlocks = (
-  pending: PendingPick | null,
-  look: CloseLook,
-  closedId: string | null,
-): boolean => {
-  const still = stillPending(pending, look);
-
-  return still !== null && still.id !== closedId;
-};
-
 // The rules, in the order they decide a look:
 // - A pick is pending until focus lands on it. A record whose count changed since the last look
 //   starts one; it clears when focus lands on its space, when that space closes, when a newer
@@ -91,8 +71,12 @@ export const closeFollowStep = (watch: CloseWatch, look: CloseLook): CloseFollow
   });
 
   const moved = selectionMoved(watch.selection, look.selection, watch.focused, look.liveIds);
-  const pending = moved ? pickStarted(look) : pickCarried(watch.pending, look);
-  const blocked = moved || pickBlocks(watch.pending, look, watch.focused);
+  const still = stillPending(watch.pending, look);
+  const landed = still !== null && look.focused === still.id;
+  const carried = landed ? null : still;
+  const keepsPlace = still !== null && still.id !== watch.focused;
+  const pending = moved ? pickStarted(look) : carried;
+  const blocked = moved || keepsPlace;
 
   return {
     watch: {
