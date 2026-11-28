@@ -20,12 +20,12 @@ export interface MenuTarget {
   space: string | null;
 }
 
-export interface MenuTicketLink {
+interface MenuTicketLink {
   id: string;
   url: string;
 }
 
-export interface MenuPullLink {
+interface MenuPullLink {
   number: number;
   url: string;
 }
