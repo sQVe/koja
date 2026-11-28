@@ -53,6 +53,7 @@ type InteractionLike =
 interface RowStateLike extends BaseStateLike {
   title: string;
   need: StackNeed | null;
+  progress: { merged: number; total: number } | null;
   card: null;
   interaction: InteractionLike;
 }
@@ -192,6 +193,7 @@ const stateWith = (
   ...baseState(age),
   title,
   need,
+  progress: null,
   card: null,
   interaction: reorder(),
 });

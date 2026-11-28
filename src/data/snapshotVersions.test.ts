@@ -1,33 +1,26 @@
 import { describe, expect, test } from 'bun:test';
 
 import { fixture } from '../../tests/fixtureJson.ts';
-import { pullFacts } from '../../tests/pullFacts.ts';
 import {
+  pull,
+  pullsAt,
+  rawSnapshotOf,
   recordIn,
   repositoryKey,
   version3GitFacts,
   withBareFalse,
 } from '../../tests/snapshotRaw.ts';
 import { repositoryOf } from './gitIdentity.ts';
-import { pullNeeds } from './pullNeeds.ts';
 import { parseSnapshot } from './snapshot.ts';
 
 describe('parseSnapshot versions', () => {
   test('reads version 3 pulls with unread parts', () => {
     const stored = fixture('snapshot-v3.json');
     const parsed = parseSnapshot(stored);
-    const pulls = parsed?.facts.pulls[repositoryOf(null, '/code/koja/.git').key]?.pulls ?? [];
 
-    const unread = pullFacts({
-      number: 41,
-      headRefName: 'main',
-      title: 'Read the theme once per turn',
-    });
-
-    expect(parsed?.version).toBe(8);
+    expect(parsed?.version).toBe(9);
     expect(parsed?.revision).toBe(8);
-    expect(pulls).toEqual([unread]);
-    expect(pulls.map((entry) => pullNeeds(entry))).toEqual([[]]);
+    expect(parsed?.facts.pulls).toEqual({});
   });
 
   test('rejects a version 3 pull with a needs field', () => {
@@ -84,13 +77,37 @@ describe('parseSnapshot versions', () => {
     expect(parseSnapshot(stored)).toBeNull();
   });
 
+  test('rejects a version 4 pull that carries a URL', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v4.json'));
+
+    pullsAt(stored)[repositoryOf(null, '/code/koja/.git').key] = { pulls: [pull()], failed: false };
+
+    expect(parseSnapshot(stored)).toBeNull();
+  });
+
+  test('rejects a version 8 pull that carries a URL', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
+
+    pullsAt(stored)[repositoryOf(null, '/code/koja/.git').key] = { pulls: [pull()], failed: false };
+
+    expect(parseSnapshot(stored)).toBeNull();
+  });
+
+  test('rejects a version 8 pulls value that is not a map', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
+
+    recordIn(stored.facts, 'facts').pulls = [];
+
+    expect(parseSnapshot(stored)).toBeNull();
+  });
+
   test('reads the version 2 fixture without PR facts', () => {
     const stored = recordIn(fixture('snapshot-v2.json'), 'snapshot');
     const git: unknown = recordIn(stored.facts, 'facts').git;
     const parsed = parseSnapshot(stored);
     const parsedGit: unknown = parsed?.facts.git;
 
-    expect(parsed?.version).toBe(8);
+    expect(parsed?.version).toBe(9);
     expect(parsed?.revision).toBe(7);
     expect(parsedGit).toEqual(withBareFalse(git));
     expect(parsed?.facts.pulls).toEqual({});
@@ -106,7 +123,7 @@ describe('parseSnapshot versions', () => {
     };
 
     expect(parseSnapshot(stored)).toEqual({
-      version: 8,
+      version: 9,
       revision: 4,
       facts: { git: { places: {}, worktrees: {} }, pulls: {}, trackers: {}, stacks: {} },
     });

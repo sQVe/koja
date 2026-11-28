@@ -190,6 +190,7 @@ describe('readRepositoryPulls', () => {
         state: 'MERGED',
         isDraft: false,
         title: 'Merged',
+        url: 'https://github.com/example/example/pull/3',
         headRefName: 'merged',
         mergeable: 'unknown',
         mergeState: 'unknown',
@@ -257,6 +258,7 @@ describe('readRepositoryPulls', () => {
       state: 'MERGED',
       isDraft: false,
       title: 'Fixture: merged only',
+      url: 'https://github.com/example/example/pull/807',
       headRefName: 'merged-only',
       mergeable: 'unknown',
       mergeState: 'unknown',
@@ -292,7 +294,7 @@ describe('readRepositoryPulls', () => {
 
   test('the local PR rows fake answers the reader', async () => {
     const body =
-      '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[{"number":7,"state":"OPEN","isDraft":false,"title":"Fixture pull request","headRefName":"fixture-branch","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]},"latest0":{"nodes":[]}}}}';
+      '{"data":{"rateLimit":{"cost":1,"remaining":4999,"resetAt":"2030-01-01T00:00:00Z"},"repository":{"open0":{"nodes":[{"number":7,"state":"OPEN","isDraft":false,"title":"Fixture pull request","url":"https://github.com/example/example/pull/7","headRefName":"fixture-branch","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]},"latest0":{"nodes":[]}}}}';
 
     const pulls = pullsOf(await readOf(['fixture-branch'], [{ body }]));
 

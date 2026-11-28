@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { fixture } from '../../tests/fixtureJson.ts';
+import { pull, pullsAt, rawSnapshotOf } from '../../tests/snapshotRaw.ts';
 import { repositoryOf } from './gitIdentity.ts';
 import type { RecordNotices, RecordRejection } from './recordNotices.ts';
 import { createRecordNotices } from './recordNotices.ts';
@@ -47,7 +48,7 @@ const malformedMessage = (): string => messageFor('malformed');
 
 const newerMessage = (): string => messageFor('newer');
 
-const snapshot = { version: 8, revision: 4, facts: emptyFacts() } satisfies Snapshot;
+const snapshot = { version: 9, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
 describe('readStoredSnapshot', () => {
   test('stays silent when no snapshot was written', () => {
@@ -115,7 +116,7 @@ describe('readStoredSnapshot', () => {
 
   test('reports a newer version once and keeps rejecting it', () => {
     const { messages, notices } = logged();
-    const read = memoryStore({ version: 9, revision: 4, facts: emptyFacts() });
+    const read = memoryStore({ version: 10, revision: 4, facts: emptyFacts() });
 
     expect(readStoredSnapshot(read, notices)).toBeNull();
     expect(readStoredSnapshot(read, notices)).toBeNull();
@@ -136,6 +137,16 @@ describe('readStoredSnapshot', () => {
     expect(messages).toEqual([malformedMessage()]);
   });
 
+  test('reports a version 8 snapshot with a malformed pull as malformed', () => {
+    const { messages, notices } = logged();
+    const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
+
+    pullsAt(stored)[repositoryOf(null, '/code/koja/.git').key] = { pulls: [pull()], failed: false };
+
+    expect(readStoredSnapshot(memoryStore(stored), notices)).toBeNull();
+    expect(messages).toEqual([malformedMessage()]);
+  });
+
   test('reads the version 5 fixture without a notice and drops its ticket failure flag', () => {
     const { messages, notices } = logged();
     const read = memoryStore(fixture('snapshot-v5.json'));
@@ -152,9 +163,9 @@ describe('readStoredSnapshot', () => {
     const { messages, notices } = logged();
 
     readStoredSnapshot(memoryStore({ version: 2 }), notices);
-    readStoredSnapshot(memoryStore({ version: 9 }), notices);
+    readStoredSnapshot(memoryStore({ version: 10 }), notices);
     readStoredSnapshot(memoryStore({ version: 2 }), notices);
-    readStoredSnapshot(memoryStore({ version: 9 }), notices);
+    readStoredSnapshot(memoryStore({ version: 10 }), notices);
 
     expect(messages).toEqual([malformedMessage(), newerMessage()]);
   });

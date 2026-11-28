@@ -8,7 +8,6 @@ interface SpaceFooterOptions {
   title: string;
   progress?: { merged: number; total: number };
   links: DrawnElement[];
-  end: DrawnElement;
 }
 
 const palette = { border: '#1a1a1a', dim: '#2b2b3b', foreground: '#3c3c4c' } as const;
@@ -46,7 +45,6 @@ const footerOf = (progress?: SpaceFooterOptions['progress']): DrawnElement =>
     title: 'Tau workflow sidebar',
     ...(progress === undefined ? {} : { progress }),
     links: [textElement('ME-1175'), textElement('#504')],
-    end: textElement('Stack ›'),
   });
 
 describe('spaceFooter', () => {
@@ -59,7 +57,6 @@ describe('spaceFooter', () => {
       'ME-1175',
       '·',
       '#504',
-      'Stack ›',
     ]);
   });
 
@@ -70,12 +67,13 @@ describe('spaceFooter', () => {
   });
 
   test('a space with no stack draws no progress', () => {
-    expect(drawnTexts(footerOf())).toEqual([
-      'Tau workflow sidebar',
-      'ME-1175',
-      '·',
-      '#504',
-      'Stack ›',
-    ]);
+    expect(drawnTexts(footerOf())).toEqual(['Tau workflow sidebar', 'ME-1175', '·', '#504']);
+  });
+
+  test('a footer with no links draws only the title line', () => {
+    const footer = spaceFooter({ title: 'Notes', links: [] });
+
+    expect(drawnTexts(footer)).toEqual(['Notes']);
+    expect(footer.kids).toHaveLength(2);
   });
 });

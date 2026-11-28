@@ -4,6 +4,7 @@ import type { SpaceInfo } from 'herdr';
 
 import type { DataState } from '../../data/consumer.ts';
 import type { PlaceGit, Snapshot, WorktreeGit } from '../../data/snapshot.ts';
+import { snapshotVersion } from '../../data/snapshot.ts';
 import { askProjects } from './askProjects.ts';
 
 const spaceOf = (id: string, folder: string, name = 'Build window shell'): SpaceInfo => ({
@@ -38,7 +39,7 @@ const withGit = (
   worktrees: Record<string, WorktreeGit>,
 ): DataState => {
   const facts = { git: { places, worktrees }, pulls: {}, trackers: {}, stacks: {} };
-  const snapshot: Snapshot = { version: 8, revision: 1, facts };
+  const snapshot: Snapshot = { version: snapshotVersion, revision: 1, facts };
 
   return {
     kind: 'live',

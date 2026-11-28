@@ -1,0 +1,93 @@
+{
+  "version": 9,
+  "revision": 12,
+  "facts": {
+    "git": {
+      "places": {
+        "[null,\"/code/koja\"]": {
+          "kind": "repository",
+          "worktree": "[null,\"/code/koja\"]"
+        }
+      },
+      "worktrees": {
+        "[null,\"/code/koja\"]": {
+          "repository": {
+            "machine": null,
+            "commonDirectory": "/code/koja/.git",
+            "key": "[null,\"/code/koja/.git\"]"
+          },
+          "root": "/code/koja",
+          "branch": "me-1178-show-stack-progress-and-the-selected-spaces-footer",
+          "linked": true,
+          "bare": false
+        }
+      }
+    },
+    "pulls": {
+      "[null,\"/code/koja/.git\"]": {
+        "pulls": [
+          {
+            "number": 143,
+            "state": "OPEN",
+            "isDraft": false,
+            "title": "Show stack progress and the selected space's footer",
+            "url": "https://github.com/sqve/koja/pull/143",
+            "headRefName": "me-1178-show-stack-progress-and-the-selected-spaces-footer",
+            "mergeable": "mergeable",
+            "mergeState": "clean",
+            "review": "approved",
+            "checks": {
+              "kind": "read",
+              "value": "passing"
+            },
+            "threads": {
+              "kind": "read",
+              "value": {
+                "unresolved": 0,
+                "complete": true
+              }
+            }
+          }
+        ],
+        "failed": false
+      }
+    },
+    "trackers": {
+      "[null,\"/code/koja/.git\"]": {
+        "workspace": "sqve",
+        "tickets": {
+          "ME-1": {
+            "id": "ME-1",
+            "title": "Title spaces with their Linear tickets",
+            "state": "In Progress",
+            "url": "https://linear.app/sqve/issue/ME-1/title-spaces-with-their-linear-tickets",
+            "parent": null
+          }
+        },
+        "failed": false
+      }
+    },
+    "stacks": {
+      "[null,\"/code/koja/.git\"]": {
+        "stacks": [
+          {
+            "trunk": "main",
+            "branches": [
+              {
+                "branch": "me-1037-read-each-spaces-stack-from-gh-stack",
+                "pullNumber": 141,
+                "restack": "none"
+              },
+              {
+                "branch": "me-1037-draw-the-stack-row",
+                "pullNumber": null,
+                "restack": "needed"
+              }
+            ]
+          }
+        ],
+        "failed": false
+      }
+    }
+  }
+}

@@ -137,6 +137,23 @@ describe('listModelOf', () => {
     expect(model.ids).toEqual(['blocked', 'idle']);
   });
 
+  test("a project's main row takes the project name in Projects and keeps its row title in Inbox", () => {
+    const state = stateOf(factsOf());
+
+    const input = {
+      state,
+      listed: [listedOf(state, spaceOf('m', 'idle'))],
+      folds: noFolds,
+      lastNeeds: new Map(),
+    };
+
+    const projects = listModelOf({ ...input, view: 'projects' });
+    const inbox = listModelOf({ ...input, view: 'inbox' });
+
+    expect(projects.rows.get('m')?.title).toBe('me-1-one');
+    expect(inbox.rows.get('m')?.title).toBe('name-m');
+  });
+
   test("a stack space's row carries its stack, its parent title, and its most blocking need", () => {
     const state = stateOf(
       factsOf({

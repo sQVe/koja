@@ -99,6 +99,7 @@ export const pickerData = (
 export const stackPullOf = (fields: Partial<StackPull> & Pick<StackPull, 'branch'>): StackPull => ({
   ticket: null,
   number: null,
+  url: null,
   title: null,
   state: 'open',
   checkedOut: false,

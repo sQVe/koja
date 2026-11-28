@@ -37,7 +37,8 @@
                   "isResolved": false
                 }
               ]
-            }
+            },
+            "url": "https://github.com/example/example/pull/773"
           }
         ]
       },
@@ -48,7 +49,8 @@
             "state": "OPEN",
             "isDraft": false,
             "title": "Fixture: failing review",
-            "headRefName": "failing-review"
+            "headRefName": "failing-review",
+            "url": "https://github.com/example/example/pull/773"
           }
         ]
       }

@@ -25,7 +25,8 @@
                 "hasNextPage": false
               },
               "nodes": [null]
-            }
+            },
+            "url": "https://github.com/example/example/pull/773"
           }
         ]
       },
@@ -36,7 +37,8 @@
             "state": "OPEN",
             "isDraft": false,
             "title": "Fixture: checks and threads failed",
-            "headRefName": "checks-and-threads-failed"
+            "headRefName": "checks-and-threads-failed",
+            "url": "https://github.com/example/example/pull/773"
           }
         ]
       }

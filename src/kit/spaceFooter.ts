@@ -11,10 +11,9 @@ export interface SpaceFooterOptions {
   title: string;
   progress?: { merged: number; total: number };
   links: Element[];
-  end: Element;
 }
 
-const footerLine = (start: Element, end: Element[]): Element =>
+const footerLine = (start: Element, end: Element[] = []): Element =>
   h_flex()
     .flex_none()
     .min_w(0)
@@ -54,11 +53,11 @@ export const spaceFooter = (options: SpaceFooterOptions): Element => {
   const separatorRow = div().mx(spacing.xsmall).child(separator());
   const title = roleText('title', options.title).flex_1().tooltip(options.title);
   const titleLine = footerLine(title, progressOf(options));
+  const footer = v_flex().flex_none().min_w(0).child(separatorRow).child(titleLine);
 
-  return v_flex()
-    .flex_none()
-    .min_w(0)
-    .child(separatorRow)
-    .child(titleLine)
-    .child(footerLine(joinedLinks(options.links), [options.end]));
+  if (options.links.length === 0) {
+    return footer;
+  }
+
+  return footer.child(footerLine(joinedLinks(options.links)));
 };

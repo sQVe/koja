@@ -4,8 +4,10 @@ import { fixture } from '../../tests/fixtureJson.ts';
 import {
   gitFacts,
   pull,
+  pullsAt,
   rawSnapshotOf,
   recordIn,
+  repositoryKey,
   snapshotOf,
   validRaw,
   withBareFalse,
@@ -13,15 +15,7 @@ import {
   worktreesAt,
 } from '../../tests/snapshotRaw.ts';
 import { placeOf, repositoryOf, worktreeOf } from './gitIdentity.ts';
-import { pullNeeds } from './pullNeeds.ts';
-import type {
-  Facts,
-  GitFacts,
-  PlaceGit,
-  RepositoryPulls,
-  Snapshot,
-  WorktreeGit,
-} from './snapshot.ts';
+import type { Facts, GitFacts, PlaceGit, Snapshot, WorktreeGit } from './snapshot.ts';
 import { emptyFacts, joinFacts, parseSnapshot, worktreeKeyAtPlace } from './snapshot.ts';
 
 describe('parseSnapshot', () => {
@@ -30,21 +24,18 @@ describe('parseSnapshot', () => {
     const parsed = parseSnapshot(stored);
     const facts: Facts | undefined = parsed?.facts;
     const git: GitFacts | undefined = facts?.git;
-    const pulls: Record<string, RepositoryPulls> | undefined = facts?.pulls;
     const places: PlaceGit[] = Object.values(git?.places ?? {});
     const worktrees: WorktreeGit[] = Object.values(git?.worktrees ?? {});
 
-    expect(parsed?.version).toBe(8);
+    expect(parsed?.version).toBe(9);
     expect(parsed?.revision).toBe(9);
 
     const storedFacts = recordIn(stored.facts, 'facts');
     const storedGit: unknown = storedFacts.git;
-    const storedPulls: unknown = storedFacts.pulls;
     const parsedGit: unknown = parsed?.facts.git;
-    const parsedPulls: unknown = parsed?.facts.pulls;
 
     expect(parsedGit).toEqual(withBareFalse(storedGit));
-    expect(parsedPulls).toEqual(storedPulls);
+    expect(parsed?.facts.pulls).toEqual({});
     expect(parsed?.facts.trackers).toEqual({});
     expect(parsed?.facts.stacks).toEqual({});
 
@@ -56,10 +47,6 @@ describe('parseSnapshot', () => {
     ]);
 
     expect(worktrees.map((tree) => tree.linked)).toEqual([false, true]);
-
-    const read = pulls?.[repositoryOf(null, '/code/koja/.git').key]?.pulls ?? [];
-
-    expect(read.map((entry) => pullNeeds(entry))).toEqual([['ready']]);
   });
 
   test('rejects an unknown field in version 4 facts', () => {
@@ -71,7 +58,7 @@ describe('parseSnapshot', () => {
   });
 
   test('accepts empty maps', () => {
-    const stored = { version: 8, revision: 4, facts: emptyFacts() } satisfies Snapshot;
+    const stored = { version: 9, revision: 4, facts: emptyFacts() } satisfies Snapshot;
 
     expect(parseSnapshot(stored)).toEqual(stored);
   });
@@ -134,7 +121,7 @@ describe('parseSnapshot', () => {
     const barenessOf = (root: string): boolean | undefined =>
       parsedWorktrees[worktreeOf(null, root).key]?.bare;
 
-    expect(parsed?.version).toBe(8);
+    expect(parsed?.version).toBe(9);
     expect(barenessOf('/code/koja')).toBe(false);
     expect(barenessOf('/code/bare.git')).toBe(true);
     expect(barenessOf('/code/bare/')).toBe(true);
@@ -146,8 +133,56 @@ describe('parseSnapshot', () => {
     const stored = recordIn(fixture('snapshot-v6.json'), 'snapshot');
     const parsed = parseSnapshot(stored);
 
-    expect(parsed?.version).toBe(8);
+    expect(parsed?.version).toBe(9);
     expect(parsed?.facts.stacks).toEqual({});
+  });
+
+  test('a version 8 snapshot keeps its git, tracker, and stack facts and drops its pulls', () => {
+    const stored = rawSnapshotOf(fixture('snapshot-v8.json'));
+    const facts = recordIn(stored.facts, 'facts');
+    const key = repositoryOf(null, '/code/koja/.git').key;
+    const storedPulls = recordIn(pullsAt(stored)[key], 'repository pulls').pulls;
+
+    const parsed = parseSnapshot(stored);
+    const storedGit: unknown = facts.git;
+    const storedTrackers: unknown = facts.trackers;
+    const storedStacks: unknown = facts.stacks;
+    const parsedGit: unknown = parsed?.facts.git;
+    const parsedTrackers: unknown = parsed?.facts.trackers;
+    const parsedStacks: unknown = parsed?.facts.stacks;
+
+    expect(storedPulls).toHaveLength(1);
+    expect(parsed?.version).toBe(9);
+    expect(parsed?.facts.pulls).toEqual({});
+    expect(parsedGit).toEqual(withBareFalse(storedGit));
+    expect(parsedTrackers).toEqual(storedTrackers);
+    expect(parsedStacks).toEqual(storedStacks);
+  });
+
+  test('reads the frozen version 9 fixture with its pull URL', () => {
+    const stored = recordIn(fixture('snapshot-v9.json'), 'snapshot');
+    const key = repositoryOf(null, '/code/koja/.git').key;
+    const parsed = parseSnapshot(stored);
+    const pulls = parsed?.facts.pulls[key]?.pulls ?? [];
+    const parsedFacts: unknown = parsed?.facts;
+    const storedFacts: unknown = stored.facts;
+
+    expect(parsed?.version).toBe(9);
+    expect(parsed?.revision).toBe(12);
+    expect(parsedFacts).toEqual(storedFacts);
+    expect(pulls.map((entry) => entry.url)).toEqual(['https://github.com/sqve/koja/pull/143']);
+  });
+
+  test("a version 9 snapshot round-trips each pull's URL", () => {
+    const { snapshot } = validRaw();
+    const url = 'https://github.com/example/example/pull/1';
+
+    pullsAt(snapshot)[repositoryKey] = { pulls: [pull({ url })], failed: false };
+
+    const parsed = parseSnapshot(snapshot);
+
+    expect(parsed?.version).toBe(9);
+    expect(parsed?.facts.pulls[repositoryKey]?.pulls.map((entry) => entry.url)).toEqual([url]);
   });
 
   test('a version 8 snapshot keeps its stacks', () => {
@@ -155,7 +190,7 @@ describe('parseSnapshot', () => {
     const parsed = parseSnapshot(stored);
     const key = repositoryOf(null, '/code/koja/.git').key;
 
-    expect(parsed?.version).toBe(8);
+    expect(parsed?.version).toBe(9);
     expect(parsed?.facts.stacks[key]?.failed).toBe(false);
 
     expect(parsed?.facts.stacks[key]?.stacks).toEqual([
@@ -174,21 +209,21 @@ describe('parseSnapshot', () => {
   });
 
   test('rejects a missing revision', () => {
-    expect(parseSnapshot({ version: 8, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 9, facts: emptyFacts() })).toBeNull();
   });
 
   test('rejects a revision that is not a positive whole number', () => {
-    expect(parseSnapshot({ version: 8, revision: 0, facts: emptyFacts() })).toBeNull();
-    expect(parseSnapshot({ version: 8, revision: 1.5, facts: emptyFacts() })).toBeNull();
-    expect(parseSnapshot({ version: 8, revision: '4', facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 9, revision: 0, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 9, revision: 1.5, facts: emptyFacts() })).toBeNull();
+    expect(parseSnapshot({ version: 9, revision: '4', facts: emptyFacts() })).toBeNull();
   });
 
   test('rejects missing facts', () => {
-    expect(parseSnapshot({ version: 8, revision: 4 })).toBeNull();
+    expect(parseSnapshot({ version: 9, revision: 4 })).toBeNull();
   });
 
   test('rejects facts that are not a record', () => {
-    expect(parseSnapshot({ version: 8, revision: 4, facts: [] })).toBeNull();
+    expect(parseSnapshot({ version: 9, revision: 4, facts: [] })).toBeNull();
   });
 
   test('rejects a value that is not an object', () => {
@@ -206,7 +241,7 @@ describe('parseSnapshot', () => {
   });
 
   test('rejects an unknown field in the snapshot', () => {
-    const stored = { version: 8, revision: 4, facts: emptyFacts(), extra: true };
+    const stored = { version: 9, revision: 4, facts: emptyFacts(), extra: true };
 
     expect(parseSnapshot(stored)).toBeNull();
   });

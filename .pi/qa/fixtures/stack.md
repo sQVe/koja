@@ -93,8 +93,8 @@ while [ "$#" -ge 2 ]; do
   open=
   latest=
   if [ -n "${number}" ]; then
-    latest=$(printf '{"number":%s,"state":"%s","isDraft":false,"title":"Fixture PR %s","headRefName":"%s"}' \
-      "${number}" "${state}" "${number}" "${branch}")
+    latest=$(printf '{"number":%s,"state":"%s","isDraft":false,"title":"Fixture PR %s","url":"https://example.invalid/qa/stack-repo/pull/%s","headRefName":"%s"}' \
+      "${number}" "${state}" "${number}" "${number}" "${branch}")
     if [ "${state}" = OPEN ]; then
       open=$(printf '%s,"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","reviewDecision":"APPROVED","commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"%s"}}}]},"reviewThreads":{"pageInfo":{"hasNextPage":false},"nodes":[]}}' \
         "${latest%?}" "${checks}")

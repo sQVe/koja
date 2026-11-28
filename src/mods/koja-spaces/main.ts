@@ -40,10 +40,11 @@ import { answeredPlaces, gitInfoAt, pullFailedAt } from './gitFacts.ts';
 import { inboxRows } from './inbox/inboxRows.ts';
 import type { ListModel, RowModel } from './listModel.ts';
 import { listModelOf } from './listModel.ts';
+import { stackProgressOf } from './progress.ts';
 import { projectRows } from './projectRows.ts';
 import type { Project } from './projects.ts';
 import { groupProjects, noFolds } from './projects.ts';
-import { rowTitleOf } from './rows.ts';
+import { selectedFooter } from './selectedFooter.ts';
 import { sidebarViewKey, readSidebarView } from './sidebarView.ts';
 import type { ProjectChildren } from './spaceDrop.ts';
 import { canDrop, dropMoves, projectDropMoves } from './spaceDrop.ts';
@@ -172,7 +173,9 @@ export default class Spaces extends View {
     this.followMark(isSidebarMarked());
 
     const model = this.currentModel(state, listed);
-
+    const active = activeSpaceId();
+    const footer = selectedFooter(state, model, active);
+    const footerRows = footer === null ? [] : [footer];
     const topStrip = div().flex_none().h(topStripHeight());
 
     const switchLine = viewBar(storage, (cx) => {
@@ -205,7 +208,7 @@ export default class Spaces extends View {
         this.endDrag();
         cx.notify();
       })
-      .children(this.listRows(state, model, ids));
+      .children(this.listRows(state, model, ids, active));
 
     return withTextRole(v_flex(), 'body')
       .size_full()
@@ -213,7 +216,8 @@ export default class Spaces extends View {
       .bg(palette.chrome)
       .child(topStrip)
       .child(switchLine)
-      .child(list);
+      .child(list)
+      .children(footerRows);
   }
 
   private startChecks(cx: AsyncContext): void {
@@ -312,12 +316,12 @@ export default class Spaces extends View {
     cx.notify();
   }
 
-  private cursorAt(ids: readonly string[]): string | null {
+  private cursorAt(ids: readonly string[], active: string | null): string | null {
     if (!isSidebarMarked()) {
       return null;
     }
 
-    return cursorRow(ids, this.cursor, activeSpaceId());
+    return cursorRow(ids, this.cursor, active);
   }
 
   private advance(state: DataState): VisibilityResult {
@@ -442,12 +446,7 @@ export default class Spaces extends View {
       active: model.row.space.active,
     };
 
-    const title = rowTitleOf(
-      model.row.space.named,
-      model.row.space.name,
-      model.pull,
-      model.ticketTitle,
-    );
+    const title = model.title;
 
     return {
       title,
@@ -456,6 +455,7 @@ export default class Spaces extends View {
       cursor,
       age: waitAge(this.waitTimes, waiting, now),
       need: model.need,
+      progress: stackProgressOf(model.stack),
       card: stackCardOf(model, title),
       interaction,
     };
@@ -540,9 +540,13 @@ export default class Spaces extends View {
     this.pullRetries.request(git.repo.key, Date.now());
   };
 
-  private listRows(state: DataState, model: ListModel, ids: readonly string[]): Element[] {
-    const cursor = this.cursorAt(model.ids);
-    const active = activeSpaceId();
+  private listRows(
+    state: DataState,
+    model: ListModel,
+    ids: readonly string[],
+    active: string | null,
+  ): Element[] {
+    const cursor = this.cursorAt(model.ids, active);
     const now = Date.now();
 
     let cursorElement: Element | null = null;

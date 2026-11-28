@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { drawnTexts } from '../../../tests/drawn.ts';
 import {
   anotherOwner,
+  listChildren,
   loadView,
   resetKojaSpaces,
   restoreKojaSpaces,
@@ -60,7 +61,7 @@ describe('koja-spaces stored git facts', () => {
     ];
 
     const view = await loadView();
-    const texts = drawnTexts(view.render());
+    const texts = listChildren(view).flatMap(drawnTexts);
 
     expect(spaceNames(view)).toEqual(['name-w']);
     expect(texts.filter((text) => text === 'koja')).toHaveLength(1);

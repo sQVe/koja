@@ -16,7 +16,8 @@
             "state": "MERGED",
             "isDraft": false,
             "title": "Fixture: merged only",
-            "headRefName": "merged-only"
+            "headRefName": "merged-only",
+            "url": "https://github.com/example/example/pull/807"
           }
         ]
       }

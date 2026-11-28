@@ -37,7 +37,8 @@
                   "isResolved": true
                 }
               ]
-            }
+            },
+            "url": "https://github.com/example/example/pull/692"
           }
         ]
       },
@@ -48,7 +49,8 @@
             "state": "OPEN",
             "isDraft": false,
             "title": "Fixture: threads incomplete",
-            "headRefName": "threads-incomplete"
+            "headRefName": "threads-incomplete",
+            "url": "https://github.com/example/example/pull/692"
           }
         ]
       }

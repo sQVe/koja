@@ -40,6 +40,7 @@ export interface Pull extends PullStatusNames {
   state: string;
   isDraft: boolean;
   title: string;
+  url: string;
   headRefName: string;
   checks: PullPart<PullChecks>;
   threads: PullPart<PullThreads>;
@@ -67,6 +68,10 @@ type RemoteChoice =
   | { kind: 'failed' }
   | { kind: 'dropped' };
 
+type PullBase = Pick<Pull, 'number' | 'state' | 'isDraft' | 'title' | 'headRefName'>;
+
+type PullWithoutUrl = PullBase & PullNeedsFields;
+
 export const partValueOf = <T>(part: PullPart<T>): T | null => {
   if (part.kind === 'read') {
     return part.value;
@@ -79,11 +84,15 @@ export const partValueOf = <T>(part: PullPart<T>): T | null => {
   return null;
 };
 
-const pullFieldNames = ['number', 'state', 'isDraft', 'title', 'headRefName'];
+const pullFieldNames = ['number', 'state', 'isDraft', 'title', 'url', 'headRefName'];
+
+const pullFieldNamesWithoutUrl = ['number', 'state', 'isDraft', 'title', 'headRefName'];
 
 const needsFieldNames = ['mergeable', 'mergeState', 'review', 'checks', 'threads'];
 
 const storedPullFieldNames = [...pullFieldNames, ...needsFieldNames];
+
+const storedPullFieldNamesWithoutUrl = [...pullFieldNamesWithoutUrl, ...needsFieldNames];
 
 const mergeables: readonly PullMergeable[] = ['mergeable', 'conflicting', 'unknown'];
 
@@ -105,7 +114,7 @@ const checksValues: readonly PullChecks[] = ['passing', 'failing', 'running', 'n
 const isOneOf = <T extends string>(values: readonly T[], value: unknown): value is T =>
   values.some((entry) => entry === value);
 
-export const unreadPullNeeds = (): PullNeedsFields => ({
+const unreadPullNeeds = (): PullNeedsFields => ({
   mergeable: 'unknown',
   mergeState: 'unknown',
   review: 'none',
@@ -113,7 +122,7 @@ export const unreadPullNeeds = (): PullNeedsFields => ({
   threads: { kind: 'unread' },
 });
 
-const decodePull = (fields: Record<string, unknown>): Pull | null => {
+export const decodePullBase = (fields: Record<string, unknown>): PullBase | null => {
   const number = numberOf(fields['number']);
 
   if (number === null) {
@@ -144,7 +153,23 @@ const decodePull = (fields: Record<string, unknown>): Pull | null => {
     return null;
   }
 
-  return { number, state, isDraft, title, headRefName, ...unreadPullNeeds() };
+  return { number, state, isDraft, title, headRefName };
+};
+
+const decodePull = (fields: Record<string, unknown>): Pull | null => {
+  const base = decodePullBase(fields);
+
+  if (base === null) {
+    return null;
+  }
+
+  const url = stringOf(fields['url']);
+
+  if (url === null || url === '') {
+    return null;
+  }
+
+  return { ...base, url, ...unreadPullNeeds() };
 };
 
 const decodePart = <T>(
@@ -247,25 +272,35 @@ const decodePullNeeds = (fields: Record<string, unknown>): PullNeedsFields | nul
   return { mergeable, mergeState, review, checks, threads };
 };
 
-export const parseStoredPull = (value: unknown): Pull | null => {
+const parseStoredPullWith = <T extends PullBase>(
+  value: unknown,
+  keys: readonly string[],
+  decode: (fields: Record<string, unknown>) => T | null,
+): (T & PullNeedsFields) | null => {
   if (!isRecord(value)) {
     return null;
   }
 
-  if (!hasOnlyKeys(value, storedPullFieldNames)) {
+  if (!hasOnlyKeys(value, keys)) {
     return null;
   }
 
-  const pull = decodePull(value);
+  const base = decode(value);
 
-  if (pull === null) {
+  if (base === null) {
     return null;
   }
 
   const needs = decodePullNeeds(value);
 
-  return needs === null ? null : { ...pull, ...needs };
+  return needs === null ? null : { ...base, ...needs };
 };
+
+export const parseStoredPull = (value: unknown): Pull | null =>
+  parseStoredPullWith(value, storedPullFieldNames, decodePull);
+
+export const parseStoredPullWithoutUrl = (value: unknown): PullWithoutUrl | null =>
+  parseStoredPullWith(value, storedPullFieldNamesWithoutUrl, decodePullBase);
 
 const openPullOf = (node: unknown, errors: BatchErrors, branch: number): Pull | null => {
   if (!isRecord(node)) {
