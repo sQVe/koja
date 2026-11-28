@@ -8,6 +8,7 @@ import {
   drawn,
   drawnTexts,
   elementWithIcon,
+  elementsWithStyle,
 } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
@@ -45,6 +46,11 @@ let clipboard: string | null = null;
 let stopCount = 0;
 let notifyCount = 0;
 let sharedValues: Record<string, unknown> = {};
+let terminalsValue: Record<string, unknown>[] = [];
+let agentsValue: Record<string, unknown>[] = [];
+let focusedTab: string | null = 'k2';
+let windowActive = true;
+let spawned: Promise<unknown>[] = [];
 
 const copyContext = {
   stop_propagation: () => {
@@ -74,11 +80,13 @@ await mock.module('gpui-kit', () =>
 
 await mock.module('herdr', () =>
   herdrFake({
+    agents: () => agentsValue,
     closeOverlay: (id: string | null) => {
       calls.push({ close: id });
 
       return null;
     },
+    focused: () => (focusedTab === null ? null : { tab: focusedTab }),
     props: () => toastProps,
     run: (name: string, args: Record<string, unknown>) => {
       calls.push({ name, args });
@@ -91,7 +99,9 @@ await mock.module('herdr', () =>
       return null;
     },
     shared: (key: string) => sharedValues[key],
+    terminals: () => terminalsValue,
     theme: () => palette,
+    window: () => ({ active: windowActive, platform: 'linux' }),
   }),
 );
 
@@ -104,20 +114,37 @@ const kitFake = await realKitIndexFake([
   'size',
   'textRole',
   'toast',
+  'window',
 ]);
+
+const kitToastCard = kitFake['toastCard'] as (options: unknown) => DrawnElement;
+
+kitFake['toastCard'] = (options: unknown): DrawnElement => {
+  const card = kitToastCard(options);
+
+  card.styles['drawnToastCard'] = [true];
+
+  return card;
+};
 
 await mock.module('../../kit/index.ts', () => kitFake);
 
+const renderContext = {
+  spawn: (body: () => unknown) => {
+    spawned.push(Promise.resolve(body()));
+  },
+};
+
 const loadView = async (): Promise<{
   init: (props: unknown, cx: unknown) => void;
-  render: () => DrawnElement;
+  render: (cx?: unknown) => DrawnElement;
 }> => {
   const modulePath = './main.ts';
 
   const loaded = (await import(modulePath)) as {
     default: new () => {
       init: (props: unknown, cx: unknown) => void;
-      render: () => DrawnElement;
+      render: (cx?: unknown) => DrawnElement;
     };
   };
 
@@ -134,6 +161,11 @@ beforeEach(() => {
   stopCount = 0;
   notifyCount = 0;
   sharedValues = {};
+  terminalsValue = [];
+  agentsValue = [];
+  focusedTab = 'k2';
+  windowActive = true;
+  spawned = [];
 
   toastProps = {
     title: 'Agent blocked',
@@ -253,5 +285,123 @@ describe('toast', () => {
     expect(stopCount).toBe(1);
     expect(notifyCount).toBe(1);
     expect(calls).toEqual([]);
+  });
+
+  const blockedTerminal = {
+    address: 't3',
+    parent: null,
+    labels: {},
+    turn: 1,
+    report: { state: 'blocked', kind: 'permission', msg: 'bun run up' },
+  };
+
+  const agent = {
+    address: 't3',
+    pane: 'p3',
+    space: 's1',
+    space_name: 'Build window shell',
+    tab: 'k1',
+    seq: 1,
+    program: { name: 'Claude Code' },
+  };
+
+  const doneTerminal = {
+    ...blockedTerminal,
+    report: { state: 'done', kind: null, msg: '' },
+  };
+
+  test('closes a matching toast once and draws nothing', async () => {
+    terminalsValue = [blockedTerminal];
+    agentsValue = [agent];
+
+    const view = await loadView();
+
+    view.init(undefined, undefined);
+
+    const first = view.render(renderContext);
+    const second = view.render(renderContext);
+
+    expect(calls).toEqual([]);
+
+    await Promise.all(spawned);
+
+    expect(calls).toEqual([{ close: 'o3' }]);
+    expect(elementsWithStyle(first, 'drawnToastCard')).toEqual([]);
+    expect(elementsWithStyle(second, 'drawnToastCard')).toEqual([]);
+  });
+
+  test('draws a finished toast', async () => {
+    terminalsValue = [doneTerminal];
+    agentsValue = [agent];
+
+    const view = await loadView();
+
+    view.init(undefined, undefined);
+
+    const card = view.render(renderContext);
+
+    await Promise.all(spawned);
+
+    expect(elementsWithStyle(card, 'drawnToastCard')).toHaveLength(1);
+    expect(calls).toEqual([]);
+  });
+
+  test('keeps the toast when the ask is in the focused tab', async () => {
+    terminalsValue = [blockedTerminal];
+    agentsValue = [agent];
+    focusedTab = 'k1';
+    windowActive = true;
+
+    const view = await loadView();
+
+    view.init(undefined, undefined);
+
+    const card = view.render(renderContext);
+
+    await Promise.all(spawned);
+
+    expect(elementsWithStyle(card, 'drawnToastCard')).toHaveLength(1);
+    expect(calls).toEqual([]);
+  });
+
+  test('hides the toast when no tab is focused', async () => {
+    terminalsValue = [blockedTerminal];
+    agentsValue = [agent];
+    focusedTab = null;
+    windowActive = true;
+
+    const view = await loadView();
+
+    view.init(undefined, undefined);
+
+    const card = view.render(renderContext);
+
+    await Promise.all(spawned);
+
+    expect(elementsWithStyle(card, 'drawnToastCard')).toEqual([]);
+    expect(calls).toEqual([{ close: 'o3' }]);
+  });
+
+  test('closes a toast that matches on a later render', async () => {
+    terminalsValue = [{ ...blockedTerminal, report: { state: 'working', kind: null, msg: '' } }];
+    agentsValue = [agent];
+
+    const view = await loadView();
+
+    view.init(undefined, undefined);
+
+    const card = view.render(renderContext);
+
+    await Promise.all(spawned);
+
+    expect(elementsWithStyle(card, 'drawnToastCard')).toHaveLength(1);
+    expect(calls).toEqual([]);
+
+    terminalsValue = [blockedTerminal];
+    view.render(renderContext);
+
+    await Promise.all(spawned);
+
+    expect(calls).toEqual([{ close: 'o3' }]);
   });
 });
