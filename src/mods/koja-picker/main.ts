@@ -412,6 +412,7 @@ export default class Picker extends View {
 
   private closePicker(): void {
     this.leaving = true;
+    this.cycleRelease.disarm();
     recordOverlayClose();
     closeOverlay();
   }

@@ -145,6 +145,20 @@ describe('keepSearchFocused', () => {
     expect(timer.delays).toEqual([50]);
   });
 
+  test('a synchronous focus event leaves no retry pending', () => {
+    const { host, input, timer, context } = setup();
+
+    input.focus = () => {
+      input.focusCalls += 1;
+      input.emit('focus');
+    };
+
+    keepSearchFocused(host, context);
+
+    expect(host.isSearchFocused()).toBe(true);
+    expect(timer.pending()).toBe(0);
+  });
+
   test('focuses again on a retry while the input is not focused', () => {
     const { host, input, timer, context } = setup();
 

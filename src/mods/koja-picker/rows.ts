@@ -378,6 +378,16 @@ const spaceTarget = (
   return firstShownPane ?? scope.owners?.spaces[space.id] ?? null;
 };
 
+const firstShownPaneOf = (
+  space: SpaceInfo,
+  statuses: Status[],
+  data: PickerData,
+): PaneInfo | null => {
+  const tabPanes = space.tabs.flatMap((tab) => panesOf(tab, data.panes));
+
+  return tabPanes.find((pane) => inStatus(pane, statuses)) ?? null;
+};
+
 const spaceRows = (space: SpaceInfo, scope: RowScope): RowGroup | null => {
   const { data, statuses } = scope;
 
@@ -385,10 +395,7 @@ const spaceRows = (space: SpaceInfo, scope: RowScope): RowGroup | null => {
     return null;
   }
 
-  const tabPanes = space.tabs.flatMap((tab) => panesOf(tab, data.panes));
-
-  const firstShownPane =
-    statuses === null ? null : (tabPanes.find((pane) => inStatus(pane, statuses)) ?? null);
+  const firstShownPane = statuses === null ? null : firstShownPaneOf(space, statuses, data);
 
   const ownMatch =
     scope.query === '' ? null : bestFieldMatch(scope.query, spaceOwnFields(space, data));

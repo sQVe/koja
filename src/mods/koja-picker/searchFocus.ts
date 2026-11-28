@@ -35,6 +35,10 @@ const focusSearch = (
 
   host.input.focus();
 
+  if (host.isSearchFocused()) {
+    return;
+  }
+
   retry.task = cx.timer.after(focusRetryMilliseconds, (timerCx) => {
     retry.task = null;
     focusSearch(host, timerCx, retry, attemptsLeft - 1);
