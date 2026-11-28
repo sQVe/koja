@@ -60,6 +60,21 @@ describe('closeFollowStep', () => {
     expect(step.watch.pending).toEqual(pending('d', 100));
   });
 
+  test('a pending pick expires after a second', () => {
+    const step = closeFollowStep(watchOf({ pending: pending('c', 0) }), lookOf({ now: 1000 }));
+
+    expect(step.watch.pending).toBeNull();
+  });
+
+  test('a pick that landed in its own look is not pending', () => {
+    const step = closeFollowStep(
+      watchOf({ selection: selection(0, null) }),
+      lookOf({ focused: 'c', selection: selection(1, 'c'), now: 100 }),
+    );
+
+    expect(step.watch.pending).toBeNull();
+  });
+
   test('a close seen while a pick is pending is dropped rather than followed later', () => {
     const blocked = closeFollowStep(
       watchOf({ focused: 'b', pending: pending('c', 0) }),

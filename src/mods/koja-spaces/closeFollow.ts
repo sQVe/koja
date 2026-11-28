@@ -45,10 +45,8 @@ const stillPending = (pending: PendingPick | null, look: CloseLook): PendingPick
   return pending;
 };
 
-const pickStarted = (look: CloseLook): PendingPick | null => {
-  const id = look.selection?.id ?? null;
-
-  if (id === null || id === look.focused) {
+const pickStarted = (id: string, look: CloseLook): PendingPick | null => {
+  if (id === look.focused) {
     return null;
   }
 
@@ -74,8 +72,9 @@ export const closeFollowStep = (watch: CloseWatch, look: CloseLook): CloseFollow
   const still = stillPending(watch.pending, look);
   const landed = still !== null && look.focused === still.id;
   const carried = landed ? null : still;
+  const started = look.selection?.id ?? null;
   const keepsPlace = still !== null;
-  const pending = moved ? pickStarted(look) : carried;
+  const pending = moved && started !== null ? pickStarted(started, look) : carried;
   const blocked = moved || keepsPlace;
 
   return {
