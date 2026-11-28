@@ -2,7 +2,7 @@ import type { AgentInfo, Program } from 'herdr';
 
 import type { TerminalMetadata } from '../../data/terminalRecord.ts';
 import { terminalMetadata } from '../../data/terminalRecord.ts';
-import { recordOf, stringOf } from '../../kit/fields.ts';
+import { numberOf, recordOf, stringOf } from '../../kit/fields.ts';
 
 type AskKind = 'permission' | 'question';
 
@@ -84,9 +84,10 @@ const askOf = (
   project: string,
 ): Ask => {
   const message = stringOf(recordOf(record['report'])['msg']) ?? '';
+  const turn = numberOf(record['turn']) ?? 0;
 
   return {
-    identity: `${agent.address}:${kind}:${message}`,
+    identity: `${agent.address}:${turn}:${kind}:${message}`,
     address: agent.address,
     spaceId: agent.space,
     spaceName: agent.space_name,

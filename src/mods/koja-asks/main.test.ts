@@ -31,7 +31,7 @@ const palette = {
 } as const;
 
 const ask: Ask = {
-  identity: 't1:permission:bun run sandbox up',
+  identity: 't1:1:permission:bun run sandbox up',
   address: 't1',
   spaceId: 's1',
   spaceName: 'Build window shell',
@@ -46,7 +46,7 @@ const ask: Ask = {
 };
 
 const secondAsk: Ask = {
-  identity: 't2:permission:bun run check',
+  identity: 't2:2:permission:bun run check',
   address: 't2',
   spaceId: 's2',
   spaceName: 'Hill-climb',
@@ -69,6 +69,7 @@ const blockedTerminal = {
   address: 't1',
   parent: null,
   labels: {},
+  turn: 1,
   report: { state: 'blocked', kind: 'permission', msg: 'bun run sandbox up' },
 };
 
@@ -76,6 +77,7 @@ const blockedTerminal2 = {
   address: 't2',
   parent: null,
   labels: {},
+  turn: 2,
   report: { state: 'blocked', kind: 'permission', msg: 'bun run check' },
 };
 
@@ -416,6 +418,15 @@ describe('the ask host', () => {
     expect(opened).toEqual([]);
   });
 
+  test('opens the card for the same ask in a later turn', async () => {
+    values['koja-asks.handled'] = [ask.identity];
+    terminalsValue = [{ ...blockedTerminal, turn: 2 }];
+
+    await runHost();
+
+    expect(opened).toHaveLength(1);
+  });
+
   test('names the next unseen ask in the card props', async () => {
     terminalsValue = [blockedTerminal, blockedTerminal2];
     agentsValue = [agent, agent2];
@@ -474,7 +485,7 @@ describe('the ask host', () => {
 
     expect(opened).toEqual([]);
 
-    expect(values['koja-asks.handled']).toEqual([ask.identity, 't2:permission:bun run check']);
+    expect(values['koja-asks.handled']).toEqual([ask.identity, secondAsk.identity]);
   });
 
   test('opens the list of every unseen ask with its space, project, age, and command', async () => {
