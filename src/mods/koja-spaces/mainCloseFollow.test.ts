@@ -278,14 +278,14 @@ describe('koja-spaces close follow', () => {
     expect(selected()).toEqual(['a']);
   });
 
-  test('a pick of the closing space does not block the follow', async () => {
+  test('a pick of the closing space does not block the follow when the check timer sees it', async () => {
     draw(['a', 'b', 'c'], 'b');
 
-    const view = await loadView();
+    await loadView();
 
     draw(['a', 'c'], 'c');
     recordSelection('b');
-    view.render();
+    runTimers(250);
 
     expect(selected()).toEqual(['a']);
   });

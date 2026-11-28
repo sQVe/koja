@@ -75,6 +75,15 @@ describe('closeFollowStep', () => {
     expect(step.watch.pending).toBeNull();
   });
 
+  test('a close of the focused space follows to the space above', () => {
+    const step = closeFollowStep(
+      watchOf({ selection: null }),
+      lookOf({ focused: 'a', liveIds: ['a', 'c'], selection: null }),
+    );
+
+    expect(step.command).toEqual({ name: 'space.select', args: { id: 'a' } });
+  });
+
   test('a close seen while a pick is pending is dropped rather than followed later', () => {
     const blocked = closeFollowStep(
       watchOf({ focused: 'b', pending: pending('c', 0) }),
@@ -83,10 +92,10 @@ describe('closeFollowStep', () => {
 
     const later = closeFollowStep(
       blocked.watch,
-      lookOf({ focused: 'c', liveIds: ['a', 'c'], now: 200 }),
+      lookOf({ focused: 'd', liveIds: ['d'], now: 200 }),
     );
 
     expect(blocked.command).toBeNull();
-    expect(later.command).toBeNull();
+    expect(later.command).toEqual({ name: 'space.select', args: { id: 'd' } });
   });
 });
