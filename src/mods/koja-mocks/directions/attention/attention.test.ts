@@ -72,7 +72,7 @@ const catalogPath = '../../catalog.ts';
 const shellPath = '../../scenes/shell.ts';
 
 const { shellAttentionScene } = (await import(shellPath)) as {
-  shellAttentionScene: (open: boolean, tokens: Tokens, state?: MixState) => DrawnElement;
+  shellAttentionScene: (open: boolean, tokens: Tokens, state: MixState) => DrawnElement;
 };
 
 const { cornerScene } = (await import(cornerPath)) as { cornerScene: Scene };
@@ -81,7 +81,7 @@ const { findScene } = (await import(catalogPath)) as { findScene: (name: string)
 
 const { createMixState, mixScene } = (await import(mixPath)) as {
   createMixState: (asks?: readonly Ask[]) => MixState;
-  mixScene: (open: boolean, tokens: Tokens, state?: MixState) => DrawnElement;
+  mixScene: (open: boolean, tokens: Tokens, state: MixState) => DrawnElement;
 };
 
 const { koja, kojaNormal } = (await import(tokensPath)) as {
@@ -144,7 +144,11 @@ const dismissButton = (scene: DrawnElement): DrawnElement | undefined =>
 
 const scenes = [
   { name: 'brief', draw: briefScene, leading: false },
-  { name: 'mix', draw: (tokens: Tokens) => mixScene(false, tokens), leading: true },
+  {
+    name: 'mix',
+    draw: (tokens: Tokens) => mixScene(false, tokens, createMixState()),
+    leading: true,
+  },
 ];
 
 const headerCases = scenes.flatMap((scene) => [
@@ -154,17 +158,17 @@ const headerCases = scenes.flatMap((scene) => [
 
 describe('attention scenes', () => {
   test('shell attention shows the newest ask over the shell', () => {
-    const texts = drawnTexts(shellAttentionScene(false, koja));
+    const texts = drawnTexts(shellAttentionScene(false, koja, createMixState()));
 
     expect(texts).toContain('Build window shell');
     expect(texts).toContain('Allow this command?');
     expect(texts).toContain('bun run sandbox up');
     expect(texts).toContain('1 more ask in Hill-climb mode for judges');
-    expect(footerRows(shellAttentionScene(false, koja))).toHaveLength(0);
+    expect(footerRows(shellAttentionScene(false, koja, createMixState()))).toHaveLength(0);
   });
 
   test('shell attention open shows both asks newest first', () => {
-    const texts = drawnTexts(shellAttentionScene(true, koja));
+    const texts = drawnTexts(shellAttentionScene(true, koja, createMixState()));
 
     expect(texts).toContain('2 asks in other spaces');
     expect(texts).toContain('Claude Code · Allow this command?');
@@ -179,7 +183,7 @@ describe('attention scenes', () => {
   });
 
   test('shell attention normal shows the jump key', () => {
-    expectJumpFooter(shellAttentionScene(false, kojaNormal));
+    expectJumpFooter(shellAttentionScene(false, kojaNormal, createMixState()));
   });
 
   test('shell attention opens the list and dismisses it without removing the terminal', () => {
@@ -256,7 +260,7 @@ describe('attention scenes', () => {
   });
 
   test('mix shows the newest hidden question and an expandable remaining count', () => {
-    const scene = mixScene(false, koja);
+    const scene = mixScene(false, koja, createMixState());
     const texts = drawnTexts(scene);
     const count = clickablesWithText(scene, '1 more ask in Hill-climb mode for judges');
 
@@ -291,7 +295,7 @@ describe('attention scenes', () => {
   });
 
   test('the opened capture starts with both hidden asks and no insert-mode keys', () => {
-    const scene = mixScene(true, koja);
+    const scene = mixScene(true, koja, createMixState());
     const texts = drawnTexts(scene);
 
     expect(texts).toContain('2 asks in other spaces');

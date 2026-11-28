@@ -191,11 +191,7 @@ export const mixCard = (
   return card;
 };
 
-export const mixScene = (
-  open: boolean,
-  tokens: DirectionTokens,
-  state: MixState = createMixState(),
-): Element => {
+export const mixScene = (open: boolean, tokens: DirectionTokens, state: MixState): Element => {
   const scene = v_flex()
     .relative()
     .flex_1()

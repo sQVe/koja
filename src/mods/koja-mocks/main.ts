@@ -19,16 +19,25 @@ import {
 import { findScene, sceneOrigin, sceneReadyLine } from './catalog.ts';
 import type { SceneName } from './catalog.ts';
 import type { OpenScene } from './registry.ts';
-import { sceneSetups } from './registry.ts';
+import { openRegisteredScene } from './registry.ts';
 
-type SceneWindow =
-  | { kind: 'picker' }
-  | { kind: 'error'; title: string; message: string }
-  | { kind: 'ready'; name: SceneName; scene: OpenScene };
+interface ErrorWindow {
+  kind: 'error';
+  title: string;
+  message: string;
+}
 
-interface OpenedScene {
+interface ReadyWindow {
+  kind: 'ready';
   name: SceneName;
   scene: OpenScene;
+}
+
+type SceneWindow = { kind: 'picker' } | ErrorWindow | ReadyWindow;
+
+interface ShownWindow {
+  requested: string | null;
+  window: SceneWindow;
 }
 
 // A refocus after the window has drawn, when its input or focus target can take the keyboard.
@@ -40,6 +49,31 @@ const missingInputsMessage = 'The scene opened without its inputs.';
 
 const sceneName = (): string | null => stringOf(recordOf(props())['scene']);
 
+const errorLine = (message: string): Element => stateLine({ kind: 'error', text: message });
+
+const resolveWindow = (
+  requested: string | null,
+  openScene: (name: SceneName) => OpenScene | null,
+): SceneWindow => {
+  if (requested === null) {
+    return { kind: 'picker' };
+  }
+
+  const lookup = findScene(requested);
+
+  if (!('scene' in lookup)) {
+    return { kind: 'error', title: requested, message: lookup.error };
+  }
+
+  const scene = openScene(lookup.scene.name);
+
+  if (scene === null) {
+    return { kind: 'error', title: requested, message: missingInputsMessage };
+  }
+
+  return { kind: 'ready', name: lookup.scene.name, scene };
+};
+
 export default class Mocks extends View {
   private error: string | null = null;
 
@@ -49,11 +83,13 @@ export default class Mocks extends View {
 
   private firstFrameDone = false;
 
-  private opened: OpenedScene | null = null;
+  private shown: ShownWindow | null = null;
 
   override init(_props: unknown, cx: AsyncContext): void {
+    const requested = sceneName();
+
     this.handle = cx.focus_handle();
-    this.opened = this.setupScene();
+    this.shown = { requested, window: resolveWindow(requested, openRegisteredScene) };
 
     this.input.on('change', (_event, changeCx) => {
       this.error = null;
@@ -72,61 +108,34 @@ export default class Mocks extends View {
   }
 
   override render(): Element {
-    const window = this.resolveWindow();
+    const window = this.currentWindow();
 
     if (window.kind === 'picker') {
       return this.picker();
     }
 
-    if (window.kind === 'error') {
-      const message = stateLine({ kind: 'error', text: window.message });
-
-      return this.sceneWindow(window.title, message, window);
-    }
-
-    return this.sceneWindow(window.name, window.scene.draw(), window);
+    return this.sceneWindow(window);
   }
 
-  private setupScene(): OpenedScene | null {
+  private currentWindow(): SceneWindow {
     const requested = sceneName();
+    const shown = this.shown;
 
-    if (requested === null) {
-      return null;
+    if (requested === shown?.requested) {
+      return shown.window;
     }
 
-    const lookup = findScene(requested);
-
-    if (!('scene' in lookup)) {
-      return null;
-    }
-
-    const { name } = lookup.scene;
-
-    return { name, scene: sceneSetups[name]() };
+    return resolveWindow(requested, (name) => this.retainedScene(name));
   }
 
-  private resolveWindow(): SceneWindow {
-    const requested = sceneName();
+  private retainedScene(name: SceneName): OpenScene | null {
+    const window = this.shown?.window;
 
-    if (requested === null) {
-      return { kind: 'picker' };
+    if (window?.kind === 'ready' && window.name === name) {
+      return window.scene;
     }
 
-    const lookup = findScene(requested);
-
-    if (!('scene' in lookup)) {
-      return { kind: 'error', title: requested, message: lookup.error };
-    }
-
-    if (this.opened === null) {
-      return { kind: 'error', title: requested, message: missingInputsMessage };
-    }
-
-    if (this.opened.name !== lookup.scene.name) {
-      return { kind: 'error', title: requested, message: missingInputsMessage };
-    }
-
-    return { kind: 'ready', name: lookup.scene.name, scene: this.opened.scene };
+    return null;
   }
 
   private focusTarget(window: SceneWindow): { focus: () => void } | null {
@@ -146,7 +155,7 @@ export default class Mocks extends View {
   }
 
   private focusSelf(): void {
-    this.focusWindow(this.resolveWindow());
+    this.focusWindow(this.currentWindow());
   }
 
   private openScene(cx: Context): void {
@@ -174,7 +183,7 @@ export default class Mocks extends View {
 
   private pickerLine(): Element {
     if (this.error !== null) {
-      return stateLine({ kind: 'error', text: this.error });
+      return errorLine(this.error);
     }
 
     return stateLine({ kind: 'empty', text: pickerHint });
@@ -188,7 +197,10 @@ export default class Mocks extends View {
     return this.tracked(surface);
   }
 
-  private sceneWindow(title: string, content: Element, window: SceneWindow): Element {
+  private sceneWindow(window: ErrorWindow | ReadyWindow): Element {
+    const title = window.kind === 'ready' ? window.name : window.title;
+    const content = window.kind === 'ready' ? window.scene.draw() : errorLine(window.message);
+
     const closeButton = iconButton({ name: 'x', size: 'small' })
       .accessibility_label('Close scene')
       .on_click((_event, clickCx) => {

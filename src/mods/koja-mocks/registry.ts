@@ -5,6 +5,7 @@ import type { Element } from 'gpui-kit';
 import type { SceneName } from './catalog.ts';
 import { briefScene } from './directions/attention/brief.ts';
 import { cornerScene } from './directions/attention/corner.ts';
+import type { MixState } from './directions/attention/mix.ts';
 import { createMixState, mixScene } from './directions/attention/mix.ts';
 import { contentScene } from './directions/content/scene.ts';
 import { dialogScene } from './directions/dialogs/scene.ts';
@@ -62,203 +63,187 @@ export interface OpenScene {
   field: InputState | null;
 }
 
-// Runs once in the view's init. Herdr makes input states only outside render.
-export type SceneSetup = () => OpenScene;
+// `open` runs once in the view's init. Herdr makes input states only outside render.
+type SceneEntry = (() => Element) | { open: () => OpenScene };
 
-const plainScene =
-  (draw: () => Element): SceneSetup =>
-  () => ({ draw, field: null });
+const commandScene = (draw: (command: InputState) => Element): SceneEntry => ({
+  open: () => {
+    const command = InputStates.new({ placeholder: 'Type a command…' });
 
-const stateScene =
-  <State>(create: () => State, draw: (state: State) => Element): SceneSetup =>
-  () => {
-    const state = create();
+    return { draw: () => draw(command), field: command };
+  },
+});
+
+const attentionScene = (draw: (state: MixState) => Element): SceneEntry => ({
+  open: () => {
+    const state = createMixState();
 
     return { draw: () => draw(state), field: null };
-  };
+  },
+});
 
-const fieldScene = <Fields extends Record<string, InputState>>(spec: {
-  fields: () => Fields;
-  draw: (fields: Fields) => Element;
-  focus: Extract<keyof Fields, string>;
-}): SceneSetup => {
-  return () => {
-    const fields = spec.fields();
-    const field: Fields[Extract<keyof Fields, string>] = fields[spec.focus];
+const sceneEntries: Record<SceneName, SceneEntry> = {
+  sidebar: sidebarScene,
+  states: statesScene,
+  popup: {
+    open: () => {
+      const search = InputStates.new({ value: popupQuery });
 
-    return { draw: () => spec.draw(fields), field };
-  };
-};
+      return { draw: () => popupScene(search), field: search };
+    },
+  },
+  controls: {
+    open: () => {
+      const empty = InputStates.new({ placeholder: 'Branch name…' });
+      const filled = InputStates.new({ value: 'feature/ui-foundation' });
 
-const commandScene = (draw: (command: InputState) => Element): SceneSetup =>
-  fieldScene({
-    fields: () => ({ command: InputStates.new({ placeholder: 'Type a command…' }) }),
-    draw: ({ command }) => draw(command),
-    focus: 'command',
-  });
-
-export const sceneSetups: Record<SceneName, SceneSetup> = {
-  sidebar: plainScene(sidebarScene),
-  states: plainScene(statesScene),
-  popup: fieldScene({
-    fields: () => ({ search: InputStates.new({ value: popupQuery }) }),
-    draw: ({ search }) => popupScene(search),
-    focus: 'search',
-  }),
-  controls: fieldScene({
-    fields: () => ({
-      empty: InputStates.new({ placeholder: 'Branch name…' }),
-      filled: InputStates.new({ value: 'feature/ui-foundation' }),
-    }),
-    draw: controlsScene,
-    focus: 'filled',
-  }),
-  shell: plainScene(shellScene),
-  'pane-headers': plainScene(paneHeadersScene),
-  'pane-headers-roles': plainScene(paneHeadersRolesScene),
-  'sidebar-parts': plainScene(sidebarPartsScene),
-  'header-mark-name': plainScene(() => headerMarksScene('name', 'flat', 'none')),
-  'header-mark-right': plainScene(() => headerMarksScene('right', 'flat', 'none')),
-  'header-mark-right-active': plainScene(() => headerMarksScene('rightActive', 'flat', 'none')),
-  'header-mark-left-active': plainScene(() => headerMarksScene('leftActive', 'nested', 'none')),
-  'header-mark-after-name': plainScene(() => headerMarksScene('afterName', 'nested', 'none')),
-  'header-mark-left-flat': plainScene(() => headerMarksScene('leftActive', 'flat', 'none')),
-  'header-mark-after-name-flat': plainScene(() => headerMarksScene('afterName', 'flat', 'none')),
-  'header-mark-left-divider': plainScene(() => headerMarksScene('leftActive', 'flat', 'full')),
-  'header-mark-left-divider-inset': plainScene(() =>
-    headerMarksScene('leftActive', 'flat', 'inset'),
-  ),
-  'header-mark-left-divider-soft': plainScene(() => headerMarksScene('leftActive', 'flat', 'soft')),
+      return { draw: () => controlsScene({ empty, filled }), field: filled };
+    },
+  },
+  shell: shellScene,
+  'pane-headers': paneHeadersScene,
+  'pane-headers-roles': paneHeadersRolesScene,
+  'sidebar-parts': sidebarPartsScene,
+  'header-mark-name': () => headerMarksScene('name', 'flat', 'none'),
+  'header-mark-right': () => headerMarksScene('right', 'flat', 'none'),
+  'header-mark-right-active': () => headerMarksScene('rightActive', 'flat', 'none'),
+  'header-mark-left-active': () => headerMarksScene('leftActive', 'nested', 'none'),
+  'header-mark-after-name': () => headerMarksScene('afterName', 'nested', 'none'),
+  'header-mark-left-flat': () => headerMarksScene('leftActive', 'flat', 'none'),
+  'header-mark-after-name-flat': () => headerMarksScene('afterName', 'flat', 'none'),
+  'header-mark-left-divider': () => headerMarksScene('leftActive', 'flat', 'full'),
+  'header-mark-left-divider-inset': () => headerMarksScene('leftActive', 'flat', 'inset'),
+  'header-mark-left-divider-soft': () => headerMarksScene('leftActive', 'flat', 'soft'),
   'smoke-1': commandScene(paletteNearFail),
   'smoke-2': commandScene(paletteClean),
   'smoke-3': commandScene(paletteClearFail),
   'smoke-4': commandScene(paletteNearPass),
-  'attention-corner': plainScene(() => cornerScene(koja)),
-  'attention-corner-normal': plainScene(() => cornerScene(kojaNormal)),
-  'attention-mix': stateScene(createMixState, (attention) => mixScene(false, koja, attention)),
-  'attention-mix-normal': stateScene(createMixState, (attention) =>
-    mixScene(false, kojaNormal, attention),
-  ),
-  'attention-mix-open': stateScene(createMixState, (attention) => mixScene(true, koja, attention)),
-  'attention-brief': plainScene(() => briefScene(koja)),
-  'attention-brief-normal': plainScene(() => briefScene(kojaNormal)),
-  'direction-koja': plainScene(() => directionWindow(koja)),
-  'direction-koja-normal': plainScene(() => directionWindow(kojaNormal)),
-  'header-mode-insert': plainScene(() => modeScene('insert')),
-  'header-mode-normal': plainScene(() => modeScene('normal')),
-  'header-mode-pending': plainScene(() => modeScene('pending')),
-  'header-mode-split': plainScene(() => modeScene('split')),
-  'header-mode-split-normal': plainScene(() => modeScene('split-normal')),
-  'header-mode-lone': plainScene(() => modeScene('lone')),
-  'sidebar-inbox': plainScene(() => directionWindow(koja, inboxSidebar)),
-  'sidebar-hover': plainScene(() => hoverScene(koja)),
-  'sidebar-find': plainScene(() => searchScene(koja)),
-  'sidebar-states': plainScene(() => machineTagScene(koja)),
-  'shell-attention': stateScene(createMixState, (attention) =>
-    shellAttentionScene(false, koja, attention),
-  ),
-  'shell-attention-normal': stateScene(createMixState, (attention) =>
+  'attention-corner': () => cornerScene(koja),
+  'attention-corner-normal': () => cornerScene(kojaNormal),
+  'attention-mix': attentionScene((attention) => mixScene(false, koja, attention)),
+  'attention-mix-normal': attentionScene((attention) => mixScene(false, kojaNormal, attention)),
+  'attention-mix-open': attentionScene((attention) => mixScene(true, koja, attention)),
+  'attention-brief': () => briefScene(koja),
+  'attention-brief-normal': () => briefScene(kojaNormal),
+  'direction-koja': () => directionWindow(koja),
+  'direction-koja-normal': () => directionWindow(kojaNormal),
+  'header-mode-insert': () => modeScene('insert'),
+  'header-mode-normal': () => modeScene('normal'),
+  'header-mode-pending': () => modeScene('pending'),
+  'header-mode-split': () => modeScene('split'),
+  'header-mode-split-normal': () => modeScene('split-normal'),
+  'header-mode-lone': () => modeScene('lone'),
+  'sidebar-inbox': () => directionWindow(koja, inboxSidebar),
+  'sidebar-hover': () => hoverScene(koja),
+  'sidebar-find': () => searchScene(koja),
+  'sidebar-states': () => machineTagScene(koja),
+  'shell-attention': attentionScene((attention) => shellAttentionScene(false, koja, attention)),
+  'shell-attention-normal': attentionScene((attention) =>
     shellAttentionScene(false, kojaNormal, attention),
   ),
-  'shell-attention-open': stateScene(createMixState, (attention) =>
-    shellAttentionScene(true, koja, attention),
-  ),
-  'shell-dialog': plainScene(shellDialogScene),
-  'shell-content': plainScene(shellContentScene),
-  'shell-pr-view': plainScene(shellPullRequestScene),
-  'shell-draft-review': plainScene(shellDraftReviewScene),
-  'shell-ticket': plainScene(shellTicketScene),
-  'dialog-close': plainScene(() => dialogScene('close', koja)),
-  'dialog-close-normal': plainScene(() => dialogScene('close', kojaNormal)),
-  'dialog-rename': plainScene(() => dialogScene('rename', koja)),
-  'dialog-rename-normal': plainScene(() => dialogScene('rename', kojaNormal)),
-  'dialog-wt-new': plainScene(() => dialogScene('wt-new', koja)),
-  'dialog-wt-open': plainScene(() => dialogScene('wt-open', koja)),
-  'dialog-wt-remove': plainScene(() => dialogScene('wt-remove', koja)),
-  'overlay-palette': plainScene(() => paletteScene(kojaNormal)),
-  'overlay-goto': plainScene(() => gotoScene(kojaNormal)),
-  'overlay-keys': plainScene(() => keysScene(kojaNormal)),
-  'overlay-menu': plainScene(() => menuScene(koja)),
-  'overlay-new': plainScene(() => newScene(koja)),
-  'overlay-menu-normal': plainScene(() => menuScene(kojaNormal)),
-  'overlay-new-normal': plainScene(() => newScene(kojaNormal)),
-  'panels-tabs-stack': plainScene(() => tabsScene('Stack', koja)),
-  'panels-tabs-changes': plainScene(() => tabsScene('Changes', koja)),
-  'panels-tabs-workers': plainScene(() => tabsScene('Workers', koja)),
-  'panels-tabs-files': plainScene(() => tabsScene('Files', koja)),
-  'panels-sections': plainScene(() => sectionsScene(koja)),
-  'panels-spine': plainScene(() => spineScene(false, koja)),
-  'panels-spine-files': plainScene(() => spineScene(true, koja)),
-  'panels-docks': plainScene(() => docksScene(koja)),
-  'spine-inline': plainScene(() => spineTakeScene('inline', koja)),
-  'spine-rail': plainScene(() => spineTakeScene('rail', koja)),
-  'spine-pinned': plainScene(() => spineTakeScene('pinned', koja)),
-  'rail-busy': plainScene(() => railScene(railStates.busy, koja)),
-  'rail-clean': plainScene(() => railScene(railStates.clean, koja)),
-  'rail-single': plainScene(() => railScene(railStates.single, koja)),
-  'rail-no-pr': plainScene(() => railScene(railStates.noPull, koja)),
-  'rail-main': plainScene(() => railScene(railStates.main, koja)),
-  'rail-error': plainScene(() => railScene(railStates.error, koja)),
-  'rail-normal': plainScene(() => railScene(railStates.base, kojaNormal)),
-  'split-two-base': plainScene(() => splitScene('two', railStates.base, koja)),
-  'split-two-busy': plainScene(() => splitScene('two', railStates.busy, koja)),
-  'split-two-main': plainScene(() => splitScene('two', railStates.main, koja)),
-  'split-three-base': plainScene(() => splitScene('three', railStates.base, koja)),
-  'split-three-busy': plainScene(() => splitScene('three', railStates.busy, koja)),
-  'split-three-main': plainScene(() => splitScene('three', railStates.main, koja)),
-  'space-base': plainScene(() => spaceScene(spaceStates.base, koja)),
-  'space-busy': plainScene(() => spaceScene(spaceStates.busy, koja)),
-  'space-clean': plainScene(() => spaceScene(spaceStates.clean, koja)),
-  'space-single': plainScene(() => spaceScene(spaceStates.single, koja)),
-  'space-no-pr': plainScene(() => spaceScene(spaceStates.noPull, koja)),
-  'space-main': plainScene(() => spaceScene(spaceStates.main, koja)),
-  'space-error': plainScene(() => spaceScene(spaceStates.error, koja)),
-  'space-normal': plainScene(() => spaceScene(spaceStates.base, kojaNormal)),
-  'draft-review-comment': plainScene(() => draftReviewScene('comment')),
-  'draft-review-range': plainScene(() => draftReviewScene('range')),
-  'draft-review-file-comment': plainScene(() => draftReviewScene('file-comment')),
-  'draft-review-edit-line': plainScene(() => draftReviewScene('edit-line')),
-  'draft-review-edit-file': plainScene(() => draftReviewScene('edit-file')),
-  'draft-review-saving-failed': plainScene(() => draftReviewScene('saving-failed')),
-  'draft-review-changed-on-disk': plainScene(() => draftReviewScene('changed-on-disk')),
-  'draft-review-sent': plainScene(() => draftReviewScene('sent')),
-  'draft-review-broken': plainScene(() => draftReviewScene('broken')),
-  'draft-review-plan': plainScene(() => draftReviewScene('plan')),
-  'draft-review-normal': plainScene(() => draftReviewScene('normal')),
-  'ticket-view-container': plainScene(() => ticketScene('container')),
-  'ticket-view-single': plainScene(() => ticketScene('single')),
-  'ticket-view-loading': plainScene(() => ticketScene('loading')),
-  'ticket-view-unreachable': plainScene(() => ticketScene('unreachable')),
-  'ticket-view-sync-failed': plainScene(() => ticketScene('sync-failed')),
-  'ticket-view-nothing-ready': plainScene(() => ticketScene('nothing-ready')),
-  'ticket-view-done': plainScene(() => ticketScene('done')),
-  'ticket-view-plain': plainScene(() => ticketScene('plain')),
-  'ticket-view-tikk': plainScene(() => ticketScene('tikk')),
-  'ticket-view-long': plainScene(() => ticketScene('long')),
-  'ticket-view-normal': plainScene(() => ticketScene('normal')),
-  'ticket-view-wide': plainScene(() => ticketScene('wide')),
-  'content-rail-review': plainScene(() => contentScene('review')),
-  'content-rail-pr': plainScene(() => contentScene('pr')),
-  'content-rail-ticket': plainScene(() => contentScene('ticket')),
-  'content-rail-review-saving-failed': plainScene(() => contentScene('review-saving-failed')),
-  'content-rail-review-sent': plainScene(() => contentScene('review-sent')),
-  'content-rail-review-narrow': plainScene(() => contentScene('review-narrow')),
-  'content-rail-pr-checks-failed': plainScene(() => contentScene('pr-checks-failed')),
-  'content-rail-pr-unreachable': plainScene(() => contentScene('pr-unreachable')),
-  'content-rail-ticket-loading': plainScene(() => contentScene('ticket-loading')),
-  'content-rail-ticket-long': plainScene(() => contentScene('ticket-long')),
-  'content-rail-pr-normal': plainScene(() => contentScene('pr-normal')),
-  'pr-tray-bar': plainScene(() => pullRequestScene('tray-bar')),
-  'pr-tray-header': plainScene(() => pullRequestScene('tray-header')),
-  'pr-tray-section': plainScene(() => pullRequestScene('tray-section')),
-  'pr-view-blocked': plainScene(() => pullRequestScene('blocked')),
-  'pr-view-sent': plainScene(() => pullRequestScene('sent')),
-  'pr-view-ready': plainScene(() => pullRequestScene('ready')),
-  'pr-view-ready-menu': plainScene(() => pullRequestScene('ready-menu')),
-  'pr-view-merge-confirm': plainScene(() => pullRequestScene('merge-confirm')),
-  'pr-view-merge-failed': plainScene(() => pullRequestScene('merge-failed')),
-  'pr-view-checks-failed': plainScene(() => pullRequestScene('checks-failed')),
-  'pr-view-unreachable': plainScene(() => pullRequestScene('unreachable')),
-  'pr-view-normal': plainScene(() => pullRequestScene('normal')),
-  'pr-view-zoomed': plainScene(() => pullRequestScene('zoomed')),
+  'shell-attention-open': attentionScene((attention) => shellAttentionScene(true, koja, attention)),
+  'shell-dialog': shellDialogScene,
+  'shell-content': shellContentScene,
+  'shell-pr-view': shellPullRequestScene,
+  'shell-draft-review': shellDraftReviewScene,
+  'shell-ticket': shellTicketScene,
+  'dialog-close': () => dialogScene('close', koja),
+  'dialog-close-normal': () => dialogScene('close', kojaNormal),
+  'dialog-rename': () => dialogScene('rename', koja),
+  'dialog-rename-normal': () => dialogScene('rename', kojaNormal),
+  'dialog-wt-new': () => dialogScene('wt-new', koja),
+  'dialog-wt-open': () => dialogScene('wt-open', koja),
+  'dialog-wt-remove': () => dialogScene('wt-remove', koja),
+  'overlay-palette': () => paletteScene(kojaNormal),
+  'overlay-goto': () => gotoScene(kojaNormal),
+  'overlay-keys': () => keysScene(kojaNormal),
+  'overlay-menu': () => menuScene(koja),
+  'overlay-new': () => newScene(koja),
+  'overlay-menu-normal': () => menuScene(kojaNormal),
+  'overlay-new-normal': () => newScene(kojaNormal),
+  'panels-tabs-stack': () => tabsScene('Stack', koja),
+  'panels-tabs-changes': () => tabsScene('Changes', koja),
+  'panels-tabs-workers': () => tabsScene('Workers', koja),
+  'panels-tabs-files': () => tabsScene('Files', koja),
+  'panels-sections': () => sectionsScene(koja),
+  'panels-spine': () => spineScene(false, koja),
+  'panels-spine-files': () => spineScene(true, koja),
+  'panels-docks': () => docksScene(koja),
+  'spine-inline': () => spineTakeScene('inline', koja),
+  'spine-rail': () => spineTakeScene('rail', koja),
+  'spine-pinned': () => spineTakeScene('pinned', koja),
+  'rail-busy': () => railScene(railStates.busy, koja),
+  'rail-clean': () => railScene(railStates.clean, koja),
+  'rail-single': () => railScene(railStates.single, koja),
+  'rail-no-pr': () => railScene(railStates.noPull, koja),
+  'rail-main': () => railScene(railStates.main, koja),
+  'rail-error': () => railScene(railStates.error, koja),
+  'rail-normal': () => railScene(railStates.base, kojaNormal),
+  'split-two-base': () => splitScene('two', railStates.base, koja),
+  'split-two-busy': () => splitScene('two', railStates.busy, koja),
+  'split-two-main': () => splitScene('two', railStates.main, koja),
+  'split-three-base': () => splitScene('three', railStates.base, koja),
+  'split-three-busy': () => splitScene('three', railStates.busy, koja),
+  'split-three-main': () => splitScene('three', railStates.main, koja),
+  'space-base': () => spaceScene(spaceStates.base, koja),
+  'space-busy': () => spaceScene(spaceStates.busy, koja),
+  'space-clean': () => spaceScene(spaceStates.clean, koja),
+  'space-single': () => spaceScene(spaceStates.single, koja),
+  'space-no-pr': () => spaceScene(spaceStates.noPull, koja),
+  'space-main': () => spaceScene(spaceStates.main, koja),
+  'space-error': () => spaceScene(spaceStates.error, koja),
+  'space-normal': () => spaceScene(spaceStates.base, kojaNormal),
+  'draft-review-comment': () => draftReviewScene('comment'),
+  'draft-review-range': () => draftReviewScene('range'),
+  'draft-review-file-comment': () => draftReviewScene('file-comment'),
+  'draft-review-edit-line': () => draftReviewScene('edit-line'),
+  'draft-review-edit-file': () => draftReviewScene('edit-file'),
+  'draft-review-saving-failed': () => draftReviewScene('saving-failed'),
+  'draft-review-changed-on-disk': () => draftReviewScene('changed-on-disk'),
+  'draft-review-sent': () => draftReviewScene('sent'),
+  'draft-review-broken': () => draftReviewScene('broken'),
+  'draft-review-plan': () => draftReviewScene('plan'),
+  'draft-review-normal': () => draftReviewScene('normal'),
+  'ticket-view-container': () => ticketScene('container'),
+  'ticket-view-single': () => ticketScene('single'),
+  'ticket-view-loading': () => ticketScene('loading'),
+  'ticket-view-unreachable': () => ticketScene('unreachable'),
+  'ticket-view-sync-failed': () => ticketScene('sync-failed'),
+  'ticket-view-nothing-ready': () => ticketScene('nothing-ready'),
+  'ticket-view-done': () => ticketScene('done'),
+  'ticket-view-plain': () => ticketScene('plain'),
+  'ticket-view-tikk': () => ticketScene('tikk'),
+  'ticket-view-long': () => ticketScene('long'),
+  'ticket-view-normal': () => ticketScene('normal'),
+  'ticket-view-wide': () => ticketScene('wide'),
+  'content-rail-review': () => contentScene('review'),
+  'content-rail-pr': () => contentScene('pr'),
+  'content-rail-ticket': () => contentScene('ticket'),
+  'content-rail-review-saving-failed': () => contentScene('review-saving-failed'),
+  'content-rail-review-sent': () => contentScene('review-sent'),
+  'content-rail-review-narrow': () => contentScene('review-narrow'),
+  'content-rail-pr-checks-failed': () => contentScene('pr-checks-failed'),
+  'content-rail-pr-unreachable': () => contentScene('pr-unreachable'),
+  'content-rail-ticket-loading': () => contentScene('ticket-loading'),
+  'content-rail-ticket-long': () => contentScene('ticket-long'),
+  'content-rail-pr-normal': () => contentScene('pr-normal'),
+  'pr-tray-bar': () => pullRequestScene('tray-bar'),
+  'pr-tray-header': () => pullRequestScene('tray-header'),
+  'pr-tray-section': () => pullRequestScene('tray-section'),
+  'pr-view-blocked': () => pullRequestScene('blocked'),
+  'pr-view-sent': () => pullRequestScene('sent'),
+  'pr-view-ready': () => pullRequestScene('ready'),
+  'pr-view-ready-menu': () => pullRequestScene('ready-menu'),
+  'pr-view-merge-confirm': () => pullRequestScene('merge-confirm'),
+  'pr-view-merge-failed': () => pullRequestScene('merge-failed'),
+  'pr-view-checks-failed': () => pullRequestScene('checks-failed'),
+  'pr-view-unreachable': () => pullRequestScene('unreachable'),
+  'pr-view-normal': () => pullRequestScene('normal'),
+  'pr-view-zoomed': () => pullRequestScene('zoomed'),
+};
+
+export const openRegisteredScene = (name: SceneName): OpenScene => {
+  const entry = sceneEntries[name];
+
+  return typeof entry === 'function' ? { draw: entry, field: null } : entry.open();
 };

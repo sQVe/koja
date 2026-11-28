@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 
 import type { DrawnElement } from '../../../tests/drawn.ts';
-import { descendants, drawn } from '../../../tests/drawn.ts';
+import { descendants, drawn, drawnTexts, elementWithIcon, spinning } from '../../../tests/drawn.ts';
 import {
   gpuiBaseFake,
   gpuiKitFake,
@@ -21,11 +21,14 @@ interface InputStub {
   value: () => string;
 }
 
+interface LoadedView {
+  init: (props: unknown, cx: unknown) => void;
+  render: () => DrawnElement;
+}
+
 const openedSpecs: unknown[] = [];
 let closeCount = 0;
 let sceneProps: Record<string, unknown> = {};
-const shownKinds: string[] = [];
-const shownTexts: string[] = [];
 const spyOnLog = () => spyOn(console, 'log').mockImplementation(() => undefined);
 
 const createdInputs: InputStub[] = [];
@@ -107,8 +110,10 @@ const realKitParts = await realKitIndexFake([
   'icon',
   'searchField',
   'size',
+  'stateLine',
   'statusMark',
   'tab',
+  'text',
   'textField',
   'textRole',
   'theme',
@@ -119,29 +124,17 @@ await mock.module('../../kit/index.ts', () => ({
   closeOverlay: () => {
     closeCount += 1;
   },
-  stateLine: (options: { kind: string; text: string }) => {
-    shownKinds.push(options.kind);
-    shownTexts.push(options.text);
-
-    return drawn();
-  },
   modName: 'koja-mocks',
   popupSurface: () => drawn(),
 }));
 
 await mock.module('./directions/attention/brief.ts', () => ({ briefScene: () => drawn() }));
 
-const loadView = async (): Promise<{
-  init: (props: unknown, cx: unknown) => void;
-  render: () => unknown;
-}> => {
+const loadView = async (): Promise<LoadedView> => {
   const modulePath = './main.ts';
 
   const loaded = (await import(modulePath)) as {
-    default: new () => {
-      init: (props: unknown, cx: unknown) => void;
-      render: () => unknown;
-    };
+    default: new () => LoadedView;
   };
 
   return new loaded.default();
@@ -165,14 +158,10 @@ const layoutContext = {
   },
 };
 
-const drawScene = (view: { render: () => unknown }): DrawnElement => {
-  const surface = view.render() as DrawnElement;
-
-  for (const handler of surface.sizeHandlers) {
+const layOut = (tree: DrawnElement): void => {
+  for (const handler of tree.sizeHandlers) {
     handler({ width: 100, height: 100 }, layoutContext);
   }
-
-  return surface;
 };
 
 const fieldsIn = (tree: DrawnElement): InputStub[] => {
@@ -230,8 +219,6 @@ beforeEach(() => {
   pendingTimers.length = 0;
   closeCount = 0;
   sceneProps = {};
-  shownKinds.length = 0;
-  shownTexts.length = 0;
   log = spyOnLog();
 });
 
@@ -306,21 +293,27 @@ describe('scene picker', () => {
 
     view.init(undefined, asyncContext);
     submitTyped('no-such-scene');
-    view.render();
+
+    const tree = view.render();
+    const texts = drawnTexts(tree);
 
     expect(openedSpecs).toEqual([]);
     expect(closeCount).toBe(0);
-    expect(shownKinds.at(-1)).toBe('error');
-    expect(shownTexts.at(-1)).toContain('no-such-scene');
+    expect(elementWithIcon(tree, 'circle-alert.svg')).not.toBeNull();
+    expect(texts.some((text) => text.includes('no-such-scene'))).toBe(true);
   });
 
   test('the picker hint is an empty state before any error', async () => {
     const view = await loadView();
 
     view.init(undefined, asyncContext);
-    view.render();
 
-    expect(shownKinds.at(-1)).toBe('empty');
+    const tree = view.render();
+    const texts = drawnTexts(tree);
+
+    expect(elementWithIcon(tree, 'circle-alert.svg')).toBeNull();
+    expect(spinning(tree)).toBe(false);
+    expect(texts.length).toBeGreaterThan(0);
   });
 });
 
@@ -336,7 +329,7 @@ describe('scene readiness', () => {
     expect(log).not.toHaveBeenCalled();
     expect(pendingTimers).toEqual([]);
 
-    drawScene(view);
+    layOut(view.render());
 
     expect(log).not.toHaveBeenCalled();
     expect(pendingTimers).toHaveLength(1);
@@ -353,11 +346,11 @@ describe('scene readiness', () => {
 
     view.init(undefined, asyncContext);
     view.render();
-    drawScene(view);
+    layOut(view.render());
     runTimers();
 
     view.render();
-    drawScene(view);
+    layOut(view.render());
     runTimers();
 
     expect(log.mock.calls).toHaveLength(1);
@@ -368,7 +361,7 @@ describe('scene readiness', () => {
 
     view.init(undefined, asyncContext);
     view.render();
-    drawScene(view);
+    layOut(view.render());
     runTimers();
 
     expect(log).not.toHaveBeenCalled();
@@ -380,7 +373,7 @@ describe('scene readiness', () => {
     view.init(undefined, asyncContext);
     sceneProps = { scene: 'attention-brief' };
     view.render();
-    drawScene(view);
+    layOut(view.render());
     runTimers();
 
     expect(log).not.toHaveBeenCalled();
@@ -393,10 +386,29 @@ describe('scene readiness', () => {
 
     view.init(undefined, asyncContext);
     view.render();
-    drawScene(view);
+    layOut(view.render());
     runTimers();
 
     expect(log).not.toHaveBeenCalled();
+  });
+
+  test('a scene prop that only gains spaces keeps the scene it already opened', async () => {
+    sceneProps = { scene: 'popup' };
+
+    const view = await loadView();
+
+    view.init(undefined, asyncContext);
+
+    const before = fieldsIn(view.render());
+    const createdBefore = createdInputs.length;
+
+    sceneProps = { scene: ' popup ' };
+
+    const after = fieldsIn(view.render());
+
+    expect(after).toHaveLength(1);
+    expect(after[0]).toBe(before[0]);
+    expect(createdInputs).toHaveLength(createdBefore);
   });
 });
 
@@ -419,7 +431,7 @@ describe('keyboard focus', () => {
 
       view.init(undefined, asyncContext);
 
-      const fields = fieldsIn(view.render() as DrawnElement);
+      const fields = fieldsIn(view.render());
 
       expect(fields).toHaveLength(fieldCount);
       expect(focusedInputs.at(-1)).toBe(fields[focusIndex]);
@@ -434,7 +446,7 @@ describe('keyboard focus', () => {
 
     view.init(undefined, { ...asyncContext, timer: layoutContext.timer });
 
-    const tree = view.render() as DrawnElement;
+    const tree = view.render();
 
     focusedInputs.length = 0;
     runTimers();
@@ -450,7 +462,9 @@ describe('keyboard focus', () => {
     view.init(undefined, { ...asyncContext, timer: layoutContext.timer });
     focusedInputs.length = 0;
 
-    const tree = drawScene(view);
+    const tree = view.render();
+
+    layOut(tree);
 
     expectDrawnFieldHoldsKeyboard(tree);
     expect(log).not.toHaveBeenCalled();
@@ -467,7 +481,9 @@ describe('keyboard focus', () => {
 
     view.init(undefined, { ...asyncContext, timer: layoutContext.timer });
 
-    const tree = drawScene(view);
+    const tree = view.render();
+
+    layOut(tree);
 
     runTimers();
 
@@ -475,7 +491,7 @@ describe('keyboard focus', () => {
 
     focusedInputs.length = 0;
 
-    drawScene(view);
+    layOut(view.render());
     runTimers();
 
     expect(focusedInputs).toEqual([]);
@@ -503,7 +519,7 @@ describe('keyboard focus', () => {
 
     view.init(undefined, asyncContext);
 
-    const fields = fieldsIn(view.render() as DrawnElement);
+    const fields = fieldsIn(view.render());
 
     expect(fields).toHaveLength(1);
     expect(fields.at(0)).toBe(focusedInputs.at(-1));
@@ -513,23 +529,33 @@ describe('keyboard focus', () => {
 
 describe('scene errors', () => {
   test('an unknown scene prop asks for the error state', async () => {
-    sceneProps = { scene: 'no-such-scene' };
+    sceneProps = { scene: ' no-such-scene ' };
 
     const view = await loadView();
 
     view.init(undefined, asyncContext);
-    view.render();
 
-    expect(shownKinds.at(-1)).toBe('error');
+    const tree = view.render();
+    const title = ' no-such-scene ';
+    const texts = drawnTexts(tree);
+
+    expect(elementWithIcon(tree, 'circle-alert.svg')).not.toBeNull();
+    expect(texts).toContain(title);
+    expect(texts.some((text) => text !== title && text.includes('no-such-scene'))).toBe(true);
   });
 
   test('a scene without its inputs asks for the error state', async () => {
     const view = await loadView();
 
     view.init(undefined, asyncContext);
-    sceneProps = { scene: 'sidebar' };
-    view.render();
+    sceneProps = { scene: ' sidebar ' };
 
-    expect(shownKinds.at(-1)).toBe('error');
+    const tree = view.render();
+    const title = ' sidebar ';
+    const texts = drawnTexts(tree);
+
+    expect(elementWithIcon(tree, 'circle-alert.svg')).not.toBeNull();
+    expect(texts).toContain(title);
+    expect(texts.some((text) => text !== title && text.includes('sidebar'))).toBe(false);
   });
 });
